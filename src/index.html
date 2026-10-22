@@ -899,7 +899,7 @@ body.calm *,body.calm *::before,body.calm *::after{animation-duration:.001s!impo
     <div class="chart" id="hspark" style="margin-top:10px"></div>
    </div>
    <div class="card span4"><h3>Machines <span class="go" data-go="infra">Infra →</span></h3>
-    <div class="machines" id="home-machines" style="grid-template-columns:1fr 1fr">
+    <div class="machines" id="home-machines" style="grid-template-columns:1fr 1fr;visibility:hidden">
      <div class="mach"><div class="row"><span class="n sp">atlas</span><span class="st good">ok</span></div><div class="r">desktop · cpu <span id="hc-atlas">23</span>%</div></div>
      <div class="mach"><div class="row"><span class="n sp">forge</span><span class="st warn" id="hs-forge">backup</span></div><div class="r">server · cpu <span id="hc-forge">41</span>%</div></div>
      <div class="mach"><div class="row"><span class="n sp">vault</span><span class="st good">ok</span></div><div class="r">nas · disk 71%</div></div>
@@ -1051,7 +1051,7 @@ body.calm *,body.calm *::before,body.calm *::after{animation-duration:.001s!impo
 <section class="pane" data-id="lab" data-desc="Local models, VRAM, queue and routing policy" data-name="Lab" data-tint="190,125,255">
  <div class="pane-inner">
   <div class="ph">
-   <div><div class="eyebrow" id="lab-source">Local AI · forge gpu0</div><h1>Lab</h1></div>
+   <div><div class="eyebrow" id="lab-source">Local AI · sample metrics</div><h1>Lab</h1></div>
    <div class="ph-stats"><div class="stat"><div class="v" id="tps">41 tok/s</div><div class="k">current decode</div></div><div class="stat"><div class="v">19.2 / 24 GB</div><div class="k">VRAM</div></div><div class="stat"><div class="v" id="gput">67 °C</div><div class="k">GPU · 248 W</div></div><div class="stat"><div class="v" id="bench">2 h 18 m</div><div class="k">until benchmark</div></div></div>
   </div>
   <div class="grid" style="grid-template-columns:1.6fr 1fr;grid-template-rows:1.2fr 1fr">
@@ -3089,6 +3089,7 @@ async function start() {
     $('#hardware-state').hidden = true;
     renderDemoMachines();
   }
+  $('#home-machines').style.visibility = 'visible';
   applyAppearance(); applyProfile(); termIntro();
   const first = boot();
   const intro = !placed(location.hash.slice(1)) && !reduce;
