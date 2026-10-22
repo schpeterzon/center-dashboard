@@ -1,0 +1,16 @@
+{
+  "name": "center-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "JARVIS home & infrastructure dashboard — a board of panes with a live AI companion.",
+  "type": "module",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "check": "node tools/build.mjs && node tools/check.mjs",
+    "preview": "node tools/build.mjs && node tools/serve.mjs",
+    "sync-orb": "node tools/build.mjs --sync ../jarvis-hermes"
+  }
+}
