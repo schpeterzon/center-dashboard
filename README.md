@@ -38,7 +38,7 @@ It runs two ways:
 | Who sees it | everyone (nothing personal in it) | only you; visitors get a blank login page |
 
 > [!NOTE]
-> Most pages still show **sample data**: they are designed and interactive, but not yet fed by live sources. What is live on the server today: sign-in, settings, themes, the board layout, **AI answers in the terminal**, and the **Status** page, which checks every connection you add.
+> Most pages still show **sample data**: they are designed and interactive, but not yet fed by live sources. Live server features include sign-in, settings, themes, board layout, AI answers in the terminal, connection health, and machine readings when Prometheus is configured. The Lab page and service/event panels still contain sample data.
 
 ## Features
 
@@ -92,6 +92,8 @@ Every connection has a **Test** button that lists the available models. Answers 
 ### Connections
 
 **Settings → Connections** stores what JARVIS reads from: jarvis-hermes, Home Assistant, weather (no key), Prometheus, Proxmox VE, Uptime Kuma, AdGuard Home, Tailscale, Cloudflare, GitHub, any ICS calendar, RSS feeds, Finnhub, Jellyfin, ntfy, or any HTTP endpoint. Each one is tested from the server and watched on the **Status** page. Secrets are encrypted on the server and never sent back to the browser.
+
+The **Infra** page and Home machine tiles can show live CPU, RAM, root filesystem use and uptime from Prometheus. Add a Prometheus connection in **Settings → Connections**; its server URL and optional bearer token stay on the dashboard server. Prometheus must scrape node_exporter for machine readings. NVIDIA GPU utilization and memory utilization appear when DCGM exporter metrics are available. Data refreshes every 30 seconds, and the dashboard clearly marks the panel when no live source is configured or reachable.
 
 <p align="center"><img src="docs/screenshots/settings-themes.png" alt="Settings, Appearance: twelve theme cards each previewed in its own colours, import and export buttons" width="100%"></p>
 

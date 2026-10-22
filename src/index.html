@@ -257,6 +257,10 @@ body.overview .edge,body.moving .edge{opacity:0;pointer-events:none}
 .mini-agent .row{font-size:13.5px}
 .mini-agent .bar{margin-top:6px}
 .machines{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.hardware-state{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-4px 0 10px;padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:var(--card-2);font-size:12px;color:var(--text-2)}
+.hardware-state[hidden]{display:none}
+.hardware-state .btn{flex:none;padding:5px 9px;font-size:11px}
+.mcard .empty{font-size:12px;color:var(--text-2);line-height:1.5}
 .mach{border:1px solid var(--line);border-radius:12px;padding:9px 12px;display:flex;flex-direction:column;gap:2px;background:var(--card-2)}
 .mach .n{font-weight:600}
 .mach .r{font:500 11px var(--mono);color:var(--muted)}
@@ -895,7 +899,7 @@ body.calm *,body.calm *::before,body.calm *::after{animation-duration:.001s!impo
     <div class="chart" id="hspark" style="margin-top:10px"></div>
    </div>
    <div class="card span4"><h3>Machines <span class="go" data-go="infra">Infra →</span></h3>
-    <div class="machines" style="grid-template-columns:1fr 1fr">
+    <div class="machines" id="home-machines" style="grid-template-columns:1fr 1fr">
      <div class="mach"><div class="row"><span class="n sp">atlas</span><span class="st good">ok</span></div><div class="r">desktop · cpu <span id="hc-atlas">23</span>%</div></div>
      <div class="mach"><div class="row"><span class="n sp">forge</span><span class="st warn" id="hs-forge">backup</span></div><div class="r">server · cpu <span id="hc-forge">41</span>%</div></div>
      <div class="mach"><div class="row"><span class="n sp">vault</span><span class="st good">ok</span></div><div class="r">nas · disk 71%</div></div>
@@ -1013,8 +1017,9 @@ body.calm *,body.calm *::before,body.calm *::after{animation-duration:.001s!impo
  <div class="pane-inner">
   <div class="ph">
    <div><div class="eyebrow" id="ieyebrow">Machines &amp; services · NixOS gen 412</div><h1>Infrastructure</h1></div>
-   <div class="row"><span class="st warn" id="iwarn">2 warnings</span><button class="btn">Deploy all</button><button class="btn pri" data-act="ssh" id="sshbtn">Apply SSH fix (2 hosts)</button></div>
+   <div class="row"><span class="st warn" id="iwarn">2 warnings</span><button class="btn" id="deploybtn">Deploy all</button><button class="btn pri" data-act="ssh" id="sshbtn">Apply SSH fix (2 hosts)</button></div>
   </div>
+  <div class="hardware-state" id="hardware-state" role="status" aria-live="polite" hidden><span id="hardware-copy"></span><button class="btn" id="hardware-refresh" type="button">Refresh</button></div>
   <div class="machines" id="machines"></div>
   <div class="grid" style="grid-template-columns:1.5fr 1fr">
    <div class="card"><h3>Services</h3>
@@ -1046,7 +1051,7 @@ body.calm *,body.calm *::before,body.calm *::after{animation-duration:.001s!impo
 <section class="pane" data-id="lab" data-desc="Local models, VRAM, queue and routing policy" data-name="Lab" data-tint="190,125,255">
  <div class="pane-inner">
   <div class="ph">
-   <div><div class="eyebrow">Local AI · forge gpu0</div><h1>Lab</h1></div>
+   <div><div class="eyebrow" id="lab-source">Local AI · forge gpu0</div><h1>Lab</h1></div>
    <div class="ph-stats"><div class="stat"><div class="v" id="tps">41 tok/s</div><div class="k">current decode</div></div><div class="stat"><div class="v">19.2 / 24 GB</div><div class="k">VRAM</div></div><div class="stat"><div class="v" id="gput">67 °C</div><div class="k">GPU · 248 W</div></div><div class="stat"><div class="v" id="bench">2 h 18 m</div><div class="k">until benchmark</div></div></div>
   </div>
   <div class="grid" style="grid-template-columns:1.6fr 1fr;grid-template-rows:1.2fr 1fr">
@@ -2428,13 +2433,75 @@ const mach = {
 };
 for (const m of Object.values(mach)) m.hist = Array.from({ length: 40 }, () => m.m.cpu ? clamp(m.m.cpu + (rng() - .5) * 18, 2, 95) : 0);
 const spark = h => { const w = 200, ht = 30, pts = h.map((v, i) => `${(i / (h.length - 1) * w).toFixed(1)},${(ht - 2 - v / 100 * (ht - 4)).toFixed(1)}`).join(' L'); return `<svg viewBox="0 0 ${w} ${ht}" preserveAspectRatio="none"><path d="M${pts} L${w},${ht} L0,${ht}Z" fill="color-mix(in srgb,var(--accent) 8%,transparent)"/><path d="M${pts}" fill="none" stroke="var(--accent)" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>`; };
-$('#machines').innerHTML = Object.entries(mach).map(([n, m]) => `<div class="mcard"><div class="row"><span class="n sp">${n}</span><span class="st ${m.st[0]}" data-st="${n}">${m.st[1]}</span></div><div class="muted" style="font-size:12px;margin-top:-6px">${m.d} · up ${m.up}</div><div data-spark="${n}">${spark(m.hist)}</div>${Object.entries(m.m).map(([k, v]) => `<div class="meter" data-m="${n}-${k}"><span>${k}</span><div class="bar"><b class="${v > 80 ? 'w' : ''}" style="width:${v}%"></b></div><span>${m.st[0] === 'idle' && k !== 'disk' ? '—' : v + '%'}</span></div>`).join('')}</div>`).join('');
+function renderDemoMachines() {
+  $('#machines').innerHTML = Object.entries(mach).map(([n, m]) => `<div class="mcard"><div class="row"><span class="n sp">${n}</span><span class="st ${m.st[0]}" data-st="${n}">${m.st[1]}</span></div><div class="muted" style="font-size:12px;margin-top:-6px">${m.d} · up ${m.up}</div><div data-spark="${n}">${spark(m.hist)}</div>${Object.entries(m.m).map(([k, v]) => `<div class="meter" data-m="${n}-${k}"><span>${k}</span><div class="bar"><b class="${v > 80 ? 'w' : ''}" style="width:${v}%"></b></div><span>${m.st[0] === 'idle' && k !== 'disk' ? '—' : v + '%'}</span></div>`).join('')}</div>`).join('');
+}
 function setMeter(n, k, v) {
   mach[n].m[k] = v; const el = $(`[data-m="${n}-${k}"]`); if (!el) return;
   const b = $('b', el); b.style.width = v + '%'; b.classList.toggle('w', v > 80); el.lastElementChild.textContent = v + '%';
   if (k === 'cpu') { mach[n].hist.push(v); mach[n].hist.shift(); $(`[data-spark="${n}"]`).innerHTML = spark(mach[n].hist); if ($('#hc-' + n)) $('#hc-' + n).textContent = v; }
 }
 function setStatus(n, cls, label) { const el = $(`[data-st="${n}"]`); el.className = 'st ' + cls; el.textContent = label; }
+const hardwareHistory = new Map();
+let hardwareLoading = false;
+function hardwareMeter(label, value) {
+  const valid = Number.isFinite(value), pct = valid ? clamp(value, 0, 100) : 0;
+  return `<div class="meter"><span>${label}</span><div class="bar"><b class="${pct > 80 ? 'w' : ''}" style="width:${pct}%"></b></div><span>${valid ? `${Math.round(pct)}%` : '—'}</span></div>`;
+}
+function renderHomeHardware(rows, data) {
+  const home = $('#home-machines');
+  if (!rows.length) {
+    home.innerHTML = `<div class="mach"><div class="row"><span class="n sp">Hardware</span><span class="st ${data.configured ? 'warn' : 'idle'}">${data.configured ? 'unavailable' : 'not connected'}</span></div><div class="r">Live machine telemetry unavailable</div></div>`;
+    return;
+  }
+  home.innerHTML = rows.slice(0, 4).map((machine) => {
+    const values = [machine.cpu, machine.ram, machine.disk].filter(Number.isFinite);
+    const cls = !values.length ? 'idle' : Math.max(...values) >= 90 ? 'warn' : 'good';
+    const label = !values.length ? 'partial' : cls === 'warn' ? 'high use' : 'online';
+    return `<div class="mach"><div class="row"><span class="n sp">${esc(machine.name || machine.instance || 'machine')}</span><span class="st ${cls}">${label}</span></div><div class="r">CPU ${Number.isFinite(machine.cpu) ? `${Math.round(machine.cpu)}%` : '—'} · RAM ${Number.isFinite(machine.ram) ? `${Math.round(machine.ram)}%` : '—'}</div></div>`;
+  }).join('');
+}
+function renderHardware(data) {
+  const state = $('#hardware-state'), copy = $('#hardware-copy'), refresh = $('#hardware-refresh');
+  state.hidden = false;
+  refresh.disabled = hardwareLoading;
+  $('#ieyebrow').textContent = data.configured ? 'Machine health · Prometheus' : 'Machine health · live source not configured';
+  const badge = $('#iwarn');
+  badge.className = `st ${data.ok ? 'good' : data.configured ? 'warn' : 'idle'}`;
+  badge.textContent = data.ok ? `${data.machines.length} nodes` : data.configured ? 'telemetry issue' : 'no live source';
+  if (!data.configured) copy.textContent = 'Live hardware telemetry is off. Add a Prometheus connection in Settings to see machine status here.';
+  else if (data.ok) copy.textContent = `Live · ${data.connection || 'Prometheus'} · updated ${new Date(data.checked).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  else copy.textContent = `${data.connection || 'Prometheus'} · ${data.error || 'hardware metrics unavailable'}`;
+  const rows = Array.isArray(data.machines) ? data.machines : [];
+  renderHomeHardware(rows, data);
+  if (!rows.length) {
+    const text = !data.configured ? 'Connect Prometheus to replace these placeholders with live CPU, memory, disk and uptime readings.' : data.error || 'No machine telemetry is available yet.';
+    $('#machines').innerHTML = `<div class="mcard"><div class="row"><span class="n">Hardware status</span><span class="st ${data.configured ? 'warn' : 'idle'}">${data.configured ? 'unavailable' : 'not connected'}</span></div><p class="empty">${esc(text)}</p></div>`;
+    return;
+  }
+  $('#machines').innerHTML = rows.map((machine) => {
+    const cpu = Number.isFinite(machine.cpu) ? machine.cpu : null;
+    const ram = Number.isFinite(machine.ram) ? machine.ram : null;
+    const disk = Number.isFinite(machine.disk) ? machine.disk : null;
+    const vals = [cpu, ram, disk].filter(Number.isFinite);
+    const cls = !vals.length ? 'idle' : Math.max(...vals) >= 90 ? 'warn' : 'good';
+    const label = !vals.length ? 'partial' : cls === 'warn' ? 'high usage' : 'online';
+    const history = hardwareHistory.get(machine.instance) || Array(40).fill(cpu ?? 0);
+    if (cpu != null) { history.push(cpu); if (history.length > 40) history.shift(); hardwareHistory.set(machine.instance, history); }
+    const title = machine.name && machine.name !== machine.instance ? `${machine.name} · ${machine.instance}` : machine.name || machine.instance || 'machine';
+    return `<div class="mcard"><div class="row"><span class="n sp">${esc(title)}</span><span class="st ${cls}">${label}</span></div><div class="muted" style="font-size:12px;margin-top:-6px">${machine.uptime ? `up ${esc(machine.uptime)}` : esc(machine.instance || 'Prometheus node')}</div>${cpu != null ? spark(history) : ''}${hardwareMeter('cpu', cpu)}${hardwareMeter('ram', ram)}${hardwareMeter('disk', disk)}${hardwareMeter('GPU', Number.isFinite(machine.gpu) ? machine.gpu : null)}${hardwareMeter('VRAM', Number.isFinite(machine.gpuMemory) ? machine.gpuMemory : null)}</div>`;
+  }).join('');
+}
+async function refreshHardware() {
+  if (!API.server || hardwareLoading) return;
+  hardwareLoading = true;
+  const refresh = $('#hardware-refresh');
+  if (refresh) refresh.disabled = true;
+  try { renderHardware(await api('hardware')); }
+  catch (error) { renderHardware({ configured: true, ok: false, error: error.message, machines: [] }); }
+  finally { hardwareLoading = false; if (refresh) refresh.disabled = false; }
+}
+$('#hardware-refresh').addEventListener('click', refreshHardware);
 const svc = [
   ['harness', 'forge', 'good', 'running', '6 d 2 h'], ['hermes-agent', 'forge', 'good', 'running', '6 d 2 h'], ['jarvis', 'forge', 'good', 'running', '2 d 5 h'],
   ['llama-server', 'forge', 'good', 'running', '1 d 11 h'], ['restic-backup', 'forge', 'crit', 'failed 03:12', '—'], ['nextcloud', 'vault', 'good', 'running', '42 d'],
@@ -2967,14 +3034,16 @@ function lifeTick() {
   const d = (rng() - .45) * 26; pval += d;
   for (const id of ['#pv', '#hpv']) { $(id).textContent = eur(pval); flash($(id), d >= 0); }
   $('#pday').textContent = (pval - 47820 >= 0 ? '+€' : '−€') + Math.abs(Math.round(pval - 47820));
-  $('#tps').textContent = Math.round(36 + rng() * 10) + ' tok/s';
-  $('#gput').textContent = Math.round(65 + rng() * 5) + ' °C';
-  for (const n of ['atlas', 'forge', 'vault']) setMeter(n, 'cpu', clamp(Math.round(mach[n].m.cpu + (rng() - .5) * 8), 3, 92));
+  if (!API.server) {
+    $('#tps').textContent = Math.round(36 + rng() * 10) + ' tok/s';
+    $('#gput').textContent = Math.round(65 + rng() * 5) + ' °C';
+    for (const n of ['atlas', 'forge', 'vault']) setMeter(n, 'cpu', clamp(Math.round(mach[n].m.cpu + (rng() - .5) * 8), 3, 92));
+  }
   if (r3 < 96 && rng() < .6) { r3 += 1; for (const id of ['#r3bar', '#m3bar', '#pr3']) $(id).style.width = r3 + '%'; }
   if (tickN % 3 === 0) log('#alog', pick(ALOG));
   if (tickN % 4 === 2) log('#ilog', pick(ILOG));
   if (tickN % 5 === 3) log('#blog', pick(BLOG));
-  if (tickN % 2 === 0) { tps.push(tps.shift()); if (current === 'lab') drawTps(); }
+  if (!API.server && tickN % 2 === 0) { tps.push(tps.shift()); if (current === 'lab') drawTps(); }
   $('#nw-down').textContent = Math.round(380 + rng() * 80); $('#nw-up').textContent = Math.round(30 + rng() * 14);
   $('#en-sol').textContent = (3 + rng() * .5).toFixed(1) + ' kW'; $('#en-use').textContent = (.9 + rng() * .4).toFixed(1) + ' kW';
   if (current === 'energy') drawFlow();
@@ -3010,6 +3079,16 @@ function boot() {
 }
 async function start() {
   await loadSettings();
+  if (API.server) {
+    $('#lab-source').textContent = 'Local AI · sample metrics';
+    $('#deploybtn').hidden = true; $('#sshbtn').hidden = true;
+    renderHardware({ configured: false, machines: [] });
+    refreshHardware();
+    setInterval(refreshHardware, 30000);
+  } else {
+    $('#hardware-state').hidden = true;
+    renderDemoMachines();
+  }
   applyAppearance(); applyProfile(); termIntro();
   const first = boot();
   const intro = !placed(location.hash.slice(1)) && !reduce;

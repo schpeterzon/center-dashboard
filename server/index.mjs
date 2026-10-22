@@ -12,6 +12,7 @@ import crypto from "node:crypto";
 import { state, persist, flush } from "./store.mjs";
 import * as auth from "./auth.mjs";
 import { saveConnection, removeConnection, publicConn, draft, test, answer, entryOf } from "./connect.mjs";
+import { hardwareMetrics, invalidateHardwareCache } from "./hardware.mjs";
 
 const dist = path.join(import.meta.dirname, "../dist");
 const PORT = Number(process.env.PORT || 8787), HOST = process.env.HOST || "127.0.0.1";
@@ -195,11 +196,13 @@ async function api(req, res, url, who) {
   }
 
   if (p === "connections" && m === "GET") return json(res, 200, { connections: state.connections.map(publicConn) });
-  if (p === "connections" && m === "POST") { statusCache.at = 0; return json(res, 200, { connection: publicConn(saveConnection(await readBody(req))) }); }
+  if (p === "connections" && m === "POST") { statusCache.at = 0; invalidateHardwareCache(); return json(res, 200, { connection: publicConn(saveConnection(await readBody(req))) }); }
   if (p === "connections/test" && m === "POST") return json(res, 200, await test(draft(await readBody(req))));
   const cm = /^connections\/([0-9a-f]{12})$/.exec(p);
-  if (cm && m === "PUT") { statusCache.at = 0; return json(res, 200, { connection: publicConn(saveConnection(await readBody(req), cm[1])) }); }
-  if (cm && m === "DELETE") { removeConnection(cm[1]); statusCache.at = 0; return json(res, 200, { ok: true }); }
+  if (cm && m === "PUT") { statusCache.at = 0; invalidateHardwareCache(); return json(res, 200, { connection: publicConn(saveConnection(await readBody(req), cm[1])) }); }
+  if (cm && m === "DELETE") { removeConnection(cm[1]); statusCache.at = 0; invalidateHardwareCache(); return json(res, 200, { ok: true }); }
+
+  if (p === "hardware" && m === "GET") return json(res, 200, await hardwareMetrics());
 
   if (p === "status" && m === "GET") {
     if (url.searchParams.has("fresh") || Date.now() - statusCache.at > 60e3) {
