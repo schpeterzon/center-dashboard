@@ -2,20 +2,20 @@
 
 # JARVIS · Center Dashboard
 
-**A home and infrastructure command center, laid out as one living board.**<br>
-Agents, schedule, projects, servers, local AI, markets, world news and reviews, with an AI companion that moves with you.
+**A personal home and infrastructure command center, laid out as one living board.**<br>
+Agents, schedule, projects, servers, smart home, energy, health, markets, news and more, with an AI companion that moves with you. Bring your own AI: a Claude subscription, any API key, or a model running at home.
 
 [![Build & deploy](https://github.com/schpeterzon/center-dashboard/actions/workflows/deploy.yml/badge.svg)](https://github.com/schpeterzon/center-dashboard/actions/workflows/deploy.yml)
 ![Node ≥ 20.11](https://img.shields.io/badge/node-%E2%89%A5%2020.11-3c873a)
 ![Zero dependencies](https://img.shields.io/badge/dependencies-0-8fe3ff)
-![Single file build](https://img.shields.io/badge/build-single%20HTML%20file-ffbf7a)
-![Status: demo](https://img.shields.io/badge/status-demo%20%C2%B7%20sample%20data-677080)
+![12 themes](https://img.shields.io/badge/themes-12%20%2B%20your%20own-bd93f9)
+![License: MIT](https://img.shields.io/badge/license-MIT-ffbf7a)
 
-[Features](#features) · [Quick start](#quick-start) · [Controls](#controls) · [How it works](#how-it-works) · [Deploy](#deploy)
+[Features](#features) · [Try the demo](#try-the-demo) · [Run it privately](#run-it-privately) · [Expose it with Cloudflare](#expose-it-with-cloudflare) · [AI](#bring-your-own-ai) · [Themes](#themes)
 
 <br>
 
-<img src="docs/screenshots/home.png" alt="The JARVIS Home pane: greeting, the JARVIS orb, items that need attention, today's timeline, agents, portfolio, machines and world news" width="100%">
+<img src="docs/screenshots/home.png" alt="The JARVIS Home page: greeting, the JARVIS orb, items that need attention, today's timeline, agents, portfolio, machines and world news" width="100%">
 
 </div>
 
@@ -23,105 +23,155 @@ Agents, schedule, projects, servers, local AI, markets, world news and reviews, 
 
 ## Overview
 
-Center Dashboard is the front end of a personal JARVIS setup. Instead of tabs that swap pages, the whole dashboard is **one large board** split into nine panes. Moving between them flies a camera across the board, so you always know where you are and what sits next door.
+Center Dashboard is a front end for a personal JARVIS. Instead of tabs that swap pages, the whole dashboard is **one large board**. Moving between pages flies a camera across it, so you always know where you are and what sits next door. You choose which pages are on the board and where.
 
-The **JARVIS orb**, the same WebGL particle orb as in [jarvis-hermes](https://github.com/schpeterzon/jarvis-hermes), lives on top of the board as a companion. It follows you from pane to pane, reacts to what is happening, speaks in short bubbles and asks before it acts.
+The **JARVIS orb**, the WebGL particle orb from [jarvis-hermes](https://github.com/schpeterzon/jarvis-hermes), lives on top of the board. It follows you, reacts to what happens, speaks in short bubbles, asks before it acts and takes its colours from your theme.
+
+It runs two ways:
+
+| | Static demo | Private server |
+| --- | --- | --- |
+| What | One HTML file with sample data | The same app behind a sign-in |
+| Start | open `dist/index.html`, or GitHub Pages | `npm start`, or Docker |
+| Settings | saved in your browser | saved on your server |
+| AI and connections | — | Claude subscription, API keys, local models, Home Assistant, Proxmox, calendars… |
+| Who sees it | everyone (nothing personal in it) | only you; visitors get a blank login page |
 
 > [!NOTE]
-> This is a **front-end demo with sample data**. Nothing is connected to a backend yet; every number, event and action is simulated so the interface can be designed and evaluated as if it were live.
-
-<br>
-
-<table>
-  <tr>
-    <td width="50%"><img src="docs/screenshots/overview.png" alt="Overview of the whole board with all nine panes"></td>
-    <td width="50%"><img src="docs/screenshots/agents.png" alt="Agents pane with the live Harness routing widget"></td>
-  </tr>
-  <tr>
-    <td align="center"><sub><b>The board.</b> Press <code>Esc</code> to zoom out to all nine panes.</sub></td>
-    <td align="center"><sub><b>Harness · live.</b> Which agent is using which model, right now.</sub></td>
-  </tr>
-</table>
+> Most pages still show **sample data**: they are designed and interactive, but not yet fed by live sources. What is live on the server today: sign-in, settings, themes, the board layout, **AI answers in the terminal**, and the **Status** page, which checks every connection you add.
 
 ## Features
 
-### A board instead of pages
+### A board you arrange
 
-- **Spatial navigation:** nine panes on a 3×3 grid, with Home in the centre. A spring-driven camera pulls back on longer jumps and settles softly.
-- **Overview:** zoom out to the whole board and click any tile to fly straight into it.
-- **Direct manipulation:** drag empty space or swipe on a trackpad; a quick flick carries you to the next pane, and edge labels let neighbours peek in.
-- **Arrival:** the destination lights up, its cards assemble one after another and its charts draw themselves.
+- **Sixteen pages** to choose from: Home, Agents, Schedule, Projects, Infra, Lab, Markets, World, Reviews, plus **Rooms** (smart home), **Energy**, **Health**, **Inbox**, **Network**, **Insights** (statistics) and **Status** (live connection health).
+- **Settings → Board**: pick 2×2, 3×2, 3×3 or 4×3, drag pages between slots, drop new ones in from the library, double-click to choose the start page. The board, tabs, minimap and coordinates rebuild live behind the panel.
+- **Spatial navigation**: a spring-driven camera pulls back on longer jumps; zoom out to the whole board with <kbd>Esc</kbd>; drag, swipe or flick between neighbours.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/settings-board.png" alt="Settings, Board: a 4×3 grid of pages that can be dragged around, and the page library"></td>
+    <td width="50%"><img src="docs/screenshots/overview.png" alt="Overview of the whole board"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Settings → Board.</b> Drag, drop, resize, pick a start page.</sub></td>
+    <td align="center"><sub><b>The board.</b> <kbd>Esc</kbd> zooms out to every page.</sub></td>
+  </tr>
+</table>
+
+### Themes, down to your own CSS
+
+- **12 built-in themes**: JARVIS, Dracula, Catppuccin Mocha and Latte, Nord, Tokyo Night, Gruvbox, Rosé Pine, One Dark, Solarized Light, GitHub Light and Ember. Light themes included.
+- **Import** a theme as CSS, a **VS Code colour theme** (.json) or a **jarvis-hermes theme** (.json). **Export** the current one as CSS.
+- **Custom CSS** that runs after every theme, plus accent colour, font and motion settings.
+- A theme is ~15 CSS variables; everything else is mixed from them, including the orb. See [docs/THEMES.md](docs/THEMES.md).
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/health-latte.png" alt="The Health page in the Catppuccin Latte light theme"></td>
+    <td width="50%"><img src="docs/screenshots/energy-dracula.png" alt="The Energy page in the Dracula theme with a purple orb"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Health</b> in Catppuccin Latte.</sub></td>
+    <td align="center"><sub><b>Energy</b> in Dracula. The orb follows the theme.</sub></td>
+  </tr>
+</table>
+
+### Bring your own AI
+
+Pick how JARVIS thinks in **Settings → AI**. Any one of these is enough:
+
+| | Options | How |
+| --- | --- | --- |
+| **Subscription** | Claude Pro/Max | through the official `claude` CLI, signed in once on the server |
+| **API key** | Anthropic · OpenAI · Google Gemini · OpenRouter · Mistral · Groq · xAI · DeepSeek | pay per token |
+| **Local** | Ollama · LM Studio · llama.cpp · vLLM · any OpenAI-compatible server | nothing leaves your network |
+
+Every connection has a **Test** button that lists the available models. Answers stream into the terminal (<kbd>`</kbd>) and the Home prompt, with the route shown on every reply. Claude CLI runs in bare mode with all tools denied; API and local model requests do not include tool definitions. Codex and Gemini subscriptions remain hidden until JARVIS can enforce a verified text-only policy for them.
+
+### Connections
+
+**Settings → Connections** stores what JARVIS reads from: jarvis-hermes, Home Assistant, weather (no key), Prometheus, Proxmox VE, Uptime Kuma, AdGuard Home, Tailscale, Cloudflare, GitHub, any ICS calendar, RSS feeds, Finnhub, Jellyfin, ntfy, or any HTTP endpoint. Each one is tested from the server and watched on the **Status** page. Secrets are encrypted on the server and never sent back to the browser.
+
+<p align="center"><img src="docs/screenshots/settings-themes.png" alt="Settings, Appearance: twelve theme cards each previewed in its own colours, import and export buttons" width="100%"></p>
+
+### Private by default
+
+- Visitors without a session get a **neutral login page** and nothing else: no name, no data, not even the app.
+- First run is claimed with a **setup code** printed by the server, so finding the URL first is not enough.
+- scrypt passwords, optional **two-factor codes**, rate limits, revocable sessions, a hash-based **Content Security Policy**, and optional **Cloudflare Access** verification on every request. Details in [SECURITY.md](SECURITY.md).
 
 ### JARVIS, the companion
 
-- **The real orb** from jarvis-hermes, rendered at its true on-screen size so the particle texture holds up everywhere.
-- **It moves with you:** large in the Home hero, docked in a corner on other panes, above the terminal while you talk to it.
-- **States you can read:** thinking, using tools, waiting for approval, success. Its colour and the dot in the top bar follow along.
-- **Speech:** contextual remarks per pane, scripted moments (*"Codex finished the scheduler — the PR just needs your nod"*), and buttons that actually do things.
-- **Playful but polite:** drag it to any corner; in its dock it dodges the cursor until you catch it. A **Chatty / Quiet** switch mutes unprompted speech.
-
-### Nine panes
-
-| Pane | What it shows |
-| --- | --- |
-| **Home** | Greeting, glance chips, what needs your approval, today's timeline, agents, portfolio, machines, headlines |
-| **Agents** | Live Harness routing widget, running agent tasks, monthly spend, activity feed |
-| **Schedule** | Week calendar mixing events, agent jobs, reviews and focus blocks; automations with on/off switches; todos |
-| **Projects** | Autonomous build pipeline (idea → shipped), live build log, autonomy rules for what JARVIS may do alone |
-| **Infra** | Machines with live CPU sparklines, services, events, backups, staged fixes |
-| **Lab** | Local model throughput, VRAM by model, Harness queue, routing policy, tonight's benchmark |
-| **Markets** | Portfolio chart with range filters, allocation against target, holdings, suggestions that need approval |
-| **World** | Briefing ranked by relevance to you, what's coming up, JARVIS' take |
-| **Reviews** | Weekly review write-up, progress toward this week's goals, review history |
-
-### Harness · live
-
-A real-time view of the local AI fabric. **Sources** (hermes, codex, cron, cli) hand work to the **Harness**, which routes it to a **model**: two local models on the GPU server, or the cloud when a task escalates. Packets travel the actual routes. Each model shows tokens/s, a throughput history, tokens today and its current job. The footer tracks tokens, work time, tasks done, local share and cloud cost.
-
-<p align="center"><img src="docs/screenshots/schedule.png" alt="Schedule pane with a week calendar, automations and todos" width="100%"></p>
+- **The real orb** from jarvis-hermes, rendered at its true size and coloured by the theme.
+- **It moves with you:** large in the Home hero, docked in a corner elsewhere, above the terminal while you talk.
+- **Speech** in bubbles, with buttons that do things. A **Chatty / Quiet** switch mutes unprompted remarks.
+- **Playful but polite:** drag it to any corner; in its dock it dodges the cursor until you catch it.
 
 ### Built for real screens
 
-Every pane is designed on a 900 px-tall canvas that scales to the viewport, while its width follows the screen shape:
+Every page is designed on a 900 px-tall canvas that scales to the viewport, while its width follows the screen shape: 16:10 laptops (≈1440), 16:9 (1600) and 21:9 ultrawides (≈2130, content capped at 2000). It respects `prefers-reduced-motion`, falls back gracefully without WebGL and calms its animations on slow machines.
 
-| Screen | Example | Design width |
-| --- | --- | --- |
-| 16:10 laptop | 1280×800, 1440×900, 1920×1200 | ≈ 1440 |
-| 16:9 | 1366×768, 1920×1080 | 1600 |
-| 21:9 ultrawide | 2560×1080, 3440×1440 | ≈ 2130, content capped at 2000 |
-
-It also respects `prefers-reduced-motion`, falls back gracefully without WebGL, and drops the heavier entrance animations automatically on slow machines.
-
-## Quick start
+## Try the demo
 
 Requires **Node.js 20.11+**. There is nothing to install.
 
 ```sh
 git clone https://github.com/schpeterzon/center-dashboard.git
 cd center-dashboard
-npm run preview        # build + serve on http://127.0.0.1:8080
+npm run preview        # static demo on http://127.0.0.1:8080
 ```
 
-The build output is a single self-contained `dist/index.html` (about 400 KB) with the orb, the font and all code inlined. It also works when opened straight from disk.
+The build is a single self-contained `dist/index.html` (about 510 KB, with the orb, font and themes inlined). It also works opened straight from disk. Settings in the demo are kept in your browser.
 
-| Command | Description |
-| --- | --- |
-| `npm run build` | Build `dist/index.html` from `src/` and `vendor/` |
-| `npm run check` | Build, then run the static checks |
-| `npm run preview` | Build and serve `dist/` locally |
-| `npm run sync-orb` | Refresh the vendored orb and font from `../jarvis-hermes`, then build |
+## Run it privately
+
+```sh
+npm start              # build + server on http://127.0.0.1:8787
+```
+
+<img src="docs/screenshots/login.png" alt="The neutral first-run page asking for the setup code and a new password" width="420" align="right">
+
+1. The first start prints a **setup code** (also in `data/setup-code`).
+2. Open the URL, enter the code and choose a password.
+3. Open **Settings** (<kbd>,</kbd> or the gear) → **AI** and connect a subscription, a key or a local model. To use Claude, install its CLI on the same machine and sign in once (`claude`).
+4. Press <kbd>`</kbd> and ask JARVIS something.
+
+Everything lives in `data/` (settings, encrypted secrets, sessions). Back it up as a whole. Forgot the password? `npm run reset-password`.
+
+<br clear="right">
+
+**With Docker:**
+
+```sh
+docker build -t jarvis-dashboard .
+docker run -d --name jarvis -p 127.0.0.1:8787:8787 -v jarvis-data:/data jarvis-dashboard
+docker logs jarvis     # shows the setup code
+```
+
+The image covers API keys and local models. Claude CLI is easiest with `npm start` on a machine where you are already signed in.
+
+## Expose it with Cloudflare
+
+Reach it from anywhere without opening a port:
+
+1. **Tunnel.** In Cloudflare Zero Trust → Networks → Tunnels, create a tunnel and point a public hostname (for example `jarvis.example.com`) at `http://localhost:8787`, or use the included `docker-compose.yml` with `TUNNEL_TOKEN` in `.env`.
+2. **Access** (recommended). Add an Access application for the hostname that only allows your email. Then set `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD`: the server verifies Cloudflare's signed token on every request and refuses anything without it.
+3. Set `JARVIS_TRUST_PROXY=cloudflare`. Keep the password as a second factor, or set `JARVIS_AUTH=access` to sign in through Access alone (Google, GitHub, one-time PIN…).
+
+All options are in [`.env.example`](.env.example); the threat model is in [SECURITY.md](SECURITY.md).
 
 ## Controls
 
 | Action | Input |
 | --- | --- |
-| Go to a pane | Tabs, keys <kbd>1</kbd>–<kbd>9</kbd>, or the board map in the top bar |
+| Go to a page | Tabs, keys <kbd>1</kbd>–<kbd>9</kbd>, or the board map in the top bar |
 | Move to a neighbour | Arrow keys, edge labels, trackpad swipe, mouse wheel |
 | Pan freely | Drag empty board space, or hold <kbd>Space</kbd> and drag |
 | Overview | <kbd>Esc</kbd>, or pinch in on a trackpad |
-| Terminal | <kbd>`</kbd> (try `help`, `status`, `plan my week`, `go lab`) |
+| Settings | <kbd>,</kbd> or the gear |
+| Terminal | <kbd>`</kbd> (`help`, `go energy`, `theme nord`, `settings`, or ask anything) |
 | Talk to JARVIS | Click the orb |
-| Charge the orb | Press and hold it |
 | Move the orb | Drag it to any corner |
 
 ## How it works
@@ -129,52 +179,43 @@ The build output is a single self-contained `dist/index.html` (about 400 KB) wit
 ```mermaid
 flowchart LR
   A[src/index.html<br/><sub>markup · styles · app</sub>] --> B(tools/build.mjs)
-  O[vendor/jarvis-orb<br/><sub>orb modules from jarvis-hermes</sub>] --> B
-  F[vendor/fonts<br/><sub>Space Grotesk</sub>] --> B
-  B --> D[dist/index.html<br/><sub>one self-contained file</sub>]
-  D --> C(tools/check.mjs)
-  C --> P[GitHub Pages · static host · Docker]
+  T[src/themes.css] --> B
+  C[src/catalog.mjs<br/><sub>providers · integrations</sub>] --> B
+  O[vendor/jarvis-orb] --> B
+  B --> D[dist/index.html + login.html]
+  D --> P[GitHub Pages<br/><sub>static demo</sub>]
+  D --> S(server/index.mjs<br/><sub>sign-in · settings · AI · checks</sub>)
+  C --> S
+  S --> X[(data/<br/><sub>encrypted</sub>)]
 ```
 
-- **No framework, no dependencies.** The app is plain HTML, CSS and JavaScript in `src/index.html`.
-- **The orb is vendored, not forked.** `vendor/jarvis-orb/` is a copy of the orb modules from jarvis-hermes (the commit is recorded in `SOURCE`). The build wraps them in a tiny module registry, so the result runs as a classic script, including from `file://`.
-- **Static checks guard the build.** `tools/check.mjs` verifies that every inline script parses, every element the script looks up exists, ids are unique, the navigation matches the panes, nothing loads from a remote origin and the file stays under its size budget.
+- **No framework, no dependencies**, front end or server. Plain HTML, CSS and JavaScript, and Node's standard library.
+- **One catalog** (`src/catalog.mjs`) describes every AI provider and integration: its fields, which are secret, and how to test it. The browser renders forms from it; the server validates, stores and probes with it. Adding an integration is one entry.
+- **The orb is vendored** from jarvis-hermes (commit in `vendor/jarvis-orb/SOURCE`) and bundled into a classic script, so it works from `file://`.
+- **Checks guard every build**: `npm test` builds, runs static checks on the page (every script parses, every looked-up element exists, no remote code, size budget, themes and catalog present, login page free of app content) and runs end-to-end server tests (sign-in, secrets at rest, request guards, AI streaming).
 
 ```text
 src/index.html          the app: markup, styles and script
-vendor/jarvis-orb/      orb modules vendored from jarvis-hermes
-vendor/fonts/           Space Grotesk and its licence (OFL)
-tools/build.mjs         inlines orb + font into dist/index.html
-tools/check.mjs         static checks for the built page
-tools/serve.mjs         local preview server
-docs/screenshots/       images used in this README
-.github/workflows/      build, check and deploy
-Dockerfile              nginx image for self-hosting
+src/themes.css          built-in themes
+src/catalog.mjs         AI providers and integrations
+src/login.html          the neutral sign-in page
+server/                 zero-dependency Node server
+tools/                  build, checks, tests, static preview
+vendor/                 the JARVIS orb and Space Grotesk
+docs/                   themes guide and screenshots
 ```
-
-## Deploy
-
-**GitHub Pages:** the workflow in `.github/workflows/deploy.yml` builds and checks every push and pull request. To publish, open **Settings → Pages** and set **Source** to **GitHub Actions**; every push to `main` then deploys automatically.
-
-**Static hosts** (Netlify, Vercel, Cloudflare Pages): use the build command `npm run check` and the output directory `dist`.
-
-**Self-hosted with Docker:**
-
-```sh
-docker build -t center-dashboard .
-docker run -d -p 8080:80 --name center-dashboard center-dashboard
-```
-
-**Anywhere else:** copy `dist/index.html` behind any web server; it has no other files.
 
 ## Roadmap
 
-- Connect the panes to the JARVIS API and event stream from jarvis-hermes instead of sample data
-- Feed the Harness widget from real Harness telemetry
-- Persist approvals, todos and automations
-- Authentication for anything beyond a private network
+- Feed the sample pages from their connections (Home Assistant → Rooms and Energy, calendars → Schedule, feeds → World, jarvis-hermes → Agents and Lab)
+- Let JARVIS act through tools, with approvals, instead of only answering
+- Per-task routing (for example: money and health questions only to local models)
+- More themes and integrations from the community
 
 ## Credits
 
 - **JARVIS orb** from [jarvis-hermes](https://github.com/schpeterzon/jarvis-hermes)
 - **Space Grotesk** by [The Space Grotesk Project Authors](https://github.com/floriankarsten/space-grotesk), licensed under the [SIL Open Font License](vendor/fonts/OFL.txt)
+- Theme palettes from [Dracula](https://draculatheme.com), [Catppuccin](https://catppuccin.com), [Nord](https://www.nordtheme.com), [Tokyo Night](https://github.com/folke/tokyonight.nvim), [Gruvbox](https://github.com/morhetz/gruvbox), [Rosé Pine](https://rosepinetheme.com), [One Dark](https://github.com/atom/one-dark-syntax), [Solarized](https://ethanschoonover.com/solarized/) and [GitHub Primer](https://primer.style)
+
+Released under the [MIT License](LICENSE).

@@ -1,0 +1,127 @@
+/* Built-in themes. Each one only sets the colour contract from :root (see docs/THEMES.md).
+   The first line of every block is read by the Settings panel: @name, @scheme. */
+
+[data-theme="jarvis"] {
+  /* @name JARVIS  @scheme dark */
+}
+
+[data-theme="dracula"] {
+  /* @name Dracula  @scheme dark */
+  color-scheme: dark;
+  --bg: #1e1f29; --card: #282a36; --card-2: #313342; --term: #191a21;
+  --text: #f8f8f2; --text-2: #c9cbe0; --muted: #7c86b8;
+  --ink: #f8f8f2; --shadow: #000000;
+  --accent: #bd93f9; --on-accent: #1e1f29; --warm: #ffb86c;
+  --good: #50fa7b; --warn: #f1fa8c; --crit: #ff5555;
+  --s1: #8be9fd; --s2: #ff79c6; --s3: #50fa7b; --s4: #ffb86c;
+}
+
+[data-theme="catppuccin-mocha"] {
+  /* @name Catppuccin Mocha  @scheme dark */
+  color-scheme: dark;
+  --bg: #11111b; --card: #1e1e2e; --card-2: #262637; --term: #181825;
+  --text: #cdd6f4; --text-2: #a6adc8; --muted: #7f849c;
+  --ink: #cdd6f4; --shadow: #000000;
+  --accent: #cba6f7; --on-accent: #11111b; --warm: #fab387;
+  --good: #a6e3a1; --warn: #f9e2af; --crit: #f38ba8;
+  --s1: #89b4fa; --s2: #fab387; --s3: #94e2d5; --s4: #f9e2af;
+}
+
+[data-theme="catppuccin-latte"] {
+  /* @name Catppuccin Latte  @scheme light */
+  color-scheme: light;
+  --bg: #dce0e8; --card: #eff1f5; --card-2: #e6e9ef; --term: #e6e9ef;
+  --text: #4c4f69; --text-2: #5c5f77; --muted: #8c8fa1;
+  --ink: #4c4f69; --shadow: #4c4f69;
+  --accent: #1e66f5; --on-accent: #eff1f5; --warm: #fe640b;
+  --good: #40a02b; --warn: #df8e1d; --crit: #d20f39;
+  --s1: #7287fd; --s2: #fe640b; --s3: #179299; --s4: #df8e1d;
+}
+
+[data-theme="nord"] {
+  /* @name Nord  @scheme dark */
+  color-scheme: dark;
+  --bg: #242933; --card: #2e3440; --card-2: #353c4a; --term: #20242c;
+  --text: #eceff4; --text-2: #d8dee9; --muted: #8590a8;
+  --ink: #eceff4; --shadow: #0b0d12;
+  --accent: #88c0d0; --on-accent: #242933; --warm: #d08770;
+  --good: #a3be8c; --warn: #ebcb8b; --crit: #bf616a;
+  --s1: #81a1c1; --s2: #d08770; --s3: #8fbcbb; --s4: #ebcb8b;
+}
+
+[data-theme="tokyo-night"] {
+  /* @name Tokyo Night  @scheme dark */
+  color-scheme: dark;
+  --bg: #13131a; --card: #1a1b26; --card-2: #222433; --term: #101016;
+  --text: #c0caf5; --text-2: #a9b1d6; --muted: #6b7394;
+  --ink: #c0caf5; --shadow: #000000;
+  --accent: #7aa2f7; --on-accent: #13131a; --warm: #ff9e64;
+  --good: #9ece6a; --warn: #e0af68; --crit: #f7768e;
+  --s1: #bb9af7; --s2: #ff9e64; --s3: #73daca; --s4: #e0af68;
+}
+
+[data-theme="gruvbox"] {
+  /* @name Gruvbox  @scheme dark */
+  color-scheme: dark;
+  --bg: #1d2021; --card: #282828; --card-2: #32302f; --term: #191b1c;
+  --text: #ebdbb2; --text-2: #d5c4a1; --muted: #928374;
+  --ink: #ebdbb2; --shadow: #000000;
+  --accent: #8ec07c; --on-accent: #1d2021; --warm: #fe8019;
+  --good: #b8bb26; --warn: #fabd2f; --crit: #fb4934;
+  --s1: #83a598; --s2: #fe8019; --s3: #8ec07c; --s4: #fabd2f;
+}
+
+[data-theme="rose-pine"] {
+  /* @name Rosé Pine  @scheme dark */
+  color-scheme: dark;
+  --bg: #191724; --card: #1f1d2e; --card-2: #26233a; --term: #16141f;
+  --text: #e0def4; --text-2: #b8b4d4; --muted: #6e6a86;
+  --ink: #e0def4; --shadow: #000000;
+  --accent: #c4a7e7; --on-accent: #191724; --warm: #f6c177;
+  --good: #9ccfd8; --warn: #f6c177; --crit: #eb6f92;
+  --s1: #3e8fb0; --s2: #ebbcba; --s3: #9ccfd8; --s4: #f6c177;
+}
+
+[data-theme="one-dark"] {
+  /* @name One Dark  @scheme dark */
+  color-scheme: dark;
+  --bg: #1b1d23; --card: #21252b; --card-2: #282c34; --term: #181a1f;
+  --text: #dcdfe4; --text-2: #abb2bf; --muted: #6b717d;
+  --ink: #dcdfe4; --shadow: #000000;
+  --accent: #61afef; --on-accent: #1b1d23; --warm: #d19a66;
+  --good: #98c379; --warn: #e5c07b; --crit: #e06c75;
+  --s1: #c678dd; --s2: #d19a66; --s3: #56b6c2; --s4: #e5c07b;
+}
+
+[data-theme="solarized-light"] {
+  /* @name Solarized Light  @scheme light */
+  color-scheme: light;
+  --bg: #eee8d5; --card: #fdf6e3; --card-2: #f5efdc; --term: #f5efdc;
+  --text: #073642; --text-2: #586e75; --muted: #8a9a9b;
+  --ink: #073642; --shadow: #586e75;
+  --accent: #268bd2; --on-accent: #fdf6e3; --warm: #cb4b16;
+  --good: #859900; --warn: #b58900; --crit: #dc322f;
+  --s1: #6c71c4; --s2: #cb4b16; --s3: #2aa198; --s4: #b58900;
+}
+
+[data-theme="github-light"] {
+  /* @name GitHub Light  @scheme light */
+  color-scheme: light;
+  --bg: #eef1f4; --card: #ffffff; --card-2: #f6f8fa; --term: #f6f8fa;
+  --text: #1f2328; --text-2: #59636e; --muted: #818b98;
+  --ink: #1f2328; --shadow: #57606a;
+  --accent: #0969da; --on-accent: #ffffff; --warm: #bc4c00;
+  --good: #1a7f37; --warn: #9a6700; --crit: #d1242f;
+  --s1: #8250df; --s2: #bc4c00; --s3: #1b7c83; --s4: #9a6700;
+}
+
+[data-theme="ember"] {
+  /* @name Ember  @scheme dark */
+  color-scheme: dark;
+  --bg: #0d0a08; --card: #16110e; --card-2: #1d1713; --term: #0b0806;
+  --text: #f3ece6; --text-2: #b9aca2; --muted: #7d7067;
+  --ink: #fff4ea; --shadow: #000000;
+  --accent: #f1ad79; --on-accent: #0d0a08; --warm: #f5c877;
+  --good: #a4d097; --warn: #f5c877; --crit: #f48590;
+  --s1: #e58f5a; --s2: #c4669a; --s3: #8fbf8f; --s4: #e7c26b;
+}

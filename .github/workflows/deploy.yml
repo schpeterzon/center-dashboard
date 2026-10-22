@@ -17,8 +17,8 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-      - name: Build and check
-        run: npm run check
+      - name: Build, check and test the server
+        run: npm test
       - uses: actions/upload-pages-artifact@v4
         with:
           path: dist

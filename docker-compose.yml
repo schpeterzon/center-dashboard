@@ -1,0 +1,26 @@
+# Private JARVIS behind a Cloudflare Tunnel: no open ports on your router.
+#   1. Create a tunnel in Cloudflare Zero Trust → Networks → Tunnels, copy its token into .env
+#      as TUNNEL_TOKEN, and point a public hostname at http://jarvis:8787
+#   2. docker compose up -d, then read the setup code: docker compose logs jarvis
+services:
+  jarvis:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      JARVIS_TRUST_PROXY: "cloudflare"
+    volumes:
+      - jarvis-data:/data
+    # Only reachable through the tunnel. Uncomment to also open it on this machine:
+    # ports: ["127.0.0.1:8787:8787"]
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    depends_on: [jarvis]
+
+volumes:
+  jarvis-data:

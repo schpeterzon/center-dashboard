@@ -10,8 +10,16 @@ const fail = (msg) => problems.push(msg);
 
 // The page must stay a single self-contained file of reasonable size.
 const kb = Buffer.byteLength(html) / 1024;
-if (kb > 600) fail(`dist/index.html is ${kb.toFixed(0)} KB (budget 600 KB)`);
-if (html.includes("/*@FONT@*/") || html.includes("<!--@ORB@-->")) fail("build placeholders left in output");
+if (kb > 700) fail(`dist/index.html is ${kb.toFixed(0)} KB (budget 700 KB)`);
+if (/\/\*@[A-Z]+@\*\/|<!--@[A-Z]+@-->/.test(html)) fail("build placeholders left in output");
+if (!html.includes("window.JarvisOrbAtmospheres")) fail("orb palette table is not exposed to the board");
+if (!/\[data-theme="dracula"\]/.test(html)) fail("built-in themes are missing");
+if (!html.includes("const AI_PROVIDERS")) fail("connection catalog is missing");
+
+// The login page must never carry personal content or the app itself.
+const login = fs.readFileSync(path.join(import.meta.dirname, "../dist/login.html"), "utf8");
+if (/@[A-Z]+@/.test(login)) fail("build placeholders left in login.html");
+if (/data-id=|JarvisOrbModule|profile|settings/.test(login)) fail("login.html contains dashboard content");
 if (!/data:font\/ttf;base64,[A-Za-z0-9+/]{1000}/.test(html)) fail("Space Grotesk is not inlined");
 if (!html.includes("window.JarvisOrbModule")) fail("JARVIS orb bundle is missing");
 if (/<(script|link)[^>]+(src|href)=["']https?:/i.test(html)) fail("page loads a remote script or stylesheet; it must stay self-contained");
@@ -44,11 +52,14 @@ const defined = (id) => (id.endsWith("-") ? [...known].some((k) => k.startsWith(
 for (const m of app.matchAll(/\$\$?\(\s*['"`]#([\w-]+)/g)) if (!defined(m[1])) fail(`script looks up #${m[1]}, which no markup defines`);
 for (const m of app.matchAll(/getElementById\(\s*['"`]([\w-]+)/g)) if (!known.has(m[1])) fail(`script looks up #${m[1]}, which no markup defines`);
 
-// Every pane named in the navigation order must exist.
-const order = app.match(/const order = \[([^\]]+)\]/)?.[1].match(/'([\w-]+)'/g)?.map((s) => s.slice(1, -1)) ?? [];
-const panes = new Set([...markup.matchAll(/class="pane[^"]*" data-id="([\w-]+)"/g)].map((m) => m[1]));
-if (order.length !== 9) fail(`navigation order lists ${order.length} panes, expected 9`);
-for (const id of order) if (!panes.has(id)) fail(`navigation order names pane "${id}", which does not exist`);
+// Every pane in the default layout must exist, and every pane needs a name and a description
+// for the Settings page library.
+const slots = app.match(/const DEFAULT_LAYOUT = \{[^}]*slots: \[([^\]]+)\]/)?.[1].match(/'([\w-]+)'/g)?.map((s) => s.slice(1, -1)) ?? [];
+const paneTags = [...markup.matchAll(/<section class="pane[^"]*"([^>]*)>/g)].map((m) => m[1]);
+const panes = new Set(paneTags.map((t) => t.match(/data-id="([\w-]+)"/)?.[1]));
+if (slots.length !== 9) fail(`default layout lists ${slots.length} panes, expected 9`);
+for (const id of slots) if (!panes.has(id)) fail(`default layout names pane "${id}", which does not exist`);
+for (const t of paneTags) if (!/data-name="[^"]+"/.test(t) || !/data-desc="[^"]+"/.test(t) || !/data-tint="\d+,\d+,\d+"/.test(t)) fail(`pane tag is missing data-name, data-desc or data-tint: ${t.trim()}`);
 
 if (problems.length) {
   console.error(`✗ ${problems.length} problem${problems.length > 1 ? "s" : ""} in dist/index.html:\n  - ${problems.join("\n  - ")}`);

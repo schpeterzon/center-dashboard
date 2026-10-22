@@ -15,16 +15,23 @@
 :root{
   color-scheme:dark;
   --z:1;
-  --bg:#07090c; --card:#0e1217; --card-2:#131820; --line:rgba(255,255,255,.07); --line-2:rgba(255,255,255,.13);
+  /* Theme contract: a theme only sets these colours (see docs/THEMES.md); everything else,
+     lines, glows, tints and the orb, is mixed from them. */
+  --bg:#07090c; --card:#0e1217; --card-2:#131820; --term:#06080a;
   --text:#eceef1; --text-2:#a6aebb; --muted:#677080;
-  --accent:#8fe3ff; --accent-soft:rgba(143,227,255,.11); --warm:#ffbf7a;
+  --ink:#ffffff; --shadow:#000000;
+  --accent:#8fe3ff; --on-accent:#06080b; --warm:#ffbf7a;
   --good:#4cc38a; --warn:#e6a83a; --crit:#ef6b5b;
   --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
-  --jc:#8fe3ff;
+  --line:color-mix(in srgb,var(--ink) 7%,transparent); --line-2:color-mix(in srgb,var(--ink) 13%,transparent);
+  --accent-soft:color-mix(in srgb,var(--accent) 11%,transparent);
+  --jc:var(--accent);
   --r:16px;
-  --sans:"Space Grotesk",ui-sans-serif,system-ui,sans-serif;
+  --font:"Space Grotesk";
+  --sans:var(--font),ui-sans-serif,system-ui,sans-serif;
   --mono:ui-monospace,"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
 }
+/*@THEMES@*/
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font:14px/1.45 var(--sans);-webkit-font-smoothing:antialiased;font-feature-settings:"ss01"}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
@@ -36,8 +43,8 @@ b{font-weight:600;color:var(--text)}
 
 /* ---------- space + board ---------- */
 #space,#space2{position:fixed;inset:-40%;pointer-events:none;will-change:transform}
-#space{background-image:radial-gradient(rgba(255,255,255,.07) 1px,transparent 1.2px);background-size:30px 30px}
-#space2{background-image:radial-gradient(rgba(143,227,255,.10) 1.2px,transparent 1.6px);background-size:140px 140px;opacity:.7}
+#space{background-image:radial-gradient(color-mix(in srgb,var(--ink) 7%,transparent) 1px,transparent 1.2px);background-size:30px 30px}
+#space2{background-image:radial-gradient(color-mix(in srgb,var(--accent) 10%,transparent) 1.2px,transparent 1.6px);background-size:140px 140px;opacity:.7}
 #board{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
 /* Each region carries its own light, so travelling across the board shifts the colour. */
 .pane{position:absolute;transition:opacity .7s ease;cursor:grab;will-change:opacity;
@@ -46,16 +53,16 @@ b{font-weight:600;color:var(--text)}
 body.overview .pane{opacity:1}
 body.grabbing,body.grabbing *{cursor:grabbing!important;user-select:none}
 .pane .card,.pane .mcard,.pane .pc,.pane .hero,.pane .ph>*{cursor:auto}
-.pane::before{content:"";position:absolute;inset:calc(22px*var(--z));border-radius:calc(44px*var(--z));border:1px solid var(--line-2);background:rgba(255,255,255,.012);opacity:0;transition:opacity .4s,border-color .3s,box-shadow .3s;pointer-events:none}
+.pane::before{content:"";position:absolute;inset:calc(22px*var(--z));border-radius:calc(44px*var(--z));border:1px solid var(--line-2);background:color-mix(in srgb,var(--ink) 1.2%,transparent);opacity:0;transition:opacity .4s,border-color .3s,box-shadow .3s;pointer-events:none}
 body.moving .pane::before,body.overview .pane::before{opacity:1}
 .pane-inner{zoom:var(--z);width:var(--dw);height:var(--dh);padding:90px var(--px) 60px;display:flex;flex-direction:column;gap:18px;min-height:0}
-.ov{position:absolute;inset:calc(22px*var(--z));border-radius:calc(44px*var(--z));display:grid;place-content:center;text-align:center;background:rgba(7,9,12,.72);opacity:0;pointer-events:none;transition:opacity .45s}
+.ov{position:absolute;inset:calc(22px*var(--z));border-radius:calc(44px*var(--z));display:grid;place-content:center;text-align:center;background:color-mix(in srgb,var(--bg) 72%,transparent);opacity:0;pointer-events:none;transition:opacity .45s}
 .ov span{font-size:calc(150px*var(--z));font-weight:600;letter-spacing:-.03em;line-height:1}
 .ov small{display:block;font:500 calc(44px*var(--z)) var(--mono);color:var(--accent);letter-spacing:.1em;margin-bottom:calc(10px*var(--z))}
 body.overview .ov{opacity:1}
 body.overview .pane{cursor:zoom-in}
 body.overview .pane:hover .ov{opacity:.08}
-body.overview .pane:hover::before{border-color:var(--accent);box-shadow:0 0 0 calc(6px*var(--z)) rgba(143,227,255,.08)}
+body.overview .pane:hover::before{border-color:var(--accent);box-shadow:0 0 0 calc(6px*var(--z)) color-mix(in srgb,var(--accent) 8%,transparent)}
 body.overview .pane-inner{pointer-events:none}
 
 /* arrival: the destination assembles while the camera lands */
@@ -72,20 +79,20 @@ body.lite .pane.arrive .rise,body.lite .pane.arrive .ln,body.lite .pane.arrive .
 #top{position:fixed;inset:0 0 auto;z-index:20;background:linear-gradient(var(--bg) 35%,transparent)}
 #top .zz{height:64px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 24px}
 .brand{display:flex;align-items:center;gap:12px;font-weight:600;letter-spacing:.26em;font-size:14px}
-.brand em{font-style:normal;font:500 10px var(--mono);letter-spacing:.1em;color:var(--warm);border:1px solid rgba(255,191,122,.3);padding:3px 7px;border-radius:99px}
+.brand em{white-space:nowrap;font-style:normal;font:500 10px var(--mono);letter-spacing:.1em;color:var(--warm);border:1px solid color-mix(in srgb,var(--warm) 30%,transparent);padding:3px 7px;border-radius:99px}
 .bdot{width:9px;height:9px;border-radius:50%;background:var(--jc);box-shadow:0 0 12px var(--jc);transition:background .6s,box-shadow .6s;animation:breathe 3.4s ease-in-out infinite}
 @keyframes breathe{50%{opacity:.45}}
-.tabs{position:relative;display:flex;gap:2px;padding:4px;background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:99px}
+.tabs{position:relative;display:flex;gap:2px;padding:4px;background:color-mix(in srgb,var(--ink) 3.5%,transparent);border:1px solid var(--line);border-radius:99px}
 .tab{position:relative;z-index:1;padding:6px 14px;border-radius:99px;color:var(--text-2);font-size:13.5px;font-weight:500;transition:color .3s}
 .tab:hover{color:var(--text)}
 .tab.active{color:var(--text)}
-#pill{position:absolute;top:4px;bottom:4px;border-radius:99px;background:rgba(143,227,255,.12);border:1px solid rgba(143,227,255,.32);box-shadow:0 0 18px -4px rgba(143,227,255,.35),inset 0 1px 0 rgba(255,255,255,.08);transition:opacity .3s}
+#pill{position:absolute;top:4px;bottom:4px;border-radius:99px;background:color-mix(in srgb,var(--accent) 12%,transparent);border:1px solid color-mix(in srgb,var(--accent) 32%,transparent);box-shadow:0 0 18px -4px color-mix(in srgb,var(--accent) 35%,transparent),inset 0 1px 0 color-mix(in srgb,var(--ink) 8%,transparent);transition:opacity .3s}
 .top-r{display:flex;justify-content:flex-end;align-items:center;gap:10px;color:var(--text-2);font-size:13px}
-.ibtn{display:flex;align-items:center;gap:7px;padding:6px 12px;border:1px solid var(--line);border-radius:99px;font-size:13px;color:var(--text-2);transition:color .2s,border-color .2s;background:rgba(7,9,12,.6)}
+.ibtn{display:flex;align-items:center;gap:7px;padding:6px 12px;border:1px solid var(--line);border-radius:99px;font-size:13px;color:var(--text-2);transition:color .2s,border-color .2s;background:color-mix(in srgb,var(--bg) 60%,transparent)}
 .ibtn:hover{color:var(--text);border-color:var(--line-2)}
 .ibtn .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
 #chatty.off .dot{background:var(--muted)}
-kbd{font:500 10.5px var(--mono);padding:1px 5px;border-radius:5px;border:1px solid var(--line-2);color:var(--text-2);background:rgba(255,255,255,.04)}
+kbd{font:500 10.5px var(--mono);padding:1px 5px;border-radius:5px;border:1px solid var(--line-2);color:var(--text-2);background:color-mix(in srgb,var(--ink) 4%,transparent)}
 
 /* ---------- edge hints + minimap + terminal button ---------- */
 .edgewrap{position:fixed;z-index:15;display:flex;pointer-events:none}
@@ -99,10 +106,10 @@ kbd{font:500 10.5px var(--mono);padding:1px 5px;border-radius:5px;border:1px sol
 .edgewrap.r .edge{writing-mode:vertical-rl}
 .edge[hidden]{display:block;opacity:0;pointer-events:none}
 body.overview .edge,body.moving .edge{opacity:0;pointer-events:none}
-#mini{position:relative;display:grid;grid-template-columns:repeat(3,14px);grid-auto-rows:9px;gap:2px;padding:4px;border:1px solid var(--line);border-radius:8px;background:rgba(7,9,12,.6)}
-#mini button{border-radius:2px;background:rgba(255,255,255,.07);transition:background .3s}
-#mini button:hover{background:rgba(143,227,255,.3)}
-#mini button.active{background:rgba(143,227,255,.22)}
+#mini{position:relative;display:grid;grid-template-columns:repeat(3,14px);grid-auto-rows:9px;gap:2px;padding:4px;border:1px solid var(--line);border-radius:8px;background:color-mix(in srgb,var(--bg) 60%,transparent)}
+#mini button{border-radius:2px;background:color-mix(in srgb,var(--ink) 7%,transparent);transition:background .3s}
+#mini button:hover{background:color-mix(in srgb,var(--accent) 30%,transparent)}
+#mini button.active{background:color-mix(in srgb,var(--accent) 22%,transparent)}
 #camrect{position:absolute;border:1.5px solid var(--accent);border-radius:3px;pointer-events:none}
 #termwrap{position:fixed;left:calc(22px*var(--z));bottom:calc(13px*var(--z));z-index:15}
 
@@ -112,19 +119,19 @@ body.overview .edge,body.moving .edge{opacity:0;pointer-events:none}
 #jarvis.dodge{transition-duration:.75s}
 #jarvis.held{cursor:grabbing}
 #jarvis canvas{display:block;width:100%;height:100%;pointer-events:none}
-#jarvis.css-orb::after{content:"";position:absolute;inset:30%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#bff0ff 12%,var(--accent) 35%,#1d6f9a 75%,#0b2a3c);box-shadow:0 0 40px rgba(143,227,255,.5)}
+#jarvis.css-orb::after{content:"";position:absolute;inset:30%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,color-mix(in srgb,var(--accent) 40%,#fff) 12%,var(--accent) 35%,color-mix(in srgb,var(--accent) 45%,#000) 75%,color-mix(in srgb,var(--accent) 15%,#000));box-shadow:0 0 40px color-mix(in srgb,var(--accent) 50%,transparent)}
 #jcap{position:fixed;left:0;top:0;z-index:24;pointer-events:none;opacity:0;white-space:nowrap}
 #jcap.ready{transition:left 1s cubic-bezier(.55,0,.2,1.12),top 1s cubic-bezier(.55,0,.2,1.12),opacity .35s}
 #jcap[data-align=center]{transform:translateX(-50%)}
 #jcap[data-align=right]{transform:translateX(-100%)}
-#jcap .zz{font:500 10px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);padding:4px 8px;border-radius:99px;background:rgba(7,9,12,.82);border:1px solid var(--line)}
+#jcap .zz{font:500 10px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);padding:4px 8px;border-radius:99px;background:color-mix(in srgb,var(--bg) 82%,transparent);border:1px solid var(--line)}
 #jcap[data-mode=home] .zz{background:none;border-color:transparent}
 #jcap b{color:var(--jc);font-weight:500;transition:color .6s}
 #bubble{position:fixed;z-index:32;opacity:0;transform:translate(0,10px) scale(.9);transition:opacity .22s,transform .45s cubic-bezier(.3,1.5,.5,1);pointer-events:none}
 #bubble[data-corner=bl]{transform-origin:0 100%} #bubble[data-corner=br]{transform-origin:100% 100%}
 #bubble[data-corner=tl]{transform-origin:0 0} #bubble[data-corner=tr]{transform-origin:100% 0}
 #bubble.show{opacity:1;transform:none;pointer-events:auto}
-#bubble .bin{max-width:380px;padding:11px 14px 13px;border-radius:16px;background:rgba(16,21,27,.97);border:1px solid rgba(143,227,255,.26);box-shadow:0 20px 50px -12px rgba(0,0,0,.75),0 0 0 4px rgba(143,227,255,.035);font-size:14px;line-height:1.5}
+#bubble .bin{max-width:380px;padding:11px 14px 13px;border-radius:16px;background:color-mix(in srgb,var(--card) 97%,transparent);border:1px solid color-mix(in srgb,var(--accent) 26%,transparent);box-shadow:0 20px 50px -12px color-mix(in srgb,var(--shadow) 75%,transparent),0 0 0 4px color-mix(in srgb,var(--accent) 3.5%,transparent);font-size:14px;line-height:1.5}
 #bubble[data-corner=bl] .bin{border-bottom-left-radius:4px} #bubble[data-corner=br] .bin{border-bottom-right-radius:4px}
 #bubble[data-corner=tl] .bin{border-top-left-radius:4px} #bubble[data-corner=tr] .bin{border-top-right-radius:4px}
 #bubble .who{display:flex;align-items:center;gap:8px;font:600 10px var(--mono);letter-spacing:.16em;color:var(--jc);margin-bottom:4px}
@@ -150,7 +157,7 @@ body.overview .edge,body.moving .edge{opacity:0;pointer-events:none}
 .card h3{display:flex;align-items:center;justify-content:space-between;gap:10px;font:600 11px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--text-2);margin-bottom:14px;flex:none}
 .card h3 .go{font:500 11px var(--mono);letter-spacing:.04em;color:var(--muted);text-transform:none}
 .card h3 .go[data-go]:hover{color:var(--accent);cursor:pointer}
-.scroll{overflow:auto;min-height:0;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.12) transparent}
+.scroll{overflow:auto;min-height:0;scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--ink) 12%,transparent) transparent}
 .fill{flex:1}
 .muted{color:var(--muted)} .t2{color:var(--text-2)}
 .row{display:flex;align-items:center;gap:10px}
@@ -167,15 +174,15 @@ body.overview .edge,body.moving .edge{opacity:0;pointer-events:none}
 .st.idle{color:var(--muted)} .st.idle::before{content:"○"}
 .btn{padding:6px 12px;border-radius:9px;border:1px solid var(--line-2);font-size:13px;font-weight:500;color:var(--text);transition:all .2s;white-space:nowrap}
 .btn:hover{border-color:var(--accent);color:var(--accent)}
-.btn.pri{background:var(--text);color:#06080b;border-color:var(--text)}
-.btn.pri:hover{background:var(--accent);border-color:var(--accent);color:#06080b}
+.btn.pri{background:var(--text);color:var(--on-accent);border-color:var(--text)}
+.btn.pri:hover{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .btn:disabled{opacity:.5;pointer-events:none}
-.bar{height:4px;border-radius:4px;background:rgba(255,255,255,.07);overflow:hidden}
+.bar{height:4px;border-radius:4px;background:color-mix(in srgb,var(--ink) 7%,transparent);overflow:hidden}
 .bar>b{display:block;height:100%;border-radius:4px;background:var(--accent);transition:width 1.1s cubic-bezier(.3,.8,.2,1),background .5s}
 .list>*+*{border-top:1px solid var(--line)}
 .chart{position:relative;flex:1;min-height:0}
 .chart svg{display:block;overflow:visible}
-.tip{position:absolute;pointer-events:none;background:#1b212a;border:1px solid var(--line-2);border-radius:8px;padding:6px 9px;font-size:12px;white-space:nowrap;opacity:0;transition:opacity .12s;transform:translate(-50%,-110%)}
+.tip{position:absolute;pointer-events:none;background:var(--card-2);border:1px solid var(--line-2);border-radius:8px;padding:6px 9px;font-size:12px;white-space:nowrap;opacity:0;transition:opacity .12s;transform:translate(-50%,-110%)}
 .tip .d{color:var(--muted);font:500 10.5px var(--mono)}
 .big{font-size:42px;font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1;transition:color .8s}
 .delta{font:500 13px var(--mono);color:var(--good)}
@@ -183,12 +190,12 @@ body.overview .edge,body.moving .edge{opacity:0;pointer-events:none}
 .log{font:12px/1.8 var(--mono);color:var(--text-2)}
 .log .tm{color:var(--muted);margin-right:8px}
 .log>div.new{animation:slidein .6s cubic-bezier(.2,.8,.2,1)}
-@keyframes slidein{from{opacity:0;transform:translateX(-10px);background:rgba(143,227,255,.08)}}
+@keyframes slidein{from{opacity:0;transform:translateX(-10px);background:color-mix(in srgb,var(--accent) 8%,transparent)}}
 .glowin{animation:glowin 2.2s ease-out}
-@keyframes glowin{0%{box-shadow:0 0 0 2px var(--accent),0 0 24px rgba(143,227,255,.5)}100%{box-shadow:0 0 0 0 transparent}}
-.sw{width:30px;height:18px;border-radius:99px;background:rgba(255,255,255,.1);position:relative;flex:none;transition:background .25s;cursor:pointer}
+@keyframes glowin{0%{box-shadow:0 0 0 2px var(--accent),0 0 24px color-mix(in srgb,var(--accent) 50%,transparent)}100%{box-shadow:0 0 0 0 transparent}}
+.sw{width:30px;height:18px;border-radius:99px;background:color-mix(in srgb,var(--ink) 10%,transparent);position:relative;flex:none;transition:background .25s;cursor:pointer}
 .sw::after{content:"";position:absolute;top:3px;left:3px;width:12px;height:12px;border-radius:50%;background:var(--text-2);transition:transform .3s cubic-bezier(.3,1.6,.5,1),background .25s}
-.sw.on{background:rgba(143,227,255,.35)} .sw.on::after{transform:translateX(12px);background:var(--accent)}
+.sw.on{background:color-mix(in srgb,var(--accent) 35%,transparent)} .sw.on::after{transform:translateX(12px);background:var(--accent)}
 .legend{display:flex;gap:14px;font-size:12px;color:var(--text-2);flex-wrap:wrap}
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
@@ -214,11 +221,11 @@ body.overview .edge,body.moving .edge{opacity:0;pointer-events:none}
 .voice.speaking .brief{opacity:0;transform:translateY(-8px)}
 .voice.speaking .said{opacity:1;transform:none;pointer-events:auto}
 .glance{display:flex;gap:8px;flex-wrap:nowrap;overflow:hidden}
-.g{flex:none;display:inline-flex;white-space:nowrap;align-items:center;gap:7px;font-size:12.5px;color:var(--text-2);padding:4px 10px 4px 8px;border-radius:8px;background:rgba(255,255,255,.035);border:1px solid var(--line)}
+.g{flex:none;display:inline-flex;white-space:nowrap;align-items:center;gap:7px;font-size:12.5px;color:var(--text-2);padding:4px 10px 4px 8px;border-radius:8px;background:color-mix(in srgb,var(--ink) 3.5%,transparent);border:1px solid var(--line)}
 .g i{font-style:normal;color:var(--accent);font-size:12px}
 .g.warn i{color:var(--warn)}
 .ask{display:flex;align-items:center;gap:12px;padding:12px 14px 12px 16px;border:1px solid var(--line-2);border-radius:14px;background:var(--card);transition:border-color .2s,box-shadow .2s;cursor:text}
-.ask:focus-within{border-color:rgba(143,227,255,.5);box-shadow:0 0 0 4px rgba(143,227,255,.07)}
+.ask:focus-within{border-color:color-mix(in srgb,var(--accent) 50%,transparent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 7%,transparent)}
 .ask .pr{font:600 16px var(--mono);color:var(--accent)}
 .ask input{flex:1;font-size:15px;min-width:0}
 .ask input::placeholder{color:var(--muted)}
@@ -229,7 +236,7 @@ body.overview .edge,body.moving .edge{opacity:0;pointer-events:none}
 .need{display:flex;gap:12px;padding:11px 0;align-items:flex-start;transition:opacity .5s}
 .need:first-child{padding-top:0}
 .need.done{opacity:.35}
-.need .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:none;font-size:13px;background:rgba(255,255,255,.05)}
+.need .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:none;font-size:13px;background:color-mix(in srgb,var(--ink) 5%,transparent)}
 .need .tt{font-weight:600} .need p{font-size:12.5px;color:var(--text-2);margin-top:2px}
 .need .acts{display:flex;gap:6px;margin-top:8px}
 .today{grid-column:span 4;grid-row:span 2}
@@ -259,7 +266,7 @@ body.overview .edge,body.moving .edge{opacity:0;pointer-events:none}
 .hl{padding:8px 0;display:flex;gap:10px}
 .hl:first-child{padding-top:0}
 .lv{font:600 10px var(--mono);letter-spacing:.08em;padding:3px 6px;border-radius:5px;height:fit-content;flex:none}
-.lv.hi{color:var(--crit);background:rgba(239,107,91,.12)} .lv.md{color:var(--warn);background:rgba(230,168,58,.12)} .lv.lo{color:var(--text-2);background:rgba(255,255,255,.06)}
+.lv.hi{color:var(--crit);background:color-mix(in srgb,var(--crit) 12%,transparent)} .lv.md{color:var(--warn);background:color-mix(in srgb,var(--warn) 12%,transparent)} .lv.lo{color:var(--text-2);background:color-mix(in srgb,var(--ink) 6%,transparent)}
 .hl .h{font-size:13.5px;line-height:1.35}
 
 /* ---------- agents ---------- */
@@ -268,7 +275,7 @@ body.overview .edge,body.moving .edge{opacity:0;pointer-events:none}
 .run:first-child{padding-top:2px} .run:first-child::before{top:4px}
 .run .ttl{font-size:16px;font-weight:600;letter-spacing:-.01em}
 .run .meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--muted);margin-top:3px}
-.run .step{grid-column:1/-1;font:12px/1.5 var(--mono);color:var(--text-2);background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:9px;padding:8px 10px}
+.run .step{grid-column:1/-1;font:12px/1.5 var(--mono);color:var(--text-2);background:color-mix(in srgb,var(--shadow) 25%,transparent);border:1px solid var(--line);border-radius:9px;padding:8px 10px}
 .run .step .c{color:var(--accent)}
 .run .bar{grid-column:1/-1}
 .eng{display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;align-items:center;padding:10px 0}
@@ -279,11 +286,11 @@ body.overview .edge,body.moving .edge{opacity:0;pointer-events:none}
 /* ---------- harness live widget ---------- */
 .hx{padding-bottom:14px}
 .hx h3{justify-content:flex-start}
-.hx-cap{font:500 11px var(--mono);letter-spacing:.02em;text-transform:none;color:#7fe0a8;background:rgba(76,195,138,.07);border:1px solid rgba(76,195,138,.25);padding:3px 10px;border-radius:99px}
+.hx-cap{font:500 11px var(--mono);letter-spacing:.02em;text-transform:none;color:var(--good);background:color-mix(in srgb,var(--good) 7%,transparent);border:1px solid color-mix(in srgb,var(--good) 25%,transparent);padding:3px 10px;border-radius:99px}
 .hx-body{position:relative;display:grid;grid-template-columns:minmax(150px,.7fr) minmax(230px,1fr) minmax(270px,1.25fr);grid-template-rows:minmax(0,1fr);column-gap:96px;height:236px;padding:4px 0;
-  background-image:radial-gradient(rgba(255,255,255,.045) 1px,transparent 1.2px);background-size:18px 18px;border-radius:10px}
+  background-image:radial-gradient(color-mix(in srgb,var(--ink) 4.5%,transparent) 1px,transparent 1.2px);background-size:18px 18px;border-radius:10px}
 .hx-wires{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
-.hx-wires .w{fill:none;stroke:rgba(255,255,255,.08);stroke-width:1.5}
+.hx-wires .w{fill:none;stroke:color-mix(in srgb,var(--ink) 8%,transparent);stroke-width:1.5}
 .hx-wires .wf{fill:none;stroke-width:1.5;stroke-dasharray:2 7;opacity:.5;transition:opacity .6s;animation:hxdash 1.1s linear infinite}
 .pane:not(.active) .hx-wires .wf{animation-play-state:paused}
 @keyframes hxdash{to{stroke-dashoffset:-18}}
@@ -295,9 +302,9 @@ body.overview .edge,body.moving .edge{opacity:0;pointer-events:none}
 .hx-src i{width:7px;height:7px;border-radius:50%;flex:none}
 .hx-src small{margin-left:auto;color:var(--muted);font-weight:500;font-size:11px}
 .hx-src.idle{opacity:.45}
-.hx-hub{border:1px solid rgba(255,191,122,.5);border-radius:14px;padding:12px 15px 13px;background:linear-gradient(160deg,rgba(255,191,122,.09),var(--card-2) 55%);
-  box-shadow:0 12px 34px -14px rgba(255,140,60,.35);transition:box-shadow .18s,border-color .18s;cursor:pointer}
-.hx-hub.hit{border-color:rgba(255,200,140,.85);box-shadow:0 0 0 1px rgba(255,191,122,.25),0 0 30px -6px rgba(255,170,90,.55)}
+.hx-hub{border:1px solid color-mix(in srgb,var(--warm) 50%,transparent);border-radius:14px;padding:12px 15px 13px;background:linear-gradient(160deg,color-mix(in srgb,var(--warm) 9%,transparent),var(--card-2) 55%);
+  box-shadow:0 12px 34px -14px color-mix(in srgb,var(--warm) 35%,transparent);transition:box-shadow .18s,border-color .18s;cursor:pointer}
+.hx-hub.hit{border-color:color-mix(in srgb,var(--warm) 85%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--warm) 25%,transparent),0 0 30px -6px color-mix(in srgb,var(--warm) 55%,transparent)}
 .hx-hub .hd{display:flex;align-items:center;gap:8px;font:600 10px var(--mono);letter-spacing:.14em;color:var(--warm)}
 .hx-hub .hd .sp{flex:1}
 .hx-hub .hd em{font-style:normal;color:var(--muted);letter-spacing:.06em}
@@ -306,21 +313,21 @@ body.overview .edge,body.moving .edge{opacity:0;pointer-events:none}
 .hx-hub svg{display:block;width:100%;height:30px;margin:6px 0 9px}
 .hx-hub .meta{display:flex;gap:6px;flex-wrap:wrap}
 .tag{font:500 11px var(--mono);padding:3px 9px;border-radius:99px;border:1px solid var(--line-2);color:var(--text-2)}
-.tag.hot{background:var(--warm);border-color:var(--warm);color:#1a1109;font-weight:600}
-.hx-mod{border:1px solid rgba(76,195,138,.38);border-radius:12px;padding:6px 12px 7px;background:var(--card-2);cursor:pointer;transition:border-color .4s,opacity .5s,transform .2s}
-.hx-mod:hover{transform:translateX(2px);border-color:rgba(76,195,138,.7)}
+.tag.hot{background:var(--warm);border-color:var(--warm);color:var(--on-accent);font-weight:600}
+.hx-mod{border:1px solid color-mix(in srgb,var(--good) 38%,transparent);border-radius:12px;padding:6px 12px 7px;background:var(--card-2);cursor:pointer;transition:border-color .4s,opacity .5s,transform .2s}
+.hx-mod:hover{transform:translateX(2px);border-color:color-mix(in srgb,var(--good) 70%,transparent)}
 .hx-mod.idle{border-color:var(--line-2);opacity:.55}
 .hx-mod .t{display:flex;align-items:center;gap:8px;font:600 13px var(--mono)}
 .hx-mod .t i{width:7px;height:7px;border-radius:50%;background:var(--good);flex:none;transition:box-shadow .15s}
-.hx-mod .t i.hit{box-shadow:0 0 0 4px rgba(76,195,138,.3),0 0 12px var(--good)}
+.hx-mod .t i.hit{box-shadow:0 0 0 4px color-mix(in srgb,var(--good) 30%,transparent),0 0 12px var(--good)}
 .hx-mod.idle .t i{background:var(--muted)}
 .hx-mod .t small{margin-left:auto;font:500 10px var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
 .hx-mod .r{display:flex;align-items:flex-end;gap:10px;margin-top:2px}
 .hx-mod .tps{font-size:12px;color:var(--text-2);min-width:82px;white-space:nowrap}
 .hx-mod .tps b{font-size:15px;line-height:1.2;font-weight:600;letter-spacing:-.02em;color:var(--text)}
 .hx-bars{flex:1;display:flex;align-items:flex-end;gap:2px;height:17px}
-.hx-bars b{flex:1;border-radius:1px;background:rgba(76,195,138,.45);min-height:1px;transition:height .45s ease}
-.hx-mod[data-m=gpt] .hx-bars b{background:rgba(217,89,38,.5)}
+.hx-bars b{flex:1;border-radius:1px;background:color-mix(in srgb,var(--good) 45%,transparent);min-height:1px;transition:height .45s ease}
+.hx-mod[data-m=gpt] .hx-bars b{background:color-mix(in srgb,var(--s2) 50%,transparent)}
 .hx-mod .tot{font:500 11px var(--mono);color:var(--muted);min-width:66px;text-align:right}
 .hx-mod .job{font:500 11px var(--mono);color:var(--text-2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hx-foot{display:flex;align-items:center;gap:30px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
@@ -337,17 +344,17 @@ body.overview .edge,body.moving .edge{opacity:0;pointer-events:none}
 .week .dh.on b{color:var(--accent)}
 .hours{position:relative}
 .hours span{position:absolute;right:8px;font:500 10px var(--mono);color:var(--muted);transform:translateY(-50%)}
-.day{position:relative;border-left:1px solid var(--line);background:repeating-linear-gradient(transparent 0 calc(12.5% - 1px),rgba(255,255,255,.025) calc(12.5% - 1px) 12.5%)}
-.day.past{background-color:rgba(0,0,0,.18)}
-.day.on{background-color:rgba(143,227,255,.035)}
-.blk{position:absolute;left:4px;right:4px;border-radius:7px;padding:4px 7px;font-size:11.5px;font-weight:500;line-height:1.25;overflow:hidden;border-left:3px solid;background:rgba(255,255,255,.05);transition:filter .2s}
+.day{position:relative;border-left:1px solid var(--line);background:repeating-linear-gradient(transparent 0 calc(12.5% - 1px),color-mix(in srgb,var(--ink) 2.5%,transparent) calc(12.5% - 1px) 12.5%)}
+.day.past{background-color:color-mix(in srgb,var(--shadow) 18%,transparent)}
+.day.on{background-color:color-mix(in srgb,var(--accent) 3.5%,transparent)}
+.blk{position:absolute;left:4px;right:4px;border-radius:7px;padding:4px 7px;font-size:11.5px;font-weight:500;line-height:1.25;overflow:hidden;border-left:3px solid;background:color-mix(in srgb,var(--ink) 5%,transparent);transition:filter .2s}
 .blk:hover{filter:brightness(1.3)}
 .blk.short{display:flex;align-items:center;padding:0 7px;font-size:10.5px;min-height:17px;white-space:nowrap}
 .blk small{display:block;font:500 10px var(--mono);color:var(--muted)}
-.blk.ev{border-color:var(--s1);background:rgba(57,135,229,.14)}
-.blk.ag{border-color:var(--s2);background:rgba(217,89,38,.14)}
-.blk.rv{border-color:var(--s3);background:rgba(25,158,112,.15)}
-.blk.fx{border-color:var(--muted);background:repeating-linear-gradient(135deg,rgba(255,255,255,.045) 0 6px,transparent 6px 12px)}
+.blk.ev{border-color:var(--s1);background:color-mix(in srgb,var(--s1) 14%,transparent)}
+.blk.ag{border-color:var(--s2);background:color-mix(in srgb,var(--s2) 14%,transparent)}
+.blk.rv{border-color:var(--s3);background:color-mix(in srgb,var(--s3) 15%,transparent)}
+.blk.fx{border-color:var(--muted);background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--ink) 4.5%,transparent) 0 6px,transparent 6px 12px)}
 .blk.new{animation:glowin 2.4s ease-out}
 .nowline{position:absolute;left:0;right:0;height:2px;background:var(--accent);box-shadow:0 0 10px var(--accent);z-index:2}
 .nowline::before{content:"";position:absolute;left:-4px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--accent)}
@@ -363,7 +370,7 @@ body.overview .edge,body.moving .edge{opacity:0;pointer-events:none}
 .hist .nx{font:500 11.5px var(--mono);color:var(--text-2)}
 .todo{display:flex;gap:11px;align-items:flex-start;padding:8px 0;cursor:pointer}
 .todo:first-child{padding-top:0}
-.todo .bx{width:17px;height:17px;border-radius:5px;border:1.5px solid var(--line-2);flex:none;margin-top:1px;display:grid;place-items:center;font-size:11px;color:#06080b;transition:.25s cubic-bezier(.3,1.6,.5,1)}
+.todo .bx{width:17px;height:17px;border-radius:5px;border:1.5px solid var(--line-2);flex:none;margin-top:1px;display:grid;place-items:center;font-size:11px;color:var(--on-accent);transition:.25s cubic-bezier(.3,1.6,.5,1)}
 .todo.on .bx{background:var(--accent);border-color:var(--accent)}
 .todo.on .bx::after{content:"✓"}
 .todo .tx{transition:color .3s}
@@ -376,7 +383,7 @@ body.overview .edge,body.moving .edge{opacity:0;pointer-events:none}
 
 /* ---------- projects ---------- */
 .kanban{flex:1;min-height:0;align-items:start;display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
-.kcol{display:flex;flex-direction:column;gap:10px;min-height:100%;max-height:100%;overflow:auto;scrollbar-width:none;padding:12px;border-radius:18px;background:rgba(255,255,255,.015);border:1px solid var(--line)}
+.kcol{display:flex;flex-direction:column;gap:10px;min-height:100%;max-height:100%;overflow:auto;scrollbar-width:none;padding:12px;border-radius:18px;background:color-mix(in srgb,var(--ink) 1.5%,transparent);border:1px solid var(--line)}
 .kcol>header{display:flex;align-items:center;gap:8px;font:600 11px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--text-2);padding:2px 4px 4px}
 .kcol>header i{width:7px;height:7px;border-radius:50%}
 .kcol>header .muted{margin-left:auto}
@@ -386,8 +393,8 @@ body.overview .edge,body.moving .edge{opacity:0;pointer-events:none}
 .pc p{font-size:12.5px;color:var(--text-2)}
 .pc .ft{display:flex;justify-content:space-between;align-items:center;font:500 11px var(--mono);color:var(--muted)}
 .pc .tags{display:flex;gap:5px;flex-wrap:wrap}
-.pc .tags span{font:500 10.5px var(--mono);color:var(--text-2);padding:2px 6px;border-radius:5px;background:rgba(255,255,255,.05)}
-.pc.idea{border-style:dashed;border-color:rgba(143,227,255,.3);background:linear-gradient(160deg,rgba(143,227,255,.06),var(--card) 60%)}
+.pc .tags span{font:500 10.5px var(--mono);color:var(--text-2);padding:2px 6px;border-radius:5px;background:color-mix(in srgb,var(--ink) 5%,transparent)}
+.pc.idea{border-style:dashed;border-color:color-mix(in srgb,var(--accent) 30%,transparent);background:linear-gradient(160deg,color-mix(in srgb,var(--accent) 6%,transparent),var(--card) 60%)}
 .auto{font:600 10px var(--mono);letter-spacing:.08em;color:var(--accent)}
 .auto.sup{color:var(--warm)}
 
@@ -408,12 +415,12 @@ td .mono{font-size:12px;color:var(--text-2)}
 .model .s{grid-column:2/-1;font:500 11px var(--mono);color:var(--muted)}
 .vram{display:flex;height:14px;gap:2px;margin:2px 0 12px;flex:none}
 .vram div{border-radius:4px}
-.vram .free{background:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 4px,transparent 4px 8px);border:1px solid var(--line)}
+.vram .free{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--ink) 6%,transparent) 0 4px,transparent 4px 8px);border:1px solid var(--line)}
 
 /* ---------- markets ---------- */
 .ranges{display:flex;gap:4px}
 .ranges button{font:500 11.5px var(--mono);padding:4px 9px;border-radius:7px;color:var(--muted);transition:all .2s}
-.ranges button.on{background:rgba(255,255,255,.08);color:var(--text)}
+.ranges button.on{background:color-mix(in srgb,var(--ink) 8%,transparent);color:var(--text)}
 .stackwrap{position:relative;margin:4px 0 16px;flex:none}
 .stack{display:flex;gap:2px;height:14px}
 .stack div{border-radius:4px}
@@ -421,9 +428,9 @@ td .mono{font-size:12px;color:var(--text-2)}
 .alloc{display:grid;grid-template-columns:auto 1fr auto auto;gap:8px 12px;font-size:13.5px;align-items:center}
 .alloc i{width:10px;height:10px;border-radius:3px;display:inline-block}
 .alloc .n{text-align:right;font-variant-numeric:tabular-nums}
-.wbar{display:inline-block;width:46px;height:4px;border-radius:3px;background:rgba(255,255,255,.07);vertical-align:middle;margin-left:8px;overflow:hidden}
+.wbar{display:inline-block;width:46px;height:4px;border-radius:3px;background:color-mix(in srgb,var(--ink) 7%,transparent);vertical-align:middle;margin-left:8px;overflow:hidden}
 .wbar b{display:block;height:100%;background:var(--text-2)}
-.insight{border-color:rgba(143,227,255,.25);background:linear-gradient(160deg,rgba(143,227,255,.07),var(--card) 55%)}
+.insight{border-color:color-mix(in srgb,var(--accent) 25%,transparent);background:linear-gradient(160deg,color-mix(in srgb,var(--accent) 7%,transparent),var(--card) 55%)}
 .insight p{font-size:14px;color:var(--text-2);line-height:1.55}
 .up{color:var(--good)} .dn{color:var(--crit)}
 
@@ -459,11 +466,11 @@ td .mono{font-size:12px;color:var(--text-2)}
 .goal .v{font:500 12px var(--mono);color:var(--text-2)}
 
 /* ---------- terminal (scaled through font-size so it stays one fixed box) ---------- */
-#term{position:fixed;left:50%;bottom:calc(18px*var(--z));width:min(calc(1000px*var(--z)),92vw);height:min(54vh,calc(520px*var(--z)));z-index:30;transform:translate(-50%,calc(100% + 60px));transition:transform .6s cubic-bezier(.7,0,.2,1);background:#06080a;border:1px solid var(--line-2);border-radius:calc(18px*var(--z));box-shadow:0 30px 80px -10px rgba(0,0,0,.8),0 0 0 1px rgba(143,227,255,.05);display:flex;flex-direction:column;font:calc(13px*var(--z))/1.6 var(--mono);overflow:hidden}
+#term{position:fixed;left:50%;bottom:calc(18px*var(--z));width:min(calc(1000px*var(--z)),92vw);height:min(54vh,calc(520px*var(--z)));z-index:30;transform:translate(-50%,calc(100% + 60px));transition:transform .6s cubic-bezier(.7,0,.2,1);background:var(--term);border:1px solid var(--line-2);border-radius:calc(18px*var(--z));box-shadow:0 30px 80px -10px color-mix(in srgb,var(--shadow) 80%,transparent),0 0 0 1px color-mix(in srgb,var(--accent) 5%,transparent);display:flex;flex-direction:column;font:calc(13px*var(--z))/1.6 var(--mono);overflow:hidden}
 body.term #term{transform:translate(-50%,0)}
 #term header{display:flex;align-items:center;gap:.8em;padding:.8em 1.1em;border-bottom:1px solid var(--line);font-size:.92em;color:var(--muted)}
 #term header .chip,#term header kbd{font-size:.88em}
-#term header .dots{display:flex;gap:.5em} #term header .dots i{width:.8em;height:.8em;border-radius:50%;background:rgba(255,255,255,.12)}
+#term header .dots{display:flex;gap:.5em} #term header .dots i{width:.8em;height:.8em;border-radius:50%;background:color-mix(in srgb,var(--ink) 12%,transparent)}
 #tout{flex:1;overflow:auto;padding:1.1em 1.4em;white-space:pre-wrap;scrollbar-width:thin}
 #tout .p{color:var(--accent)} #tout .u{color:var(--text)} #tout .m{color:var(--muted)}
 #tout .ok{color:var(--good)} #tout .w{color:var(--warn)} #tout .rt{color:var(--warm)}
@@ -471,6 +478,207 @@ body.term #term{transform:translate(-50%,0)}
 #tin span{color:var(--accent)}
 #tin input{flex:1;font-family:var(--mono)}
 @keyframes blink{50%{opacity:0}}
+/* ---------- library panes ---------- */
+.rooms{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:16px;min-height:0}
+.room{gap:4px}
+.room .hd{display:flex;align-items:baseline;gap:10px}
+.room .nm{font-size:17px;font-weight:600;letter-spacing:-.01em}
+.room .tmp{margin-left:auto;font-size:22px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.room .sub{font:500 11px var(--mono);color:var(--muted);margin-bottom:6px}
+.dev{display:flex;align-items:center;gap:10px;padding:7px 0;font-size:13.5px}
+.dev .ic{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;flex:none;background:color-mix(in srgb,var(--ink) 5%,transparent);color:var(--muted);font-size:12px;transition:background .3s,color .3s,box-shadow .3s}
+.dev.on .ic{background:color-mix(in srgb,var(--warm) 18%,transparent);color:var(--warm);box-shadow:0 0 14px -3px color-mix(in srgb,var(--warm) 60%,transparent)}
+.dev .v{margin-left:auto;font:500 11.5px var(--mono);color:var(--text-2)}
+.room.lit{border-color:color-mix(in srgb,var(--warm) 28%,transparent);background:linear-gradient(170deg,color-mix(in srgb,var(--warm) 6%,transparent),var(--card) 60%)}
+.scenes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.scene{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:10px 12px;border-radius:12px;border:1px solid var(--line-2);background:var(--card-2);font-size:13px;font-weight:500;text-align:left;transition:border-color .2s,transform .2s,background .3s}
+.scene i{font-style:normal;font-size:15px;color:var(--accent)}
+.scene:hover{border-color:var(--accent);transform:translateY(-2px)}
+.scene.on{border-color:var(--accent);background:var(--accent-soft)}
+.thermo{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.thermo .big small{font-size:18px;color:var(--text-2);margin-left:3px}
+.tbtn{width:42px;height:42px;border-radius:50%;border:1px solid var(--line-2);font-size:20px;color:var(--text-2);transition:all .2s}
+.tbtn:hover{border-color:var(--accent);color:var(--accent)}
+.sec{display:flex;align-items:center;gap:10px;padding:9px 0}
+.sec:first-child{padding-top:0}
+.sec .sp{font-size:13.5px}
+.flow{flex:1;min-height:0;position:relative}
+.flow svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.flow .fl{fill:none;stroke-width:2;stroke-dasharray:3 8;animation:hxdash 1s linear infinite}
+.pane:not(.active) .flow .fl{animation-play-state:paused}
+.flow .base{fill:none;stroke:var(--line-2);stroke-width:2}
+.fnode{position:absolute;transform:translate(-50%,-50%);text-align:center;padding:8px 12px;border-radius:12px;border:1px solid var(--line-2);background:var(--card-2);min-width:96px}
+.fnode b{display:block;font-size:17px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.fnode span{font:500 10.5px var(--mono);color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.prices{display:flex;align-items:flex-end;gap:3px;flex:1;min-height:40px}
+.prices b{flex:1;border-radius:3px 3px 0 0;background:color-mix(in srgb,var(--ink) 14%,transparent);position:relative;transition:height .6s}
+.prices b.cheap{background:var(--good)}
+.prices b.now{background:var(--accent)}
+.prices b:hover{filter:brightness(1.4)}
+.cons{display:grid;grid-template-columns:1fr auto;gap:5px 10px;padding:8px 0}
+.cons:first-child{padding-top:0}
+.cons .bar{grid-column:1/-1}
+.cons .v{font:500 12px var(--mono);color:var(--text-2)}
+.sleep{flex:1;min-height:0;display:flex;align-items:flex-end;gap:6px;padding-bottom:18px;position:relative}
+.sleep .n{flex:1;display:flex;flex-direction:column-reverse;gap:2px;height:100%;justify-content:flex-start;position:relative}
+.sleep .n i{display:block;border-radius:3px}
+.sleep .n small{position:absolute;bottom:-17px;left:50%;transform:translateX(-50%);font:500 9.5px var(--mono);color:var(--muted)}
+.rings{flex:1;min-height:0;display:flex;align-items:center;gap:18px}
+.rings svg{height:100%;max-height:170px;aspect-ratio:1;flex:none}
+.rings .ln{stroke-dasharray:none}
+.rkey{display:flex;flex-direction:column;gap:10px;min-width:0}
+.rkey div{font-size:12.5px;color:var(--text-2)}
+.rkey b{display:block;font-size:18px;letter-spacing:-.02em}
+.habit{display:grid;grid-template-columns:1fr auto;gap:6px 10px;padding:7px 0;align-items:center}
+.habit:first-child{padding-top:0}
+.habit .dots{grid-column:1/-1;display:grid;grid-template-columns:repeat(35,1fr);gap:2px}
+.habit .dots i{aspect-ratio:1;border-radius:2px;background:color-mix(in srgb,var(--ink) 7%,transparent)}
+.habit .dots i.on{background:var(--good)}
+.habit .v{font:500 11.5px var(--mono);color:var(--text-2)}
+.wo{display:grid;grid-template-columns:auto 1fr auto;gap:2px 12px;padding:9px 0;align-items:center}
+.wo:first-child{padding-top:0}
+.wo>i{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-style:normal;background:color-mix(in srgb,var(--ink) 5%,transparent);grid-row:span 2}
+.wo .w{font:500 11px var(--mono);color:var(--muted);grid-column:2/-1}
+.wo .v{font:500 12px var(--mono);color:var(--text-2)}
+.tg{font:600 10px var(--mono);letter-spacing:.12em;color:var(--muted);padding:12px 0 6px;text-transform:uppercase}
+.tg:first-child{padding-top:0}
+.msg{display:grid;grid-template-columns:auto 1fr auto;gap:2px 12px;padding:10px 10px;border-radius:10px;cursor:pointer;transition:background .2s,opacity .4s}
+.msg:hover{background:color-mix(in srgb,var(--ink) 3.5%,transparent)}
+.msg.sel{background:var(--accent-soft)}
+.msg.done{opacity:.35}
+.msg .av{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font:600 12px var(--sans);grid-row:span 2;color:var(--on-accent)}
+.msg .who{font-weight:600;font-size:14px}
+.msg .src{font:500 10.5px var(--mono);color:var(--muted);text-align:right}
+.msg p{grid-column:2/-1;font-size:12.5px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.draft{border-color:color-mix(in srgb,var(--accent) 25%,transparent);background:linear-gradient(160deg,color-mix(in srgb,var(--accent) 6%,transparent),var(--card) 55%)}
+.dtext{font-size:14px;line-height:1.55;color:var(--text);padding:12px 14px;border-radius:10px;background:color-mix(in srgb,var(--shadow) 18%,transparent);border:1px solid var(--line)}
+.expo{display:flex;gap:12px;padding:9px 0;align-items:flex-start}
+.expo:first-child{padding-top:0}
+.expo .st{min-width:84px;padding-top:1px}
+.expo small{display:block;font:500 11px var(--mono);color:var(--muted);margin-top:1px}
+.dns{display:grid;grid-template-columns:1fr auto;gap:5px 10px;padding:7px 0}
+.dns:first-child{padding-top:0}
+.dns .bar{grid-column:1/-1;height:3px}
+.dns .v{font:500 11.5px var(--mono);color:var(--text-2)}
+.dns span:first-child{font:500 12.5px var(--mono)}
+.heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,1fr);gap:3px;flex:1;min-height:0}
+.heat i,.heatkey i{border-radius:3px;background:color-mix(in srgb,var(--accent) calc(var(--a) * 100%),color-mix(in srgb,var(--ink) 6%,transparent))}
+.heatkey{display:inline-flex;gap:3px;margin:0 6px}
+.heatkey i{width:10px;height:10px;display:inline-block}
+.conn{display:grid;grid-template-columns:auto minmax(0,1.2fr) minmax(0,1fr) auto auto;gap:2px 16px;align-items:center;padding:11px 0}
+.conn:first-child{padding-top:0}
+.conn .ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--card-2);border:1px solid var(--line-2);font:600 12px var(--mono);color:var(--text-2);grid-row:span 2}
+.conn .nm{font-weight:600;font-size:14.5px}
+.conn .kd{font:500 11px var(--mono);color:var(--muted);grid-column:2}
+.conn .up{display:flex;gap:2px;height:18px;grid-row:span 2;align-self:center}
+.conn .up i{flex:1;border-radius:2px;background:var(--good);opacity:.75}
+.conn .up i.w{background:var(--warn)} .conn .up i.c{background:var(--crit)} .conn .up i.n{background:color-mix(in srgb,var(--ink) 8%,transparent)}
+.conn .lat{font:500 12px var(--mono);color:var(--text-2);text-align:right;grid-row:span 2;min-width:64px}
+.conn .st{grid-row:span 2;min-width:96px;justify-content:flex-end}
+.empty{display:grid;place-items:center;text-align:center;gap:10px;padding:30px;color:var(--text-2);font-size:14px;flex:1}
+
+/* ---------- top-bar settings + sample badge ---------- */
+.tabs.compact .tab{padding:6px 10px;font-size:12.5px}
+body.crowded .brand em .x{display:none}
+#setbtn{padding:6px 9px}
+#setbtn svg{width:15px;height:15px;display:block;transition:transform .6s cubic-bezier(.3,1.4,.5,1)}
+#setbtn:hover svg{transform:rotate(60deg)}
+[data-go].off,[data-settings].off{display:none!important}
+
+/* ---------- settings ---------- */
+#settings{position:fixed;inset:0;z-index:40;display:grid;place-items:center;background:color-mix(in srgb,var(--bg) 62%,transparent);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);opacity:0;pointer-events:none;transition:opacity .3s}
+#settings.open{opacity:1;pointer-events:auto}
+.set{zoom:var(--z);width:min(1120px,calc(var(--dw) - 60px));height:min(780px,calc(var(--dh) - 70px));display:grid;grid-template-columns:220px 1fr;background:var(--card);border:1px solid var(--line-2);border-radius:22px;box-shadow:0 40px 100px -20px color-mix(in srgb,var(--shadow) 70%,transparent);overflow:hidden;transform:translateY(16px) scale(.98);transition:transform .45s cubic-bezier(.2,.9,.2,1)}
+#settings.open .set{transform:none}
+.set nav{display:flex;flex-direction:column;gap:2px;padding:22px 12px;border-right:1px solid var(--line);background:var(--card-2)}
+.set nav .t{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:.2em;font-size:12px;padding:0 10px 18px}
+.set nav button{display:flex;align-items:center;gap:10px;text-align:left;padding:8px 10px;border-radius:9px;color:var(--text-2);font-size:14px;transition:background .2s,color .2s}
+.set nav button i{font-style:normal;width:18px;text-align:center;color:var(--muted)}
+.set nav button:hover{color:var(--text);background:color-mix(in srgb,var(--ink) 4%,transparent)}
+.set nav button.on{color:var(--text);background:var(--accent-soft)}
+.set nav button.on i{color:var(--accent)}
+.set nav .foot{margin-top:auto;padding:12px 10px 0;font:500 10.5px var(--mono);color:var(--muted);line-height:1.6}
+.set main{display:flex;flex-direction:column;min-height:0}
+.set header{display:flex;align-items:center;gap:12px;padding:20px 26px 14px;border-bottom:1px solid var(--line)}
+.set header h2{font-size:22px;letter-spacing:-.02em}
+.set header p{font-size:13px;color:var(--muted)}
+.set header .x{margin-left:auto;width:32px;height:32px;border-radius:50%;border:1px solid var(--line-2);color:var(--text-2);font-size:17px}
+.set header .x:hover{color:var(--text);border-color:var(--accent)}
+.sbody{flex:1;overflow:auto;padding:20px 26px 28px;scrollbar-width:thin}
+.sbody section{display:none;flex-direction:column;gap:18px}
+.sbody section.on{display:flex;animation:rise .45s cubic-bezier(.2,.8,.2,1)}
+.grp{border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:12px;background:color-mix(in srgb,var(--ink) 1.2%,transparent)}
+.grp>h4{font:600 11px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--text-2);display:flex;align-items:center;gap:10px}
+.grp>h4 .sp{flex:1}
+.grp>p,.hint{font-size:12.5px;color:var(--muted);line-height:1.5}
+.hint b{color:var(--text-2);font-weight:500}
+.fld{display:grid;grid-template-columns:200px 1fr;gap:16px;align-items:center}
+.fld>span{font-size:13.5px;color:var(--text-2)}
+.fld>span small{display:block;font-size:11.5px;color:var(--muted)}
+.inp,.sel,textarea.inp{width:100%;padding:8px 11px;border-radius:9px;border:1px solid var(--line-2);background:var(--bg);color:var(--text);font:inherit;font-size:13.5px;outline:0;transition:border-color .2s,box-shadow .2s}
+.inp:focus,.sel:focus{border-color:color-mix(in srgb,var(--accent) 60%,transparent);box-shadow:0 0 0 3px var(--accent-soft)}
+textarea.inp{font:12.5px/1.55 var(--mono);resize:vertical;min-height:150px}
+.sel{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 15px) 50%,calc(100% - 10px) 50%;background-size:5px 5px;background-repeat:no-repeat;padding-right:30px}
+.inp::placeholder{color:var(--muted)}
+.seg{display:inline-flex;padding:3px;border-radius:10px;border:1px solid var(--line-2);gap:2px;width:fit-content}
+.seg button{padding:5px 12px;border-radius:7px;font-size:13px;color:var(--text-2)}
+.seg button.on{background:var(--accent-soft);color:var(--text)}
+.themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.th{border-radius:12px;border:1px solid var(--line-2);padding:0;overflow:hidden;text-align:left;transition:transform .2s,border-color .2s,box-shadow .2s}
+.th:hover{transform:translateY(-2px)}
+.th.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.th .pv{height:62px;padding:9px;display:grid;grid-template-columns:1fr 1fr;gap:5px;background:var(--bg)}
+.th .pv i{border-radius:5px;background:var(--card);border:1px solid color-mix(in srgb,var(--ink) 8%,transparent);display:flex;align-items:flex-end;padding:4px;gap:3px}
+.th .pv i b{flex:1;height:4px;border-radius:3px;background:var(--accent)} .th .pv i b+b{background:var(--warm)}
+.th .pv i:nth-child(2) b{background:var(--good)} .th .pv i:nth-child(2) b+b{background:var(--crit)}
+.th .lb{display:flex;align-items:center;gap:8px;padding:8px 10px;font-size:12.5px;font-weight:500;background:var(--card-2);color:var(--text)}
+.th .lb small{margin-left:auto;font:500 10px var(--mono);color:var(--muted)}
+.libgrid{display:grid;grid-template-columns:repeat(var(--cols),minmax(0,1fr));gap:8px}
+.slot{position:relative;min-height:74px;border-radius:12px;border:1px dashed var(--line-2);padding:10px 12px;display:flex;flex-direction:column;gap:2px;transition:border-color .2s,background .2s,transform .2s;cursor:grab;user-select:none}
+.slot.full{border-style:solid;background:var(--card-2)}
+.slot.full::before{content:"";position:absolute;inset:0;border-radius:inherit;background:radial-gradient(80% 90% at 20% 10%,rgba(var(--t),.16),transparent 70%);pointer-events:none}
+.slot.start{border-color:var(--accent)}
+.slot.over{border-color:var(--accent);background:var(--accent-soft);transform:scale(1.02)}
+.slot.drag{opacity:.4}
+.slot .cd{font:500 10px var(--mono);color:var(--muted);letter-spacing:.1em}
+.slot .nm{font-weight:600;font-size:14px}
+.slot .ds{font-size:11.5px;color:var(--muted);line-height:1.35;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.slot .rm{position:absolute;top:6px;right:8px;color:var(--muted);font-size:14px;opacity:0;transition:opacity .2s}
+.slot:hover .rm{opacity:1}
+.slot .rm:hover{color:var(--crit)}
+.slot .home{position:absolute;top:10px;right:28px;font:600 9.5px var(--mono);letter-spacing:.1em;color:var(--accent)}
+.lib{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
+.lib .slot{min-height:64px}
+.lib .slot.used{opacity:.45}
+.lib .slot .home{right:10px}
+.prov{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.pcard{display:flex;flex-direction:column;gap:6px;text-align:left;padding:14px;border-radius:12px;border:1px solid var(--line-2);background:var(--card-2);transition:border-color .2s,transform .2s}
+.pcard:hover{border-color:var(--accent);transform:translateY(-2px)}
+.pcard b{font-size:14.5px}
+.pcard span{font-size:12px;color:var(--muted);line-height:1.45}
+.pcard em{font-style:normal;font:600 10px var(--mono);letter-spacing:.12em;color:var(--accent)}
+.clist{display:flex;flex-direction:column}
+.citem{display:grid;grid-template-columns:auto 1fr auto auto;gap:2px 14px;align-items:center;padding:11px 0;border-top:1px solid var(--line)}
+.citem:first-child{border-top:0;padding-top:2px}
+.citem .ic{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;background:var(--bg);border:1px solid var(--line-2);font:600 11px var(--mono);color:var(--text-2);grid-row:span 2}
+.citem .nm{font-weight:600}
+.citem .kd{font:500 11px var(--mono);color:var(--muted)}
+.citem .row{grid-row:span 2}
+.badge{font:600 10px var(--mono);letter-spacing:.08em;padding:3px 8px;border-radius:99px;border:1px solid var(--line-2);color:var(--text-2);white-space:nowrap}
+.badge.def{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
+.cform{display:flex;flex-direction:column;gap:12px;padding:16px 18px;border-radius:14px;border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);background:color-mix(in srgb,var(--accent) 3%,transparent)}
+.cform .res{font:12px/1.6 var(--mono);color:var(--text-2);white-space:pre-wrap;max-height:140px;overflow:auto}
+.cform .res.ok{color:var(--good)} .cform .res.bad{color:var(--crit)}
+.note{display:flex;gap:12px;padding:12px 14px;border-radius:12px;border:1px solid color-mix(in srgb,var(--warm) 30%,transparent);background:color-mix(in srgb,var(--warm) 6%,transparent);font-size:13px;color:var(--text-2);line-height:1.5}
+.note b{color:var(--text)}
+.note>i{font-style:normal;color:var(--warm)}
+.kv{display:grid;grid-template-columns:160px 1fr;gap:8px 16px;font-size:13px}
+.kv span:nth-child(odd){color:var(--muted)}
+.code{font:12px/1.6 var(--mono);padding:10px 12px;border-radius:9px;background:var(--bg);border:1px solid var(--line);color:var(--text-2);white-space:pre-wrap;word-break:break-all;user-select:all}
+.toast{position:fixed;left:50%;top:calc(76px*var(--z));z-index:50;transform:translate(-50%,-10px);opacity:0;transition:opacity .25s,transform .35s cubic-bezier(.3,1.4,.5,1);pointer-events:none}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast .zz{padding:8px 14px;border-radius:99px;background:var(--card-2);border:1px solid var(--line-2);font-size:13px;box-shadow:0 10px 30px -10px color-mix(in srgb,var(--shadow) 60%,transparent)}
+body.calm *,body.calm *::before,body.calm *::after{animation-duration:.001s!important;animation-iteration-count:1!important;transition-duration:.001s!important}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -479,13 +687,14 @@ body.term #term{transform:translate(-50%,0)}
 <div id="space"></div><div id="space2"></div>
 
 <header id="top"><div class="zz">
-  <div class="brand"><span class="bdot"></span>JARVIS <em>DEMO · SAMPLE DATA</em></div>
+  <div class="brand"><span class="bdot"></span>JARVIS <em id="modebadge">DEMO · SAMPLE DATA</em></div>
   <nav class="tabs" id="tabs"><div id="pill"></div></nav>
   <div class="top-r">
     <div id="mini" title="Board map"><div id="camrect"></div></div>
     <span class="mono" id="clock">18:42</span>
     <button class="ibtn" id="chatty" title="Let Jarvis speak up on its own"><i class="dot"></i><span>Chatty</span></button>
     <button class="ibtn" id="ovbtn">Overview <kbd>Esc</kbd></button>
+    <button class="ibtn" id="setbtn" title="Settings  ( , )" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
   </div>
 </div></header>
 
@@ -498,10 +707,10 @@ body.term #term{transform:translate(-50%,0)}
 <main id="board">
 
 <!-- ================= WORLD (0,0) ================= -->
-<section class="pane" data-id="world" data-name="World" data-c="0" data-r="0" data-tint="255,176,110">
+<section class="pane" data-id="world" data-desc="News ranked by what affects you" data-name="World" data-tint="255,176,110">
  <div class="pane-inner">
   <div class="ph">
-   <div><div class="eyebrow">A1 · World briefing · refreshed 18:00</div><h1>What matters today</h1></div>
+   <div><div class="eyebrow">World briefing · refreshed 18:00</div><h1>What matters today</h1></div>
    <div class="ph-stats"><div class="stat"><div class="v">212</div><div class="k">stories scanned</div></div><div class="stat"><div class="v">6</div><div class="k">kept for you</div></div><div class="stat"><div class="v">1</div><div class="k">needs action</div></div></div>
   </div>
   <div class="grid" style="grid-template-columns:1.65fr 1fr">
@@ -533,15 +742,15 @@ body.term #term{transform:translate(-50%,0)}
    </div>
   </div>
  </div>
- <div class="ov"><div><small>A1</small><span>World</span></div></div>
+ <div class="ov"><div><small></small><span>World</span></div></div>
 </section>
 
 <!-- ================= SCHEDULE (1,0) ================= -->
-<section class="pane" data-id="schedule" data-name="Schedule" data-c="1" data-r="0" data-tint="110,160,255">
+<section class="pane" data-id="schedule" data-desc="Week calendar, automations and todos" data-name="Schedule" data-tint="110,160,255">
  <div class="pane-inner">
   <div class="ph">
-   <div><div class="eyebrow">B1 · Week 43 · 19–25 Oct</div><h1>Schedule</h1></div>
-   <div class="legend"><span><i style="background:var(--s1)"></i>Calendar</span><span><i style="background:var(--s2)"></i>Agent jobs</span><span><i style="background:var(--s3)"></i>Reviews</span><span><i style="background:repeating-linear-gradient(135deg,#677080 0 2px,transparent 2px 4px)"></i>Focus</span></div>
+   <div><div class="eyebrow">Week 43 · 19–25 Oct</div><h1>Schedule</h1></div>
+   <div class="legend"><span><i style="background:var(--s1)"></i>Calendar</span><span><i style="background:var(--s2)"></i>Agent jobs</span><span><i style="background:var(--s3)"></i>Reviews</span><span><i style="background:repeating-linear-gradient(135deg,var(--muted) 0 2px,transparent 2px 4px)"></i>Focus</span></div>
   </div>
   <div class="grid" style="grid-template-columns:1.8fr 1fr">
    <div class="card"><div class="week" id="week"></div></div>
@@ -556,14 +765,14 @@ body.term #term{transform:translate(-50%,0)}
    </div>
   </div>
  </div>
- <div class="ov"><div><small>B1</small><span>Schedule</span></div></div>
+ <div class="ov"><div><small></small><span>Schedule</span></div></div>
 </section>
 
 <!-- ================= PROJECTS (2,0) ================= -->
-<section class="pane" data-id="projects" data-name="Projects" data-c="2" data-r="0" data-tint="170,140,255">
+<section class="pane" data-id="projects" data-desc="Autonomous build pipeline from idea to shipped" data-name="Projects" data-tint="170,140,255">
  <div class="pane-inner">
   <div class="ph">
-   <div><div class="eyebrow">C1 · Autonomous builds</div><h1>Projects</h1></div>
+   <div><div class="eyebrow">Autonomous builds</div><h1>Projects</h1></div>
    <div class="row"><div class="ph-stats" style="margin-right:14px"><div class="stat"><div class="v">2</div><div class="k">building now</div></div><div class="stat"><div class="v">9</div><div class="k">shipped this year</div></div></div><button class="btn">Import repo</button><button class="btn pri">New project from an idea</button></div>
   </div>
   <div class="kanban" id="kanban"></div>
@@ -593,14 +802,14 @@ body.term #term{transform:translate(-50%,0)}
    </div>
   </div>
  </div>
- <div class="ov"><div><small>C1</small><span>Projects</span></div></div>
+ <div class="ov"><div><small></small><span>Projects</span></div></div>
 </section>
 
 <!-- ================= MARKETS (0,1) ================= -->
-<section class="pane" data-id="markets" data-name="Markets" data-c="0" data-r="1" data-tint="90,210,150">
+<section class="pane" data-id="markets" data-desc="Portfolio, allocation and suggestions" data-name="Markets" data-tint="90,210,150">
  <div class="pane-inner">
   <div class="ph">
-   <div><div class="eyebrow">A2 · Portfolio · EUR</div><h1>Markets</h1></div>
+   <div><div class="eyebrow">Portfolio · EUR</div><h1>Markets</h1></div>
    <div class="ph-stats"><div class="stat"><div class="v" id="pday">+€392</div><div class="k">today</div></div><div class="stat"><div class="v">+9.4%</div><div class="k">year to date</div></div><div class="stat"><div class="v">€650</div><div class="k">monthly plan · on track</div></div></div>
   </div>
   <div class="grid" style="grid-template-columns:1.7fr 1fr;grid-template-rows:1.35fr 1fr">
@@ -626,18 +835,18 @@ body.term #term{transform:translate(-50%,0)}
    </div>
   </div>
  </div>
- <div class="ov"><div><small>A2</small><span>Markets</span></div></div>
+ <div class="ov"><div><small></small><span>Markets</span></div></div>
 </section>
 
 <!-- ================= HOME (1,1) ================= -->
-<section class="pane active" data-id="home" data-name="Home" data-c="1" data-r="1" data-tint="143,227,255">
+<section class="pane" data-id="home" data-desc="Greeting, approvals, today and a summary of everything" data-name="Home" data-tint="143,227,255">
  <div class="pane-inner">
   <div class="home-grid">
    <div class="hero">
     <div class="hero-top">
      <div id="orb-slot" aria-hidden="true"></div>
      <div class="hero-text">
-      <div class="eyebrow">B2 · Home · <span id="dateline">Wednesday 21 October</span></div>
+      <div class="eyebrow"><span class="cd"></span>Home · <span id="dateline">Wednesday 21 October</span></div>
       <h1 class="greet"><span id="greet">Good evening</span>.</h1>
       <div class="voice" id="voice">
        <p class="brief">Three agents are working, <b id="needtxt">three things need you</b>, and the homelab is calm. Markets closed +0.8%.</p>
@@ -702,14 +911,14 @@ body.term #term{transform:translate(-50%,0)}
    </div>
   </div>
  </div>
- <div class="ov"><div><small>B2</small><span>Home</span></div></div>
+ <div class="ov"><div><small></small><span>Home</span></div></div>
 </section>
 
 <!-- ================= AGENTS (2,1) ================= -->
-<section class="pane" data-id="agents" data-name="Agents" data-c="2" data-r="1" data-tint="255,150,100">
+<section class="pane" data-id="agents" data-desc="Live Harness routing, running agents and spend" data-name="Agents" data-tint="255,150,100">
  <div class="pane-inner">
   <div class="ph">
-   <div><div class="eyebrow">C2 · Orchestration</div><h1>Agents</h1></div>
+   <div><div class="eyebrow">Orchestration</div><h1>Agents</h1></div>
    <div class="ph-stats"><div class="stat"><div class="v">3</div><div class="k">running</div></div><div class="stat"><div class="v">4</div><div class="k">queued</div></div><div class="stat"><div class="v">€21.40</div><div class="k">of €60 this month</div></div><div class="stat"><div class="v" id="aloc">71%</div><div class="k">tokens served locally</div></div></div>
   </div>
   <div class="grid" style="grid-template-columns:1.7fr 1fr;grid-template-rows:auto minmax(0,1fr)">
@@ -737,7 +946,7 @@ body.term #term{transform:translate(-50%,0)}
    </div>
    <div class="col-stack">
     <div class="card"><h3>Spend this month <span class="go">€21.40 / €60</span></h3>
-     <div class="spend"><div style="flex:12.1;background:var(--s2)" title="codex €12.10"></div><div style="flex:6.3;background:var(--s1)" title="cloud models €6.30"></div><div style="flex:3;background:var(--s4)" title="search APIs €3.00"></div><div style="flex:38.6;background:rgba(255,255,255,.06)"></div></div>
+     <div class="spend"><div style="flex:12.1;background:var(--s2)" title="codex €12.10"></div><div style="flex:6.3;background:var(--s1)" title="cloud models €6.30"></div><div style="flex:3;background:var(--s4)" title="search APIs €3.00"></div><div style="flex:38.6;background:color-mix(in srgb,var(--ink) 6%,transparent)"></div></div>
      <div class="legend"><span><i style="background:var(--s2)"></i>Codex €12.10</span><span><i style="background:var(--s1)"></i>Cloud models €6.30</span><span><i style="background:var(--s4)"></i>Search €3.00</span></div>
     </div>
     <div class="card fill"><h3>Activity <span class="go">live</span></h3>
@@ -754,14 +963,14 @@ body.term #term{transform:translate(-50%,0)}
    </div>
   </div>
  </div>
- <div class="ov"><div><small>C2</small><span>Agents</span></div></div>
+ <div class="ov"><div><small></small><span>Agents</span></div></div>
 </section>
 
 <!-- ================= REVIEWS (0,2) ================= -->
-<section class="pane" data-id="reviews" data-name="Reviews" data-c="0" data-r="2" data-tint="90,205,190">
+<section class="pane" data-id="reviews" data-desc="Daily and weekly reviews written by JARVIS" data-name="Reviews" data-tint="90,205,190">
  <div class="pane-inner">
   <div class="ph">
-   <div><div class="eyebrow">A3 · Daily &amp; weekly reviews</div><h1>Reviews</h1></div>
+   <div><div class="eyebrow">Daily &amp; weekly reviews</div><h1>Reviews</h1></div>
    <div class="row"><span class="muted" style="font-size:13px">Next: daily wrap-up 22:00 · weekly Sun 18:00</span><button class="btn pri">Start review now</button></div>
   </div>
   <div class="grid" style="grid-template-columns:1.6fr 1fr">
@@ -796,14 +1005,14 @@ body.term #term{transform:translate(-50%,0)}
    </div>
   </div>
  </div>
- <div class="ov"><div><small>A3</small><span>Reviews</span></div></div>
+ <div class="ov"><div><small></small><span>Reviews</span></div></div>
 </section>
 
 <!-- ================= INFRA (1,2) ================= -->
-<section class="pane" data-id="infra" data-name="Infra" data-c="1" data-r="2" data-tint="235,185,95">
+<section class="pane" data-id="infra" data-desc="Machines, services, events and backups" data-name="Infra" data-tint="235,185,95">
  <div class="pane-inner">
   <div class="ph">
-   <div><div class="eyebrow" id="ieyebrow">B3 · Machines &amp; services · NixOS gen 412</div><h1>Infrastructure</h1></div>
+   <div><div class="eyebrow" id="ieyebrow">Machines &amp; services · NixOS gen 412</div><h1>Infrastructure</h1></div>
    <div class="row"><span class="st warn" id="iwarn">2 warnings</span><button class="btn">Deploy all</button><button class="btn pri" data-act="ssh" id="sshbtn">Apply SSH fix (2 hosts)</button></div>
   </div>
   <div class="machines" id="machines"></div>
@@ -830,14 +1039,14 @@ body.term #term{transform:translate(-50%,0)}
    </div></div>
   </div>
  </div>
- <div class="ov"><div><small>B3</small><span>Infra</span></div></div>
+ <div class="ov"><div><small></small><span>Infra</span></div></div>
 </section>
 
 <!-- ================= LAB (2,2) ================= -->
-<section class="pane" data-id="lab" data-name="Lab" data-c="2" data-r="2" data-tint="190,125,255">
+<section class="pane" data-id="lab" data-desc="Local models, VRAM, queue and routing policy" data-name="Lab" data-tint="190,125,255">
  <div class="pane-inner">
   <div class="ph">
-   <div><div class="eyebrow">C3 · Local AI · forge gpu0</div><h1>Lab</h1></div>
+   <div><div class="eyebrow">Local AI · forge gpu0</div><h1>Lab</h1></div>
    <div class="ph-stats"><div class="stat"><div class="v" id="tps">41 tok/s</div><div class="k">current decode</div></div><div class="stat"><div class="v">19.2 / 24 GB</div><div class="k">VRAM</div></div><div class="stat"><div class="v" id="gput">67 °C</div><div class="k">GPU · 248 W</div></div><div class="stat"><div class="v" id="bench">2 h 18 m</div><div class="k">until benchmark</div></div></div>
   </div>
   <div class="grid" style="grid-template-columns:1.6fr 1fr;grid-template-rows:1.2fr 1fr">
@@ -877,7 +1086,173 @@ body.term #term{transform:translate(-50%,0)}
    </div>
   </div>
  </div>
- <div class="ov"><div><small>C3</small><span>Lab</span></div></div>
+ <div class="ov"><div><small></small><span>Lab</span></div></div>
+</section>
+
+<!-- ================= ROOMS (library) ================= -->
+<section class="pane" data-id="rooms" data-desc="Smart home: rooms, lights, climate, scenes and security" data-name="Rooms" data-tint="120,200,255">
+ <div class="pane-inner">
+  <div class="ph">
+   <div><div class="eyebrow">Smart home · 31 devices · Home Assistant</div><h1>Rooms</h1></div>
+   <div class="ph-stats"><div class="stat"><div class="v" id="rm-in">21.4°</div><div class="k">inside · target <span id="rm-tgt2">21</span>°</div></div><div class="stat"><div class="v" id="rm-lights">4</div><div class="k">lights on</div></div><div class="stat"><div class="v">0.9 kW</div><div class="k">using now</div></div><div class="stat"><div class="v" id="rm-lock">Locked</div><div class="k">front door</div></div></div>
+  </div>
+  <div class="grid" style="grid-template-columns:1.9fr 1fr">
+   <div class="rooms" id="rooms"></div>
+   <div class="col-stack">
+    <div class="card"><h3>Scenes <span class="go">one tap</span></h3><div class="scenes" id="scenes"></div></div>
+    <div class="card"><h3>Climate <span class="go">heat pump · auto</span></h3>
+     <div class="thermo"><button class="tbtn" data-t="-1" aria-label="Lower target">−</button><div><div class="big num"><span id="rm-tgt">21</span><small>°C</small></div><div class="muted" style="font-size:12px">target · eco from 23:00</div></div><button class="tbtn" data-t="1" aria-label="Raise target">+</button></div>
+    </div>
+    <div class="card fill"><h3>Security</h3>
+     <div class="list scroll" id="secu"></div>
+    </div>
+   </div>
+  </div>
+ </div>
+ <div class="ov"><div><small></small><span>Rooms</span></div></div>
+</section>
+
+<!-- ================= ENERGY (library) ================= -->
+<section class="pane" data-id="energy" data-desc="Solar, battery, grid, prices and the biggest consumers" data-name="Energy" data-tint="250,210,90">
+ <div class="pane-inner">
+  <div class="ph">
+   <div><div class="eyebrow">Energy · solar, battery &amp; grid · live</div><h1>Energy</h1></div>
+   <div class="ph-stats"><div class="stat"><div class="v" id="en-sol">3.2 kW</div><div class="k">solar now</div></div><div class="stat"><div class="v" id="en-use">1.1 kW</div><div class="k">home using</div></div><div class="stat"><div class="v" id="en-bat">78%</div><div class="k">battery</div></div><div class="stat"><div class="v">€1.84</div><div class="k">cost today</div></div></div>
+  </div>
+  <div class="grid" style="grid-template-columns:1.7fr 1fr;grid-template-rows:1.25fr 1fr">
+   <div class="card"><h3><span>Today · production vs use</span><span class="legend"><span><i style="background:var(--warn)"></i>Solar</span><span><i style="background:var(--accent)"></i>Home</span></span></h3><div class="chart" id="echart"></div></div>
+   <div class="card"><h3>Power flow <span class="go">live</span></h3><div class="flow" id="eflow"></div></div>
+   <div class="card"><h3>Grid price · next 24 h <span class="go">dynamic tariff</span></h3>
+    <p class="t2" style="font-size:12.5px;margin:-4px 0 12px">Cheapest from <b>12:00–15:00</b>. JARVIS moved the dishwasher and the car to that window.</p>
+    <div class="prices" id="eprice"></div>
+   </div>
+   <div class="card"><h3>Biggest consumers <span class="go">today</span></h3><div class="list scroll" id="econs"></div></div>
+  </div>
+ </div>
+ <div class="ov"><div><small></small><span>Energy</span></div></div>
+</section>
+
+<!-- ================= HEALTH (library) ================= -->
+<section class="pane" data-id="health" data-desc="Sleep, activity rings, heart trends, workouts and habits" data-name="Health" data-tint="255,120,150">
+ <div class="pane-inner">
+  <div class="ph">
+   <div><div class="eyebrow">Health · synced from your watch 18:20</div><h1>Health</h1></div>
+   <div class="ph-stats"><div class="stat"><div class="v">7 h 24 m</div><div class="k">sleep last night</div></div><div class="stat"><div class="v">54</div><div class="k">resting HR · bpm</div></div><div class="stat"><div class="v">62 ms</div><div class="k">HRV · 7-day avg</div></div><div class="stat"><div class="v" id="hl-steps">6,210</div><div class="k">steps today</div></div></div>
+  </div>
+  <div class="grid" style="grid-template-columns:1.35fr 1fr 1fr;grid-template-rows:1fr 1fr">
+   <div class="card"><h3><span>Sleep · 14 nights</span><span class="legend"><span><i style="background:var(--s1)"></i>Deep</span><span><i style="background:var(--accent)"></i>REM</span><span><i style="background:color-mix(in srgb,var(--ink) 18%,transparent)"></i>Light</span></span></h3><div class="sleep" id="sleep"></div></div>
+   <div class="card"><h3>Today</h3><div class="rings" id="rings"></div></div>
+   <div class="card"><h3>Habits <span class="go">last 5 weeks</span></h3><div class="list" id="habits"></div></div>
+   <div class="card"><h3>Heart · 30 days <span class="go">HRV, ms</span></h3><div class="chart" id="hchart"></div></div>
+   <div class="card"><h3>Workouts</h3><div class="list scroll" id="workouts"></div></div>
+   <div class="card insight"><h3>JARVIS' take</h3>
+    <p>Your deep sleep drops on nights you train after 20:00. Tonight's gym is at 19:30 — I'd keep it short and move Thursday's session to the morning.</p>
+    <div class="row" style="margin-top:auto;padding-top:12px"><button class="btn pri" data-act="morning">Move Thursday</button><button class="btn" data-act="explainSleep">Why?</button></div>
+   </div>
+  </div>
+ </div>
+ <div class="ov"><div><small></small><span>Health</span></div></div>
+</section>
+
+<!-- ================= INBOX (library) ================= -->
+<section class="pane" data-id="inbox" data-desc="Mail, chat and notifications triaged by JARVIS, with drafted replies" data-name="Inbox" data-tint="140,180,255">
+ <div class="pane-inner">
+  <div class="ph">
+   <div><div class="eyebrow">Inbox · mail, chat &amp; GitHub · triaged by JARVIS</div><h1>Inbox</h1></div>
+   <div class="ph-stats"><div class="stat"><div class="v" id="ib-need">6</div><div class="k">need you</div></div><div class="stat"><div class="v">14</div><div class="k">handled by JARVIS</div></div><div class="stat"><div class="v">31</div><div class="k">archived today</div></div><div class="stat"><div class="v" id="ib-drafts">2</div><div class="k">drafts ready</div></div></div>
+  </div>
+  <div class="grid" style="grid-template-columns:1.55fr 1fr">
+   <div class="card"><h3>Triage <span class="go">sorted by who is waiting on you</span></h3><div class="scroll" id="triage"></div></div>
+   <div class="col-stack">
+    <div class="card draft"><h3>Draft ready <span class="go" id="dr-to">to: Landlord</span></h3>
+     <div class="dtext" id="dr-text">Hi Mark, thanks for checking. The radiator in the bedroom still doesn't get warm past level 3. Thursday after 16:00 works for the plumber — could you confirm the time? Best regards</div>
+     <div class="row" style="margin-top:12px"><button class="btn pri" data-act="send">Send</button><button class="btn" data-act="shorter">Make it shorter</button><span class="sp"></span><button class="btn" data-act="discard">Discard</button></div>
+    </div>
+    <div class="card fill"><h3>Digest <span class="go">9 newsletters, summarised</span></h3>
+     <div class="doc scroll"><ul>
+      <li>Two open-weight models now beat last year's cloud models on coding benchmarks.</li>
+      <li>Your energy provider raises the base fee by €2/month from January.</li>
+      <li>A self-hosting newsletter features a Cloudflare Access setup like yours.</li>
+      <li>Three receipts filed to vault · one invoice due Friday (€48).</li>
+     </ul></div>
+    </div>
+    <div class="card"><h3>Rules <span class="go">what JARVIS may file alone</span></h3>
+     <div class="list" id="ibrules">
+      <div class="cron"><span>Archive receipts to vault</span><span></span><span class="sw on" role="switch" aria-checked="true"></span></div>
+      <div class="cron"><span>Summarise newsletters daily</span><span></span><span class="sw on" role="switch" aria-checked="true"></span></div>
+      <div class="cron"><span>Send drafted replies</span><span></span><span class="sw" role="switch" aria-checked="false"></span></div>
+     </div>
+    </div>
+   </div>
+  </div>
+ </div>
+ <div class="ov"><div><small></small><span>Inbox</span></div></div>
+</section>
+
+<!-- ================= NETWORK (library) ================= -->
+<section class="pane" data-id="network" data-desc="Bandwidth, devices, DNS blocking and what is exposed to the internet" data-name="Network" data-tint="100,220,200">
+ <div class="pane-inner">
+  <div class="ph">
+   <div><div class="eyebrow">Network · gateway, DNS &amp; Cloudflare tunnel</div><h1>Network</h1></div>
+   <div class="ph-stats"><div class="stat"><div class="v">23</div><div class="k">devices online</div></div><div class="stat"><div class="v" id="nw-down">412</div><div class="k">Mbit/s down</div></div><div class="stat"><div class="v" id="nw-up">38</div><div class="k">Mbit/s up</div></div><div class="stat"><div class="v">14.2%</div><div class="k">DNS queries blocked</div></div></div>
+  </div>
+  <div class="grid" style="grid-template-columns:1.6fr 1fr;grid-template-rows:1fr 1fr">
+   <div class="card"><h3>Bandwidth · 24 h <span class="go">download, Mbit/s</span></h3><div class="chart" id="nchart"></div></div>
+   <div class="card"><h3>Exposed to the internet <span class="go">via Cloudflare</span></h3>
+    <div class="list scroll">
+     <div class="expo"><span class="st good">protected</span><span><b>dashboard.example.com</b><small>tunnel → jarvis:8787 · Access: you only</small></span></div>
+     <div class="expo"><span class="st good">protected</span><span><b>photos.example.com</b><small>tunnel → vault:2342 · Access: family</small></span></div>
+     <div class="expo"><span class="st warn">public</span><span><b>status.example.com</b><small>tunnel → uptime:3001 · no login (read-only)</small></span></div>
+     <div class="expo"><span class="st good">closed</span><span><b>Open ports on the router</b><small>0 forwarded · last scan 06:00</small></span></div>
+     <div class="expo"><span class="st warn">23 days</span><span><b>Certificate · vault.lan</b><small>renews automatically on 5 Nov</small></span></div>
+    </div>
+   </div>
+   <div class="card"><h3>Devices <span class="go">23 online · 4 new this month</span></h3>
+    <div class="scroll"><table><thead><tr><th>Device</th><th>Address</th><th>Type</th><th class="n">Today</th></tr></thead><tbody id="ndev"></tbody></table></div>
+   </div>
+   <div class="card"><h3>DNS <span class="go">top blocked today</span></h3><div class="list scroll" id="ndns"></div></div>
+  </div>
+ </div>
+ <div class="ov"><div><small></small><span>Network</span></div></div>
+</section>
+
+<!-- ================= INSIGHTS (library) ================= -->
+<section class="pane" data-id="insights" data-desc="Statistics: AI usage and cost per provider, model scores, activity heatmap" data-name="Insights" data-tint="200,160,255">
+ <div class="pane-inner">
+  <div class="ph">
+   <div><div class="eyebrow">Insights · last 30 days</div><h1>Insights</h1></div>
+   <div class="ph-stats"><div class="stat"><div class="v">31.2M</div><div class="k">tokens</div></div><div class="stat"><div class="v">€21.40</div><div class="k">AI spend</div></div><div class="stat"><div class="v">94%</div><div class="k">agent tasks succeeded</div></div><div class="stat"><div class="v">38 h</div><div class="k">estimated time saved</div></div></div>
+  </div>
+  <div class="grid" style="grid-template-columns:1.6fr 1fr;grid-template-rows:1fr 1fr">
+   <div class="card"><h3><span>Tokens per day · by provider</span><span class="legend" id="ileg"></span></h3><div class="chart" id="ichart"></div></div>
+   <div class="card"><h3>Models <span class="go">tasks · success · latency</span></h3>
+    <div class="scroll"><table><thead><tr><th>Model</th><th class="n">Tasks</th><th class="n">OK</th><th class="n">p50</th><th class="n">Cost</th></tr></thead><tbody id="imod"></tbody></table></div>
+   </div>
+   <div class="card"><h3>Activity · last 26 weeks <span class="go">you + agents</span></h3><div class="heat" id="heat"></div>
+    <div class="row muted" style="font-size:11.5px;margin-top:10px"><span>Less</span><span class="heatkey"><i style="--a:.08"></i><i style="--a:.3"></i><i style="--a:.55"></i><i style="--a:.8"></i><i style="--a:1"></i></span><span>More</span><span class="sp"></span><span>Longest streak <b>23 days</b></span></div>
+   </div>
+   <div class="card"><h3>Where agent time went</h3><div class="list" id="itime"></div></div>
+  </div>
+ </div>
+ <div class="ov"><div><small></small><span>Insights</span></div></div>
+</section>
+
+<!-- ================= STATUS (library) ================= -->
+<section class="pane" data-id="status" data-desc="Health of every connection and AI provider you configured, checked live" data-name="Status" data-tint="130,230,170">
+ <div class="pane-inner">
+  <div class="ph">
+   <div><div class="eyebrow" id="st-eb">Connections · checked just now</div><h1>Status</h1></div>
+   <div class="row"><div class="ph-stats" style="margin-right:14px"><div class="stat"><div class="v num" id="st-ok">0</div><div class="k">healthy</div></div><div class="stat"><div class="v num" id="st-bad">0</div><div class="k">need attention</div></div><div class="stat"><div class="v num" id="st-lat">—</div><div class="k">median latency</div></div></div><button class="btn" id="st-check">Check now</button><button class="btn pri" data-settings="connections">Manage connections</button></div>
+  </div>
+  <div class="grid" style="grid-template-columns:1.7fr 1fr">
+   <div class="card"><h3>Connections <span class="go" id="st-src">sample data</span></h3><div class="scroll list" id="conns"></div></div>
+   <div class="col-stack">
+    <div class="card"><h3>AI <span class="go" data-settings="ai">change →</span></h3><div class="list" id="st-ai"></div></div>
+    <div class="card fill"><h3>Changes</h3><div class="scroll log" id="st-log"></div></div>
+   </div>
+  </div>
+ </div>
+ <div class="ov"><div><small></small><span>Status</span></div></div>
 </section>
 
 </main>
@@ -886,6 +1261,16 @@ body.term #term{transform:translate(-50%,0)}
 <button id="jarvis" type="button" aria-label="JARVIS. Click to talk, hold to charge, drag to move."><canvas aria-hidden="true"></canvas></button>
 <div id="jcap" aria-hidden="true"><div class="zz"></div></div>
 <div id="bubble" role="status" aria-live="polite"><div class="bin zz"><div class="who">JARVIS<button class="x" title="Dismiss">×</button></div><div class="txt"></div><div class="acts"></div></div></div>
+
+<!-- ================= SETTINGS ================= -->
+<div id="settings" role="dialog" aria-modal="true" aria-label="Settings">
+ <div class="set">
+  <nav id="setnav"><div class="t"><span class="bdot"></span>SETTINGS</div><div class="foot" id="setfoot"></div></nav>
+  <main><header><div><h2 id="sett">Settings</h2><p id="setp"></p></div><button class="x" id="setx" aria-label="Close settings">×</button></header><div class="sbody" id="sbody"></div></main>
+ </div>
+</div>
+<div class="toast" id="toast"><div class="zz"></div></div>
+<style id="user-css"></style>
 
 <!-- ================= TERMINAL ================= -->
 <div id="term" role="dialog" aria-label="Jarvis terminal">
@@ -903,15 +1288,420 @@ const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const board = $('#board'), space = $('#space'), space2 = $('#space2'), body = document.body, rootStyle = document.documentElement.style;
 const panes = $$('.pane');
 const byId = Object.fromEntries(panes.map(p => [p.dataset.id, p]));
-const at = {}; panes.forEach(p => at[p.dataset.c + ',' + p.dataset.r] = p.dataset.id);
 panes.forEach(p => p.style.setProperty('--t', p.dataset.tint));
-const order = ['home','agents','schedule','projects','infra','lab','markets','world','reviews'];
+// The board is a grid of slots the user arranges in Settings; panes left out stay hidden.
+const DEFAULT_LAYOUT = { cols: 3, rows: 3, start: 'home', slots: ['world', 'schedule', 'projects', 'markets', 'home', 'agents', 'reviews', 'infra', 'lab'] };
+let COLS = 3, ROWS = 3, at = {}, order = [];
+const placed = id => !!byId[id] && !byId[id].hidden;
+const coordOf = id => { const p = byId[id]; return String.fromCharCode(65 + +p.dataset.c) + (+p.dataset.r + 1); };
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const rng = (s => () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296)(42);
 const pick = a => a[Math.floor(Math.random() * a.length)];
-const hm = () => new Date().toTimeString().slice(0, 5);
+const hm = (d = new Date()) => CFG?.profile.clock === '12h' ? d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : d.toTimeString().slice(0, 5);
 const W = () => innerWidth, H = () => innerHeight;
 let current = 'home', overview = false, termOpen = false, z = 1;
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+/*@CATALOG@*/
+
+/* ======================================================== settings: store, server, themes
+   Without the server (static demo, file://) settings live in this browser and no secret is ever
+   accepted. With the server (npm start) they are stored there and API keys never come back. */
+const API = { server: false, info: null, conns: [] };
+const DEFAULTS = {
+  profile: { name: '', units: 'metric', currency: 'EUR', clock: '24h' },
+  appearance: { theme: 'jarvis', accent: '', font: 'grotesk', motion: 'full', css: '', themes: [] },
+  layout: structuredClone(DEFAULT_LAYOUT),
+  jarvis: { chatty: true },
+  ai: { chat: '' },
+};
+let CFG = structuredClone(DEFAULTS);
+const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
+function mergeDeep(a, b) { for (const k of Object.keys(b || {})) { if (k === '__proto__' || k === 'constructor') continue; if (isObj(b[k]) && isObj(a[k])) mergeDeep(a[k], b[k]); else if (b[k] !== undefined) a[k] = b[k]; } return a; }
+const getPath = p => p.split('.').reduce((o, k) => o?.[k], CFG);
+const setPath = (p, v) => { const ks = p.split('.'), last = ks.pop(); ks.reduce((o, k) => o[k] ??= {}, CFG)[last] = v; };
+
+async function api(path, { method = 'GET', body } = {}) {
+  const r = await fetch('/api/' + path, { method, credentials: 'same-origin', headers: { 'x-jarvis': '1', ...(body ? { 'content-type': 'application/json' } : {}) }, body: body && JSON.stringify(body) });
+  if (r.status === 401) { location.assign('/login'); throw new Error('Signed out'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || `${r.status} ${r.statusText}`);
+  return d;
+}
+async function loadSettings() {
+  if (/^https?:$/.test(location.protocol)) {
+    try {
+      const r = await fetch('/api/session', { credentials: 'same-origin', headers: { 'x-jarvis': '1' } });
+      if (r.status === 401) { location.replace('/login'); await new Promise(() => {}); }
+      if (r.ok && (r.headers.get('content-type') || '').includes('json')) {
+        const d = await r.json();
+        if (d.jarvis) { API.server = true; API.info = d; API.conns = d.connections || []; CFG = mergeDeep(structuredClone(DEFAULTS), d.settings || {}); return; }
+      }
+    } catch {}
+  }
+  try { mergeDeep(CFG, JSON.parse(localStorage.getItem('jarvis-settings') || '{}')); } catch {}
+}
+let saveT;
+function save() {
+  clearTimeout(saveT);
+  saveT = setTimeout(async () => {
+    if (API.server) { try { await api('settings', { method: 'PUT', body: CFG }); } catch (e) { toast('Could not save · ' + e.message); } }
+    else try { localStorage.setItem('jarvis-settings', JSON.stringify(CFG)); } catch {}
+  }, 350);
+}
+let toastT;
+function toast(text) { const t = $('#toast'); $('.zz', t).textContent = text; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600); }
+const download = (name, text, type = 'text/plain') => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); };
+
+// ---- themes: a theme is a CSS block, [data-theme="id"] { --bg: …; } with an @name comment.
+const CONTRACT = ['--bg', '--card', '--card-2', '--term', '--text', '--text-2', '--muted', '--ink', '--shadow', '--accent', '--on-accent', '--warm', '--good', '--warn', '--crit', '--s1', '--s2', '--s3', '--s4'];
+function themeList() {
+  const css = $$('style').map(s => s.textContent).join('\n'), out = [], seen = new Set();
+  for (const m of css.matchAll(/\[data-theme="([\w-]+)"\]\s*\{\s*\/\*\s*@name\s+(.+?)\s+@scheme\s+(\w+)/g)) if (!seen.has(m[1])) { seen.add(m[1]); out.push({ id: m[1], name: m[2], scheme: m[3], custom: CFG.appearance.themes.some(t => t.id === m[1]) }); }
+  return out;
+}
+const cv = document.createElement('canvas').getContext('2d');
+function rgbOf(color) { cv.fillStyle = '#000'; cv.fillStyle = color; const v = cv.fillStyle; if (v[0] === '#') return [1, 3, 5].map(i => parseInt(v.slice(i, i + 2), 16)); const m = v.match(/[\d.]+/g); return m ? m.slice(0, 3).map(Number) : [143, 227, 255]; }
+const ATM = window.JarvisOrbAtmospheres;
+function applyAppearance() {
+  const a = CFG.appearance, root = document.documentElement;
+  $('#user-css').textContent = a.themes.map(t => t.css).join('\n') + '\n' + (a.css || '');
+  root.dataset.theme = themeList().some(t => t.id === a.theme) ? a.theme : 'jarvis';
+  if (/^#[0-9a-f]{6}$/i.test(a.accent)) rootStyle.setProperty('--accent', a.accent); else rootStyle.removeProperty('--accent');
+  rootStyle.setProperty('--font', { grotesk: '"Space Grotesk"', system: 'system-ui', mono: 'ui-monospace' }[a.font] || '"Space Grotesk"');
+  body.classList.toggle('calm', a.motion === 'reduced');
+  const cs = getComputedStyle(root), get = v => cs.getPropertyValue(v).trim();
+  $('meta[name="theme-color"]').content = get('--bg');
+  // The orb takes its palette from the theme, so it always belongs to the page.
+  if (ATM) { ATM.board = { accent: rgbOf(get('--accent')), background: get('--bg'), neutral: rgbOf(get('--muted')), warning: rgbOf(get('--warn')), error: rgbOf(get('--crit')), success: rgbOf(get('--good')) }; orb.atmosphere = 'board'; }
+}
+function currentThemeCss(id = 'my-theme', name = 'My theme') {
+  const cs = getComputedStyle(document.documentElement), light = rgbOf(cs.getPropertyValue('--bg')).reduce((a, b) => a + b) > 382;
+  return `[data-theme="${id}"] {\n  /* @name ${name}  @scheme ${light ? 'light' : 'dark'} */\n  color-scheme: ${light ? 'light' : 'dark'};\n` + CONTRACT.map(v => `  ${v}: ${cs.getPropertyValue(v).trim()};`).join('\n') + '\n}\n';
+}
+// Imports a CSS theme, a VS Code colour theme or a jarvis-hermes theme (.json).
+function importTheme(text, filename) {
+  const slug = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'custom';
+  let j = null;
+  try { j = JSON.parse(text.replace(/\/\*[\s\S]*?\*\/|(^|[^:"])\/\/.*$/gm, '$1').replace(/,(\s*[}\]])/g, '$1')); } catch {}
+  if (!j) {
+    const ids = [...text.matchAll(/\[data-theme="([\w-]+)"\]/g)].map(m => m[1]);
+    if (!ids.length) { CFG.appearance.css = (CFG.appearance.css ? CFG.appearance.css + '\n' : '') + text; return 'Added as custom CSS'; }
+    for (const id of new Set(ids)) CFG.appearance.themes = CFG.appearance.themes.filter(t => t.id !== id);
+    CFG.appearance.themes.push({ id: ids[0], css: text.includes('@name') ? text : text.replace(/\{/, `{\n  /* @name ${ids[0]}  @scheme dark */`) });
+    CFG.appearance.theme = ids[0]; return 'Imported ' + ids[0];
+  }
+  const hex = v => typeof v === 'string' && /^#[0-9a-f]{6}/i.test(v) ? v.slice(0, 7) : null;
+  let c, name, scheme;
+  if (j.colors && (j.colors.background || j.colors.surface)) { // jarvis-hermes theme
+    const k = j.colors; name = j.name || j.id; scheme = j.mode === 'light' ? 'light' : 'dark';
+    c = { bg: k.background, card: k.card || k.surface, 'card-2': k.surfaceHover || k.panel, term: k.backgroundSecondary || k.background, text: k.text, 'text-2': k.textMuted, muted: k.border && `color-mix(in srgb,${hex(k.textMuted)} 70%,${hex(k.background)})`, ink: k.text, accent: k.accent || k.primary, 'on-accent': k.background, warm: k.warning, good: k.success, warn: k.warning, crit: k.error, s1: k.info || k.secondary, s2: k.primary, s3: k.success, s4: k.warning };
+  } else if (j.colors) { // VS Code
+    const k = j.colors, T = n => hex(k['terminal.ansi' + n]) || hex(k['terminal.ansiBright' + n]); name = j.name || filename.replace(/\.json$/i, ''); scheme = /light/i.test(j.type || '') ? 'light' : 'dark';
+    const bg = hex(k['editor.background']) || (scheme === 'light' ? '#ffffff' : '#1e1e1e'), fg = hex(k['editor.foreground']) || hex(k.foreground) || (scheme === 'light' ? '#1f2328' : '#d4d4d4');
+    c = { bg: hex(k['sideBar.background']) || hex(k['activityBar.background']) || bg, card: bg, 'card-2': hex(k['editorWidget.background']) || hex(k['input.background']) || bg, term: hex(k['terminal.background']) || bg,
+      text: fg, 'text-2': hex(k.descriptionForeground) || hex(k['sideBar.foreground']) || fg, muted: hex(k['editorLineNumber.foreground']) || hex(k['disabledForeground']), ink: fg,
+      accent: hex(k.focusBorder) || hex(k['button.background']) || hex(k['textLink.foreground']) || T('Blue'), 'on-accent': hex(k['button.foreground']) || bg,
+      warm: T('Yellow'), good: T('Green'), warn: hex(k['editorWarning.foreground']) || T('Yellow'), crit: hex(k['editorError.foreground']) || T('Red'), s1: T('Blue'), s2: T('Magenta'), s3: T('Cyan'), s4: T('Yellow') };
+  } else throw new Error('Not a theme: expected CSS, a VS Code theme or a JARVIS theme');
+  const id = 'x-' + slug(name);
+  const vars = Object.entries(c).filter(([, v]) => v && /^(#[0-9a-f]{3,8}|color-mix\([^;{}]+\))$/i.test(v.trim())).map(([k, v]) => `  --${k}: ${v.trim()};`).join('\n');
+  CFG.appearance.themes = CFG.appearance.themes.filter(t => t.id !== id);
+  CFG.appearance.themes.push({ id, css: `[data-theme="${id}"] {\n  /* @name ${String(name).replace(/[*/{}]/g, '')}  @scheme ${scheme} */\n  color-scheme: ${scheme};\n${vars}\n}` });
+  CFG.appearance.theme = id; return 'Imported ' + name;
+}
+
+// ---- profile
+const CUR = { EUR: '€', USD: '$', GBP: '£', CHF: 'CHF ', JPY: '¥' };
+function fitGreet() {
+  const g = $('.greet'); if (!g) return; g.style.fontSize = '';
+  for (let f = 56; f > 34 && g.scrollWidth > g.clientWidth + 1; f -= 2) g.style.fontSize = f + 'px';
+}
+function applyProfile() {
+  if (chatty !== CFG.jarvis.chatty) { chatty = CFG.jarvis.chatty; $('#chatty').classList.toggle('off', !chatty); $('#chatty span').textContent = chatty ? 'Chatty' : 'Quiet'; }
+  $('#modebadge').innerHTML = API.server ? 'SAMPLE<span class="x"> DATA</span>' : 'DEMO<span class="x"> · SAMPLE DATA</span>';
+  $('#modebadge').title = API.server ? 'Panes show sample data until their connection feeds them. Status and AI are live.' : 'Static demo: nothing is stored on a server. Run the server to connect real accounts.';
+  clockTick();
+}
+function relayout() {
+  const start = applyLayout(CFG.layout);
+  if (!placed(current)) current = start;
+  panes.forEach(p => p.classList.toggle('active', p.dataset.id === current));
+  layout(); drawCharts();
+  cam = overview ? overviewCam() : paneCam(current); zoomF = 1; flight = { type: 'pan', tx: cam.fx, ty: cam.fy }; vel = { x: 0, y: 0 }; apply();
+  measureSlot(); placeOrb(); syncChrome(); HX.draw();
+}
+
+// ---- the panel
+const SECTIONS = [
+  ['profile', '◔', 'Profile', 'Your name, units and how JARVIS behaves.'],
+  ['appearance', '◐', 'Appearance', 'Themes, colours, fonts and your own CSS.'],
+  ['layout', '▦', 'Board', 'Pick the pages you want and arrange the board.'],
+  ['ai', '✳', 'AI', 'How JARVIS thinks: a subscription, an API key or a local model.'],
+  ['connections', '⇄', 'Connections', 'Services JARVIS reads from. Secrets stay on the server.'],
+  ['security', '⚿', 'Security', 'Sign-in, two-factor codes, sessions and exposure.'],
+  ['data', '⇩', 'Data', 'Export, import and reset.'],
+];
+const setEl = $('#settings'), sbody = $('#sbody');
+let setOpen = false, setSec = 'profile', form = null;
+$('.t', $('#setnav')).insertAdjacentHTML('afterend', SECTIONS.map(s => `<button data-sec="${s[0]}"><i>${s[1]}</i>${s[2]}</button>`).join(''));
+function openSettings(sec) {
+  if (termOpen) toggleTerm(false);
+  hush(); setOpen = true; setEl.classList.add('open');
+  showSection(sec && SECTIONS.some(s => s[0] === sec) ? sec : setSec);
+  setTimeout(() => $('#setx').focus(), 50);
+}
+function closeSettings() { setOpen = false; setEl.classList.remove('open'); form = null; }
+$('#setbtn').onclick = () => openSettings();
+$('#setx').onclick = closeSettings;
+setEl.addEventListener('pointerdown', e => { if (e.target === setEl) closeSettings(); });
+$('#setnav').addEventListener('click', e => { const b = e.target.closest('[data-sec]'); if (b) { form = null; showSection(b.dataset.sec); } });
+function showSection(id) {
+  setSec = id;
+  const s = SECTIONS.find(x => x[0] === id);
+  $$('#setnav [data-sec]').forEach(b => b.classList.toggle('on', b.dataset.sec === id));
+  $('#sett').textContent = s[2]; $('#setp').textContent = s[3];
+  $('#setfoot').innerHTML = API.server ? `server mode<br>signed in · ${esc(API.info?.auth || 'password')}` : 'static demo<br>stored in this browser';
+  sbody.innerHTML = `<section class="on">${RENDER[id]()}</section>`;
+  sbody.scrollTop = 0;
+  if (id === 'layout') bindLayoutDnD();
+}
+const rerender = () => { const y = sbody.scrollTop; showSection(setSec); sbody.scrollTop = y; };
+const fld = (label, inner, hint) => `<label class="fld"><span>${label}${hint ? `<small>${hint}</small>` : ''}</span>${inner}</label>`;
+const seg = (k, opts) => `<div class="seg">${opts.map(([v, l]) => `<button type="button" data-k="${k}" data-v="${v}" class="${String(getPath(k)) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+const demoNote = what => API.server ? '' : `<div class="note"><i>◆</i><div><b>This is the static demo.</b> ${what} Start the server (<span class="mono">npm start</span>) on your machine to use it — keys and passwords are never stored in a browser. See the README for a one-line Docker setup.</div></div>`;
+
+const RENDER = {
+  profile: () => `
+    <div class="grp"><h4>You</h4>
+      ${fld('Name', `<input class="inp" data-k="profile.name" maxlength="40" placeholder="What should JARVIS call you?" value="${esc(CFG.profile.name)}">`, 'Shown in the greeting')}
+      ${fld('Clock', seg('profile.clock', [['24h', '24-hour'], ['12h', '12-hour']]))}
+      ${fld('Units', seg('profile.units', [['metric', 'Metric'], ['imperial', 'Imperial']]))}
+      ${fld('Currency', `<select class="inp sel" data-k="profile.currency">${Object.keys(CUR).map(c => `<option ${CFG.profile.currency === c ? 'selected' : ''}>${c}</option>`).join('')}</select>`)}
+    </div>
+    <div class="grp"><h4>JARVIS</h4>
+      ${fld('Speaks up on its own', seg('jarvis.chatty', [['true', 'Chatty'], ['false', 'Quiet']]), 'You can always click the orb')}
+      <p>Tip: drag the orb to any corner, press <kbd>\`</kbd> for the terminal and <kbd>,</kbd> for settings.</p>
+    </div>`,
+  appearance: () => {
+    const list = themeList();
+    return `
+    <div class="grp"><h4>Theme <span class="sp"></span><span class="go muted" style="font-weight:500;letter-spacing:.04em;text-transform:none">${list.length} installed</span></h4>
+      <div class="themes">${list.map(t => `<button class="th ${CFG.appearance.theme === t.id ? 'on' : ''}" data-theme="${t.id}" data-a="theme" data-id="${t.id}"><div class="pv"><i><b></b><b></b></i><i><b></b><b></b></i></div><div class="lb">${esc(t.name)}<small>${t.custom ? 'custom' : t.scheme}</small></div></button>`).join('')}</div>
+      <div class="row" style="flex-wrap:wrap"><label class="btn">Import theme…<input type="file" accept=".css,.json,text/css,application/json" data-a="import" hidden></label><button class="btn" data-a="export">Export current as CSS</button>
+        ${list.find(t => t.id === CFG.appearance.theme)?.custom ? `<button class="btn" data-a="rmtheme">Remove "${esc(list.find(t => t.id === CFG.appearance.theme).name)}"</button>` : ''}</div>
+      <p class="hint">Import a <b>.css</b> theme, a <b>VS Code</b> colour theme (.json) or a <b>jarvis-hermes</b> theme (.json). Themes are plain CSS variables — see docs/THEMES.md.</p>
+    </div>
+    <div class="grp"><h4>Details</h4>
+      ${fld('Accent colour', `<div class="row"><input type="color" data-k="appearance.accent" value="${/^#[0-9a-f]{6}$/i.test(CFG.appearance.accent) ? CFG.appearance.accent : rgbOf(getComputedStyle(document.documentElement).getPropertyValue('--accent')).map(v => v.toString(16).padStart(2, '0')).reduce((a, b) => a + b, '#')}" style="width:44px;height:30px;border:0;background:none;padding:0">${CFG.appearance.accent ? '<button class="btn" data-a="noaccent">Use the theme\'s</button>' : '<span class="hint">from the theme</span>'}</div>`, 'Overrides the theme')}
+      ${fld('Font', seg('appearance.font', [['grotesk', 'Space Grotesk'], ['system', 'System'], ['mono', 'Mono']]))}
+      ${fld('Motion', seg('appearance.motion', [['full', 'Full'], ['reduced', 'Reduced']]), 'Camera moves stay; effects calm down')}
+    </div>
+    <div class="grp"><h4>Custom CSS <span class="sp"></span><button class="btn" data-a="css">Apply</button></h4>
+      <textarea class="inp" id="cssin" spellcheck="false" placeholder=":root { --accent: #ff9e64; --r: 10px; }&#10;.card { backdrop-filter: blur(8px); }">${esc(CFG.appearance.css)}</textarea>
+      <p class="hint">Runs after every theme, so anything goes: variables like <span class="mono">--accent --bg --card --text --r</span>, or any selector. Saved with your settings.</p>
+    </div>`;
+  },
+  layout: () => {
+    const L = CFG.layout, n = L.cols * L.rows, slots = Array.from({ length: n }, (_, i) => L.slots[i] || null), used = new Set(slots.filter(Boolean));
+    const card = (id, i) => { const p = byId[id]; return `<div class="slot full ${L.start === id ? 'start' : ''}" draggable="true" data-slot="${i}" data-id="${id}" style="--t:${p.dataset.tint}"><span class="cd">${String.fromCharCode(65 + i % L.cols)}${Math.floor(i / L.cols) + 1}</span><span class="nm">${p.dataset.name}</span><span class="ds">${p.dataset.desc}</span><button class="rm" data-a="unslot" data-i="${i}" title="Remove from board">×</button>${L.start === id ? '<span class="home">START</span>' : ''}</div>`; };
+    return `
+    <div class="grp"><h4>Board size <span class="sp"></span><button class="btn" data-a="resetlayout">Reset</button></h4>
+      <div class="seg">${[[2, 2], [3, 2], [3, 3], [4, 3]].map(([c, r]) => `<button type="button" data-a="size" data-c="${c}" data-r="${r}" class="${L.cols === c && L.rows === r ? 'on' : ''}">${c} × ${r}</button>`).join('')}</div>
+      <div class="libgrid" style="--cols:${L.cols}">${slots.map((id, i) => id ? card(id, i) : `<div class="slot" data-slot="${i}"><span class="cd">${String.fromCharCode(65 + i % L.cols)}${Math.floor(i / L.cols) + 1}</span><span class="ds">Empty · drop a page here</span></div>`).join('')}</div>
+      <p class="hint">Drag pages to rearrange them. <b>Double-click</b> a page to make it the start page (first tab, where the board opens).</p>
+    </div>
+    <div class="grp"><h4>Pages</h4>
+      <div class="lib">${panes.map(p => p.dataset.id).map(id => `<div class="slot full ${used.has(id) ? 'used' : ''}" draggable="${!used.has(id)}" data-lib="${id}" style="--t:${byId[id].dataset.tint}"><span class="nm">${byId[id].dataset.name}</span><span class="ds">${byId[id].dataset.desc}</span>${used.has(id) ? '<span class="home" style="color:var(--muted)">ON BOARD</span>' : ''}</div>`).join('')}</div>
+      <p class="hint">Click a page to add it to the first free slot, or drag it onto any slot.</p>
+    </div>`;
+  },
+  ai: () => connSection('ai'),
+  connections: () => connSection('data'),
+  security: () => {
+    if (!API.server) return demoNote('Anyone who opens a public demo sees the same sample board.') + `
+      <div class="grp"><h4>How the private version is protected</h4>
+        <div class="kv"><span>Sign-in</span><span>Password (scrypt-hashed), optional two-factor codes, rate-limited</span><span>Before sign-in</span><span>Only a neutral login page; nothing personal is served</span><span>Secrets</span><span>Encrypted on the server (AES-256-GCM), never sent back to the browser</span><span>Cloudflare</span><span>Works behind a Tunnel; can require Cloudflare Access as well</span><span>Headers</span><span>Strict CSP, no framing, no indexing, HttpOnly SameSite cookies</span></div>
+      </div>`;
+    const s = API.info.security || {};
+    return `
+    <div class="grp"><h4>Exposure</h4>
+      <div class="kv"><span>Sign-in</span><span>${esc(s.mode || 'password')}</span><span>Connection</span><span>${s.https ? '<span class="st good">HTTPS</span>' : '<span class="st warn">plain HTTP</span>'} ${s.proxy ? '· behind ' + esc(s.proxy) : ''}</span><span>Cloudflare Access</span><span>${s.access ? '<span class="st good">required</span>' : '<span class="st idle">not configured</span>'}</span><span>Two-factor</span><span>${s.totp ? '<span class="st good">on</span>' : '<span class="st warn">off</span>'}</span></div>
+      ${!s.https && !s.local ? '<div class="note"><i>▲</i><div><b>This page is served over plain HTTP.</b> Put it behind a Cloudflare Tunnel or another HTTPS proxy before exposing it.</div></div>' : ''}
+    </div>
+    <div class="grp"><h4>Password</h4>
+      ${fld('Current password', '<input class="inp" type="password" id="pw0" autocomplete="current-password">')}
+      ${fld('New password', '<input class="inp" type="password" id="pw1" autocomplete="new-password" minlength="10">', 'At least 10 characters')}
+      ${fld('Repeat', '<input class="inp" type="password" id="pw2" autocomplete="new-password">')}
+      <div class="row"><button class="btn pri" data-a="password">Change password</button><span class="hint" id="pwres"></span></div>
+    </div>
+    <div class="grp"><h4>Two-factor codes</h4>${s.totp ? `<p>An authenticator app code is required at every sign-in.</p>${fld('Password to turn it off', '<input class="inp" type="password" id="tpw" autocomplete="current-password">')}<div class="row"><button class="btn" data-a="totpoff">Turn off</button></div>`
+      : `<p>Adds a 6-digit code from an authenticator app (1Password, Aegis, Google Authenticator…) to every sign-in.</p><div id="totpbox"><button class="btn pri" data-a="totpstart">Set up</button></div>`}</div>
+    <div class="grp"><h4>Sessions <span class="sp"></span><button class="btn" data-a="revoke">Sign out other devices</button><button class="btn" data-a="logout">Sign out</button></h4><div class="clist" id="sesslist"><p class="hint">Loading…</p></div></div>`;
+  },
+  data: () => `
+    <div class="grp"><h4>Settings</h4>
+      <p>Exports profile, appearance, board and AI choices as JSON. ${API.server ? 'Connections and secrets are never exported.' : ''}</p>
+      <div class="row"><button class="btn" data-a="exportcfg">Export settings</button><label class="btn">Import settings…<input type="file" accept=".json,application/json" data-a="importcfg" hidden></label></div>
+    </div>
+    <div class="grp"><h4>Reset</h4>
+      <div class="row" style="flex-wrap:wrap"><button class="btn" data-a="reset" data-what="appearance">Reset appearance</button><button class="btn" data-a="reset" data-what="layout">Reset board</button><button class="btn" data-a="reset" data-what="all">Reset all settings</button></div>
+    </div>
+    <div class="grp"><h4>About</h4><div class="kv"><span>Mode</span><span>${API.server ? 'server · private' : 'static demo · public'}</span><span>Version</span><span class="mono">${esc(API.info?.version || 'demo')}</span><span>Source</span><span>center-dashboard · MIT</span></div></div>`,
+};
+
+// ---- connections (AI providers and data integrations share one flow)
+const AI_BY = Object.fromEntries(AI_PROVIDERS.map(p => [p.id, p])), DATA_BY = Object.fromEntries(INTEGRATIONS.map(p => [p.id, p]));
+const aiList = () => API.conns.filter(c => c.kind === 'ai' && AI_BY[c.type]?.available !== false).map(c => ({ ...c, local: AI_BY[c.type]?.local, group: AI_BY[c.type]?.group, model: c.values?.model, def: c.id === chatConn()?.id }));
+const chatConn = () => API.conns.find(c => c.kind === 'ai' && AI_BY[c.type]?.available !== false && c.id === CFG.ai.chat) || API.conns.find(c => c.kind === 'ai' && AI_BY[c.type]?.available !== false);
+function connSection(kind) {
+  const ai = kind === 'ai', cat = ai ? AI_PROVIDERS : INTEGRATIONS, groups = ai ? AI_GROUPS : DATA_GROUPS, by = ai ? AI_BY : DATA_BY;
+  const mine = API.conns.filter(c => c.kind === kind);
+  let h = demoNote(ai ? 'Pick how JARVIS should think — a Claude subscription, any API key, or a model running at home.' : 'Connect Home Assistant, Proxmox, calendars, feeds and more.');
+  if (form?.kind === kind) h += formHtml();
+  if (mine.length) h += `<div class="grp"><h4>${ai ? 'Connected AI' : 'Connected'} · ${mine.length}</h4><div class="clist">${mine.map(c => { const e = by[c.type] || {}, unsupported = e.available === false; return `<div class="citem"><span class="ic">${e.icon || '•'}</span><span class="nm">${esc(c.name)}</span>
+      <span>${ai && !unsupported && c.id === chatConn()?.id ? '<span class="badge def">DEFAULT</span>' : unsupported ? '<span class="badge">DISABLED</span>' : ''}</span><span class="row">${ai && !unsupported && c.id !== chatConn()?.id ? `<button class="btn" data-a="default" data-id="${c.id}">Make default</button>` : ''}${unsupported ? '' : `<button class="btn" data-a="edit" data-id="${c.id}">Edit</button>`}<button class="btn" data-a="remove" data-id="${c.id}">Remove</button></span>
+      <span class="kd">${esc(unsupported ? e.unavailableReason : [e.name, e.via, c.values?.model, c.values?.url || c.values?.baseUrl].filter(Boolean).join(' · '))}</span></div>`; }).join('')}</div></div>`;
+  for (const [g, title, sub] of groups) {
+    const items = cat.filter(x => x.group === g && x.available !== false);
+    h += `<div class="grp"><h4>${title}</h4>${sub ? `<p>${sub}</p>` : ''}<div class="prov">${items.map(x => `<button class="pcard" data-a="add" data-type="${x.id}" ${API.server ? '' : 'disabled style="opacity:.75"'}>${x.via ? `<em>${esc(x.via.toUpperCase())}</em>` : ''}<b>${x.icon ? `<span class="mono t2" style="margin-right:8px">${x.icon}</span>` : ''}${esc(x.name)}</b><span>${esc(x.blurb)}</span></button>`).join('')}</div></div>`;
+  }
+  if (ai && API.server) h += `<div class="grp"><h4>Routing</h4>${fld('Terminal & chat use', `<select class="inp sel" data-k="ai.chat"><option value="">first connected</option>${aiList().map(c => `<option value="${c.id}" ${CFG.ai.chat === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>`)}
+    <p class="hint">Claude CLI runs in bare mode with its tools disabled and denied. API and local model requests do not include tool definitions. Codex and Gemini subscriptions are hidden until JARVIS can enforce text-only execution. Agents keep their own routing in jarvis-hermes.</p></div>`;
+  return h;
+}
+function formHtml() {
+  const e = (form.kind === 'ai' ? AI_BY : DATA_BY)[form.type], v = form.values, adv = e.fields.some(f => f.adv);
+  const input = f => { const val = v[f.k] ?? '', ph = f.secret && form.secrets?.[f.k] ? 'saved · leave empty to keep' : f.placeholder || f.def || '';
+    return f.area ? `<textarea class="inp" data-f="${f.k}" rows="4" placeholder="${esc(ph)}">${esc(val)}</textarea>` : `<input class="inp" data-f="${f.k}" ${f.secret ? 'type="password" autocomplete="off"' : ''} ${f.k === 'model' ? 'list="models"' : ''} placeholder="${esc(ph)}" value="${esc(val)}">`; };
+  return `<div class="cform"><h4 class="row" style="font:600 15px var(--sans)">${e.icon ? `<span class="mono t2">${e.icon}</span>` : ''}${form.id ? 'Edit' : 'Connect'} ${esc(e.name)}<span class="sp"></span><button class="btn" data-a="cancel">Cancel</button></h4>
+    ${e.preset ? `<p class="hint">${esc(e.blurb)} JARVIS runs the fixed <span class="mono">${esc(e.bin)}</span> command on the server in bare, text-only mode.</p>` : `<p class="hint">${esc(e.blurb)}</p>`}
+    ${fld('Name', `<input class="inp" data-f="__name" value="${esc(form.name)}" placeholder="${esc(e.name)}">`)}
+    ${e.fields.filter(f => !f.adv || form.adv).map(f => fld(f.label + (f.opt ? ' <small style="display:inline">optional</small>' : ''), input(f))).join('')}
+    ${adv ? `<button class="btn" style="width:fit-content" data-a="adv">${form.adv ? 'Hide advanced' : 'Advanced…'}</button>` : ''}
+    <datalist id="models">${(form.models || []).map(m => `<option value="${esc(m)}">`).join('')}</datalist>
+    <div class="row"><button class="btn" data-a="test">Test</button><button class="btn pri" data-a="savec">${form.id ? 'Save' : 'Connect'}</button><span class="sp"></span></div>
+    ${form.res ? `<div class="res ${form.res.ok ? 'ok' : 'bad'}">${esc(form.res.text)}</div>` : ''}${form.models?.length ? `<div class="sugg">${form.models.slice(0, 24).map(m => `<button data-a="pickmodel" data-m="${esc(m)}">${esc(m)}</button>`).join('')}</div>` : ''}</div>`;
+}
+function readForm() { $$('[data-f]', sbody).forEach(el => { if (el.dataset.f === '__name') form.name = el.value; else form.values[el.dataset.f] = el.value; }); }
+async function refreshConns() { try { API.conns = (await api('connections')).connections; } catch (e) { toast(e.message); } }
+
+// ---- one delegated handler for the whole panel
+sbody.addEventListener('click', async e => {
+  const k = e.target.closest('button[data-k]');
+  if (k) { setPath(k.dataset.k, k.dataset.v === 'true' ? true : k.dataset.v === 'false' ? false : k.dataset.v); changed(k.dataset.k); rerender(); return; }
+  const a = e.target.closest('[data-a]'); if (!a || a.tagName === 'INPUT') return;
+  const act = a.dataset.a, L = CFG.layout;
+  if (act === 'theme') { CFG.appearance.theme = a.dataset.id; changed('appearance'); rerender(); }
+  else if (act === 'export') download(`${CFG.appearance.theme}.css`, currentThemeCss(CFG.appearance.theme + '-custom', (themeList().find(t => t.id === CFG.appearance.theme)?.name || 'My') + ' (custom)'), 'text/css');
+  else if (act === 'rmtheme') { CFG.appearance.themes = CFG.appearance.themes.filter(t => t.id !== CFG.appearance.theme); CFG.appearance.theme = 'jarvis'; changed('appearance'); rerender(); }
+  else if (act === 'noaccent') { CFG.appearance.accent = ''; changed('appearance'); rerender(); }
+  else if (act === 'css') { CFG.appearance.css = $('#cssin').value; changed('appearance'); toast('Custom CSS applied'); }
+  else if (act === 'size') {
+    const ids = L.slots.filter(Boolean), c = +a.dataset.c, r = +a.dataset.r;
+    L.cols = c; L.rows = r; L.slots = Array.from({ length: c * r }, (_, i) => ids[i] || null);
+    if (!L.slots.includes(L.start)) L.start = L.slots.find(Boolean);
+    changed('layout'); rerender();
+  }
+  else if (act === 'unslot') {
+    const i = +a.dataset.i; if (L.slots.filter(Boolean).length < 2) return toast('The board needs at least one page');
+    L.slots[i] = null; if (!L.slots.includes(L.start)) L.start = L.slots.find(Boolean); changed('layout'); rerender();
+  }
+  else if (act === 'resetlayout') { CFG.layout = structuredClone(DEFAULT_LAYOUT); changed('layout'); rerender(); }
+  else if (act === 'add') { form = { kind: setSec === 'ai' ? 'ai' : 'data', type: a.dataset.type, name: '', values: {}, adv: false }; const e2 = (form.kind === 'ai' ? AI_BY : DATA_BY)[form.type]; e2.fields.forEach(f => { if (f.def) form.values[f.k] = f.def; }); rerender(); sbody.scrollTop = 0; }
+  else if (act === 'edit') { const c = API.conns.find(x => x.id === a.dataset.id); form = { id: c.id, kind: c.kind, type: c.type, name: c.name, values: { ...c.values }, secrets: c.secrets, adv: false }; rerender(); sbody.scrollTop = 0; }
+  else if (act === 'cancel') { form = null; rerender(); }
+  else if (act === 'adv') { readForm(); form.adv = !form.adv; rerender(); }
+  else if (act === 'pickmodel') { readForm(); form.values.model = a.dataset.m; rerender(); }
+  else if (act === 'test') {
+    readForm(); a.disabled = true; a.textContent = 'Testing…';
+    try { const r = await api('connections/test', { method: 'POST', body: { id: form.id, kind: form.kind, type: form.type, values: form.values } }); form.res = { ok: r.ok, text: r.ok ? `✓ ${r.detail || 'Connected'} · ${r.ms} ms` : `✗ ${r.error}` }; form.models = r.models || form.models; }
+    catch (err) { form.res = { ok: false, text: '✗ ' + err.message }; }
+    rerender();
+  }
+  else if (act === 'savec') {
+    readForm();
+    try {
+      const body = { kind: form.kind, type: form.type, name: form.name || (form.kind === 'ai' ? AI_BY : DATA_BY)[form.type].name, values: form.values };
+      const r = await api(form.id ? 'connections/' + form.id : 'connections', { method: form.id ? 'PUT' : 'POST', body });
+      if (form.kind === 'ai' && !chatConn()) CFG.ai.chat = r.connection.id;
+      await refreshConns(); toast(`${body.name} ${form.id ? 'saved' : 'connected'}`); form = null; save(); rerender(); checkStatus();
+    } catch (err) { form.res = { ok: false, text: '✗ ' + err.message }; rerender(); }
+  }
+  else if (act === 'remove') {
+    const c = API.conns.find(x => x.id === a.dataset.id);
+    if (a.dataset.sure !== '1') { a.dataset.sure = '1'; a.textContent = 'Click to confirm'; a.style.borderColor = 'var(--crit)'; return; }
+    try { await api('connections/' + c.id, { method: 'DELETE' }); await refreshConns(); if (CFG.ai.chat === c.id) { CFG.ai.chat = ''; save(); } toast(c.name + ' removed'); rerender(); checkStatus(); } catch (err) { toast(err.message); }
+  }
+  else if (act === 'default') { CFG.ai.chat = a.dataset.id; save(); rerender(); checkStatus(); }
+  else if (act === 'password') {
+    const [p0, p1, p2] = ['#pw0', '#pw1', '#pw2'].map(s => $(s).value);
+    if (p1 !== p2) return $('#pwres').textContent = 'The new passwords differ.';
+    try { await api('auth/password', { method: 'POST', body: { current: p0, password: p1 } }); $('#pwres').textContent = '✓ Changed. Other devices were signed out.'; ['#pw0', '#pw1', '#pw2'].forEach(s => $(s).value = ''); } catch (err) { $('#pwres').textContent = err.message; }
+  }
+  else if (act === 'totpstart') {
+    try { const r = await api('auth/totp/setup', { method: 'POST' }); $('#totpbox').innerHTML = `<p class="hint">Add this key to your authenticator app (or open the link on your phone), then enter the 6-digit code it shows.</p><div class="code">${esc(r.secret)}</div><div class="code">${esc(r.uri)}</div>${fld('Code', '<input class="inp" id="tcode" inputmode="numeric" maxlength="6" autocomplete="one-time-code">')}<div class="row"><button class="btn pri" data-a="totpon">Turn on</button><span class="hint" id="tres"></span></div>`; } catch (err) { toast(err.message); }
+  }
+  else if (act === 'totpon') { try { await api('auth/totp/enable', { method: 'POST', body: { code: $('#tcode').value } }); API.info.security.totp = true; toast('Two-factor codes are on'); rerender(); } catch (err) { $('#tres').textContent = err.message; } }
+  else if (act === 'totpoff') { try { await api('auth/totp/disable', { method: 'POST', body: { password: $('#tpw').value } }); API.info.security.totp = false; toast('Two-factor codes are off'); rerender(); } catch (err) { toast(err.message); } }
+  else if (act === 'revoke') { try { const r = await api('auth/sessions', { method: 'DELETE' }); toast(`Signed out ${r.revoked} other session${r.revoked === 1 ? '' : 's'}`); loadSessions(); } catch (err) { toast(err.message); } }
+  else if (act === 'logout') { try { await api('auth/logout', { method: 'POST' }); } catch {} location.assign('/login'); }
+  else if (act === 'exportcfg') download('jarvis-settings.json', JSON.stringify(CFG, null, 2), 'application/json');
+  else if (act === 'reset') {
+    if (a.dataset.sure !== '1') { a.dataset.sure = '1'; a.textContent = 'Click to confirm'; a.style.borderColor = 'var(--crit)'; return; }
+    const w = a.dataset.what; if (w === 'all') CFG = structuredClone(DEFAULTS); else CFG[w] = structuredClone(DEFAULTS[w]);
+    changed('all'); toast('Reset'); rerender();
+  }
+});
+sbody.addEventListener('dblclick', e => { const s = e.target.closest('.slot.full[data-slot]'); if (s) { CFG.layout.start = s.dataset.id; changed('layout'); rerender(); } });
+sbody.addEventListener('click', e => {
+  const l = e.target.closest('[data-lib]'); if (!l || l.classList.contains('used')) return;
+  const i = CFG.layout.slots.findIndex((x, j) => !x && j < CFG.layout.cols * CFG.layout.rows);
+  if (i < 0) return toast('The board is full — remove a page or make it bigger');
+  CFG.layout.slots[i] = l.dataset.lib; changed('layout'); rerender();
+});
+sbody.addEventListener('change', async e => {
+  const t = e.target;
+  if (t.dataset.k) { setPath(t.dataset.k, t.value); changed(t.dataset.k); if (t.tagName === 'SELECT' || t.type === 'color') rerender(); return; }
+  if (t.dataset.a === 'import' && t.files[0]) { try { toast(importTheme(await t.files[0].text(), t.files[0].name)); changed('appearance'); rerender(); } catch (err) { toast('Import failed · ' + err.message); } }
+  if (t.dataset.a === 'importcfg' && t.files[0]) { try { const j = JSON.parse(await t.files[0].text()); CFG = mergeDeep(structuredClone(DEFAULTS), j); changed('all'); toast('Settings imported'); rerender(); } catch (err) { toast('Import failed · ' + err.message); } }
+});
+sbody.addEventListener('input', e => { const t = e.target; if (t.dataset.k === 'profile.name') { setPath('profile.name', t.value.slice(0, 40)); changed('profile.name'); } else if (t.type === 'color') { setPath(t.dataset.k, t.value); applyAppearance(); } });
+function changed(k) {
+  const top = k.split('.')[0];
+  if (top === 'appearance' || top === 'all') applyAppearance();
+  if (top === 'profile' || top === 'jarvis' || top === 'all') applyProfile();
+  if (top === 'layout' || top === 'all') relayout();
+  save();
+}
+// Drag and drop between slots, and from the page library onto a slot.
+function bindLayoutDnD() {
+  let from = null;
+  $$('.slot', sbody).forEach(el => {
+    el.addEventListener('dragstart', e => { from = el.dataset.slot ?? 'lib:' + el.dataset.lib; el.classList.add('drag'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', from); });
+    el.addEventListener('dragend', () => el.classList.remove('drag'));
+    if (el.dataset.slot === undefined) return;
+    el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('over'); });
+    el.addEventListener('dragleave', () => el.classList.remove('over'));
+    el.addEventListener('drop', e => {
+      e.preventDefault(); el.classList.remove('over'); if (from == null) return;
+      const S = CFG.layout.slots, to = +el.dataset.slot;
+      if (String(from).startsWith('lib:')) S[to] = from.slice(4);
+      else { const f = +from; [S[f], S[to]] = [S[to], S[f]]; }
+      if (!S.includes(CFG.layout.start)) CFG.layout.start = S.find(Boolean);
+      from = null; changed('layout'); rerender();
+    });
+  });
+}
+async function loadSessions() {
+  const el = $('#sesslist'); if (!el) return;
+  try {
+    const r = await api('auth/sessions');
+    el.innerHTML = r.sessions.map(s => `<div class="citem"><span class="ic">${s.current ? '●' : '○'}</span><span class="nm">${esc(s.agent)}${s.current ? ' <span class="badge def">THIS DEVICE</span>' : ''}</span><span></span><span class="kd">${esc(s.ip || '')}</span><span class="kd">signed in ${new Date(s.created).toLocaleString()} · last seen ${new Date(s.seen).toLocaleString()}</span></div>`).join('');
+  } catch (err) { el.textContent = err.message; }
+}
+new MutationObserver(() => { if (setSec === 'security' && $('#sesslist')?.textContent === 'Loading…') loadSessions(); }).observe(sbody, { childList: true });
+document.addEventListener('click', e => { const s = e.target.closest('[data-settings]'); if (s && !s.closest('#settings')) openSettings(s.dataset.settings); });
+
 
 /* ======================================================== camera
    Pane-to-pane moves ride a slightly underdamped spring and pull back with speed, so a
@@ -930,11 +1720,11 @@ function layout() {
   rootStyle.setProperty('--z', z);
   rootStyle.setProperty('--dw', dw + 'px'); rootStyle.setProperty('--dh', h / z + 'px');
   rootStyle.setProperty('--px', Math.max(52, (dw - 2000) / 2) + 'px');
-  board.style.width = 3 * w + 'px'; board.style.height = 3 * h + 'px';
+  board.style.width = COLS * w + 'px'; board.style.height = ROWS * h + 'px';
   panes.forEach(p => Object.assign(p.style, { width: w + 'px', height: h + 'px', left: p.dataset.c * w + 'px', top: p.dataset.r * h + 'px' }));
 }
 const paneCam = id => { const p = byId[id]; return { fx: (+p.dataset.c + .5) * W(), fy: (+p.dataset.r + .5) * H(), s: 1 }; };
-const overviewCam = () => { const s = Math.min((W() - 120 * z) / (3 * W()), (H() - 150 * z) / (3 * H())); return { fx: 1.5 * W(), fy: 1.5 * H() - 18 * z / s, s }; };
+const overviewCam = () => { const s = Math.min((W() - 120 * z) / (COLS * W()), (H() - 150 * z) / (ROWS * H())); return { fx: COLS / 2 * W(), fy: ROWS / 2 * H() - 18 * z / s, s }; };
 function apply() {
   const s = cam.s * zoomF, tx = W() / 2 - cam.fx * s, ty = H() / 2 - cam.fy * s;
   board.style.transform = `translate3d(${tx}px,${ty}px,0) scale(${s})`;
@@ -995,13 +1785,43 @@ function step(now) {
 
 /* ======================================================== chrome: tabs, edges, minimap */
 const tabs = $('#tabs'), mini = $('#mini'), pill = $('#pill');
-order.forEach((id, i) => {
-  const b = document.createElement('button'); b.className = 'tab'; b.textContent = byId[id].dataset.name; b.dataset.id = id; b.title = `${i + 1}`;
-  b.onclick = () => go(id); tabs.appendChild(b);
-});
-for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
-  const id = at[c + ',' + r], b = document.createElement('button');
-  b.dataset.id = id; b.title = byId[id].dataset.name; b.onclick = () => go(id); mini.appendChild(b);
+// Places every pane from the layout and rebuilds everything that depends on it.
+function applyLayout(L) {
+  COLS = clamp(+L.cols || 3, 1, 4); ROWS = clamp(+L.rows || 3, 1, 4); at = {};
+  const seen = new Set();
+  (L.slots || []).slice(0, COLS * ROWS).forEach((id, i) => {
+    if (!byId[id] || seen.has(id)) return;
+    seen.add(id); Object.assign(byId[id].dataset, { c: i % COLS, r: Math.floor(i / COLS) }); at[(i % COLS) + ',' + Math.floor(i / COLS)] = id;
+  });
+  if (!seen.size) return applyLayout(DEFAULT_LAYOUT);
+  panes.forEach(p => { p.hidden = !seen.has(p.dataset.id); p.classList.remove('active'); });
+  const start = seen.has(L.start) ? L.start : [...seen][0];
+  // Tabs: the start page first, then the board in reading order.
+  order = [start, ...Object.keys(at).sort((a, b) => { const [ac, ar] = a.split(','), [bc, br] = b.split(','); return ar - br || ac - bc; }).map(k => at[k]).filter(id => id !== start)];
+  $$('.tab', tabs).forEach(t => t.remove());
+  order.forEach((id, i) => {
+    const b = document.createElement('button'); b.className = 'tab'; b.textContent = byId[id].dataset.name; b.dataset.id = id; b.title = i < 9 ? `${i + 1}` : '';
+    b.onclick = () => go(id); tabs.appendChild(b);
+  });
+  tabs.classList.toggle('compact', order.length > 8);
+  body.classList.toggle('crowded', order.length > 9);
+  $$('button', mini).forEach(b => b.remove());
+  mini.style.gridTemplateColumns = `repeat(${COLS},14px)`;
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const id = at[c + ',' + r], b = document.createElement('button');
+    if (id) { b.dataset.id = id; b.title = byId[id].dataset.name; b.onclick = () => go(id); } else { b.disabled = true; b.style.opacity = .3; }
+    mini.appendChild(b);
+  }
+  // Coordinates in eyebrows and overview labels follow the layout.
+  for (const id of seen) {
+    const p = byId[id], cd = coordOf(id), eb = $('.ph .eyebrow', p), hc = $('.cd', p);
+    $('.ov small', p).textContent = cd;
+    if (eb) { eb.dataset.base ??= eb.textContent; eb.textContent = eb.dataset.orig = cd + ' · ' + eb.dataset.base; }
+    if (hc) hc.textContent = cd + ' · ';
+  }
+  $$('[data-go]').forEach(el => el.classList.toggle('off', !seen.has(el.dataset.go)));
+  pillPos = null;
+  return start;
 }
 const edges = { 'e-l': [-1, 0, ''], 'e-r': [1, 0, ''], 'e-u': [0, -1, '↑ '], 'e-d': [0, 1, '↓ '] };
 Object.entries(edges).forEach(([k, [dc, dr]]) => {
@@ -1054,7 +1874,7 @@ try {
 }
 if (orbIssue) console.warn('JARVIS orb:', orbIssue);
 let jstate = 'connecting', speaking = false, stateT, seq = 0;
-const COLORS = { waiting_approval: '#e6a83a', fallback: '#e6a83a', error: '#ef6b5b', success: '#4cc38a', connecting: '#677080', offline: '#677080' };
+const COLORS = { waiting_approval: 'var(--warn)', fallback: 'var(--warn)', error: 'var(--crit)', success: 'var(--good)', connecting: 'var(--muted)', offline: 'var(--muted)' };
 const baseState = () => termOpen ? 'listening' : 'idle';
 function jSet(s, ms) {
   clearTimeout(stateT); jstate = s; orb.setState(s); paintCap();
@@ -1062,7 +1882,7 @@ function jSet(s, ms) {
 }
 function paintCap() {
   $('.zz', jCap).innerHTML = `<b>[ JARVIS ]</b> ${speaking ? 'speaking' : jstate.replace('_', ' ')}`;
-  rootStyle.setProperty('--jc', COLORS[jstate] || '#8fe3ff');
+  rootStyle.setProperty('--jc', COLORS[jstate] || 'var(--accent)');
 }
 // The orb is rendered at its real on-screen size (never shrunk with a transform), so its
 // particles keep their texture at every size, exactly like in the JARVIS web app.
@@ -1218,6 +2038,7 @@ $('#chatty').onclick = () => {
   if (chatty) { say("Fine. I'll only speak when spoken to.", { force: true }); chatty = false; }
   else { chatty = true; say("Back. I kept notes while I was quiet.", { force: true }); }
   $('#chatty').classList.toggle('off', !chatty); $('#chatty span').textContent = chatty ? 'Chatty' : 'Quiet';
+  CFG.jarvis.chatty = chatty; save();
 };
 const done = { pr: false, backup: false, ssh: false, deep: false, storm: false };
 const LINES = {
@@ -1230,6 +2051,13 @@ const LINES = {
   markets: () => ({ text: "World ETFs are 6 points over target. No selling needed — I'd just redirect the next contributions." }),
   world: () => ({ text: "Quiet news day. Only the SSH advisory touches your machines.", acts: [['Open the fix', () => go('infra')]] }),
   reviews: () => ({ text: "Week 43 is going better than 42. Two gym sessions already — I'm counting." }),
+  rooms: () => ({ text: "Four lights on, doors locked. Want the evening scene?", acts: [['Evening, please', () => $('[data-scene="Movie"]').click()], ['Not now']] }),
+  energy: () => ({ text: "The sun covered 71% of today so far. Cheapest grid hours are 12 to 3 — I parked the dishwasher there." }),
+  health: () => ({ text: "Seven and a half hours of sleep. Your HRV is trending up — whatever you changed, keep it." }),
+  inbox: () => ({ text: "Six things want a reply. I drafted two; the landlord one is ready to send." }),
+  network: () => ({ text: "Nothing new on the network. The TV is still trying to phone home — 1,840 times today." }),
+  insights: () => ({ text: "Most of this month's thinking ran locally. The cloud only stepped in for hard code." }),
+  status: () => API.server ? (API.conns.length ? { text: "These are your real connections, checked from the server." } : { text: "Nothing connected yet. Shall we start with an AI?", acts: [['Open AI settings', () => openSettings('ai')], ['Later']] }) : { text: "This is sample data. With the server running, I check every connection for real." },
 };
 const QUIPS = ["Yes? Press ` if you want to talk properly.", "Still here. Still watching forge.", "Hold me down if you're bored. I'll charge up.", "Nothing's on fire. I checked twice.", "Drag me to any corner. I'll remember it."];
 const AMBIENT = [
@@ -1240,6 +2068,7 @@ const AMBIENT = [
   "You can drag the board around, by the way. Grab any empty space.",
   "Gym at 19:30. I'm not saying anything. I'm just saying.",
 ];
+const TIPS = ["Tip: press Esc to see the whole board.", "Tip: press , to open settings. Themes, pages, AI — it's all in there.", "You can drag the board around. Grab any empty space.", "Tip: type \"theme nord\" in the terminal.", "Drag me to any corner. I'll remember it."];
 const visited = new Set();
 function onArrive(a) {
   if (a.ov) { if (!visited.has('ov')) { visited.add('ov'); setTimeout(() => say("That's the whole board. Pick a tile.", { force: true }), 200); } return; }
@@ -1270,7 +2099,7 @@ jEl.addEventListener('click', e => {
 
 /* ======================================================== navigation */
 function go(id) {
-  if (!byId[id]) return;
+  if (!placed(id)) return;
   const was = current, wasOv = overview, a = byId[was], b = byId[id];
   overview = false; body.classList.remove('overview');
   current = id; history.replaceState(null, '', '#' + id);
@@ -1343,14 +2172,16 @@ document.addEventListener('pointerover', e => {
 let spaceHeld = false;
 document.addEventListener('keydown', e => {
   lastInput = performance.now();
-  const typing = e.target instanceof Element && e.target.matches('input');
+  if (setOpen) { if (e.key === 'Escape') closeSettings(); return; }
+  const typing = e.target instanceof Element && e.target.matches('input,textarea,select');
   if (e.key === '`') { e.preventDefault(); toggleTerm(); return; }
   if (e.key === 'Escape') { if (termOpen) toggleTerm(false); else if (sp) hush(); else toggleOverview(); return; }
   if (typing) return;
   if (e.code === 'Space') { e.preventDefault(); spaceHeld = true; return; }
   const m = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
   if (m) { e.preventDefault(); if (overview) go(current); else move(...m); return; }
-  if (/^[1-9]$/.test(e.key)) go(order[e.key - 1]);
+  if (/^[1-9]$/.test(e.key) && order[e.key - 1]) go(order[e.key - 1]);
+  if (e.key === ',') openSettings();
   if (e.key === 'o') toggleOverview();
 });
 document.addEventListener('keyup', e => { if (e.code === 'Space') spaceHeld = false; });
@@ -1372,7 +2203,7 @@ function panBy(dx, dy) {
     if ((n < min && d < 0) || (n > max && d > 0)) n = v + d / k * .28;
     return n;
   };
-  const nx = lim(cam.fx, dx, home.fx, W(), .5 * W(), 2.5 * W()), ny = lim(cam.fy, dy, home.fy, H(), .5 * H(), 2.5 * H());
+  const nx = lim(cam.fx, dx, home.fx, W(), .5 * W(), (COLS - .5) * W()), ny = lim(cam.fy, dy, home.fy, H(), .5 * H(), (ROWS - .5) * H());
   const dt = Math.max(8, now - pan.lastT) / 1000; pan.lastT = now;
   vel.x = vel.x * .5 + (nx - cam.fx) / dt * .5; vel.y = vel.y * .5 + (ny - cam.fy) / dt * .5;
   cam.fx = nx; cam.fy = ny; kick();
@@ -1381,10 +2212,10 @@ function endPan() {
   if (!pan) return;
   if (performance.now() - pan.lastT > 90) { vel.x *= .2; vel.y *= .2; }
   const from = byId[pan.from], c0 = +from.dataset.c, r0 = +from.dataset.r;
-  const c = clamp(Math.round((cam.fx + vel.x * .2) / W() - .5), Math.max(0, c0 - 1), Math.min(2, c0 + 1));
-  const r = clamp(Math.round((cam.fy + vel.y * .2) / H() - .5), Math.max(0, r0 - 1), Math.min(2, r0 + 1));
+  const c = clamp(Math.round((cam.fx + vel.x * .2) / W() - .5), Math.max(0, c0 - 1), Math.min(COLS - 1, c0 + 1));
+  const r = clamp(Math.round((cam.fy + vel.y * .2) / H() - .5), Math.max(0, r0 - 1), Math.min(ROWS - 1, r0 + 1));
   pan = null; body.classList.remove('grabbing');
-  const v = { ...vel }; go(at[c + ',' + r]); vel = v;
+  const v = { ...vel }; go(at[c + ',' + r] || at[c0 + ',' + r0]); vel = v;
   stepLock = performance.now() + 350;
 }
 const INTERACTIVE = 'button,input,a,label,.card,.mcard,.pc,.kcol,.hero,table,.tabs,#term,.ph>*';
@@ -1402,7 +2233,7 @@ addEventListener('pointermove', e => {
 });
 addEventListener('pointerup', () => { if (drag?.on) endPan(); drag = null; });
 addEventListener('wheel', e => {
-  if (termOpen || e.target.closest('#term,#bubble')) return;
+  if (termOpen || setOpen || e.target.closest('#term,#bubble,#settings')) return;
   lastInput = performance.now();
   if (e.ctrlKey) { e.preventDefault(); if (e.deltaY > 4 && !overview) toggleOverview(true); else if (e.deltaY < -4 && overview) go(current); return; }
   if (overview) return;
@@ -1436,28 +2267,30 @@ function clockTick() {
   const d = new Date(), t = hm();
   $('#clock').textContent = t; $('#nowt').textContent = t;
   const h = d.getHours();
-  $('#greet').textContent = h < 5 ? 'Late night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+  const name = CFG.profile.name.trim();
+  $('#greet').textContent = (h < 5 ? 'Late night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening') + (name ? ', ' + name : '');
+  fitGreet();
   $('#dateline').textContent = d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 clockTick(); setInterval(clockTick, 15000);
 
 /* ======================================================== charts */
-function lineChart(el, data, { fmt, date, ticks = 4, color = 'var(--accent)', hover = true, axis = true }) {
+function lineChart(el, data, { fmt, date, ticks = 4, color = 'var(--accent)', hover = true, axis = true, floor }) {
   el.innerHTML = '';
   const w = el.clientWidth, h = el.clientHeight, pad = axis ? { l: 0, r: 58, t: 8, b: 22 } : { l: 0, r: 0, t: 4, b: 2 };
   if (w < 20 || h < 20) return;
-  let lo = Math.min(...data), hi = Math.max(...data); const spn = (hi - lo) || 1; lo -= spn * .08; hi += spn * .08;
+  let lo = Math.min(...data), hi = Math.max(...data); const spn = (hi - lo) || 1; lo -= spn * .08; hi += spn * .08; if (floor != null) lo = Math.max(floor, lo);
   const X = i => pad.l + i / (data.length - 1) * (w - pad.l - pad.r), Y = v => pad.t + (1 - (v - lo) / (hi - lo)) * (h - pad.t - pad.b);
   const id = 'g' + Math.random().toString(36).slice(2);
   const line = data.map((v, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(v).toFixed(1)).join('');
   let s = `<svg width="${w}" height="${h}"><defs><linearGradient id="${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".22"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>`;
   if (axis) for (let i = 0; i <= ticks; i++) {
     const v = lo + (hi - lo) * i / ticks, y = Y(v);
-    s += `<line x1="0" x2="${w - pad.r}" y1="${y}" y2="${y}" stroke="rgba(255,255,255,.06)" stroke-dasharray="2 4"/><text x="${w - pad.r + 10}" y="${y + 4}" fill="#677080" font-size="10.5" font-family="ui-monospace,monospace">${fmt(v, true)}</text>`;
+    s += `<line x1="0" x2="${w - pad.r}" y1="${y}" y2="${y}" stroke="color-mix(in srgb,var(--ink) 6%,transparent)" stroke-dasharray="2 4"/><text x="${w - pad.r + 10}" y="${y + 4}" fill="var(--muted)" font-size="10.5" font-family="ui-monospace,monospace">${fmt(v, true)}</text>`;
   }
-  if (axis) [0, .5, 1].forEach(f => { const i = Math.round(f * (data.length - 1)); s += `<text x="${X(i)}" y="${h - 4}" fill="#677080" font-size="10.5" font-family="ui-monospace,monospace" text-anchor="${f === 0 ? 'start' : f === 1 ? 'end' : 'middle'}">${date(i)}</text>`; });
+  if (axis) [0, .5, 1].forEach(f => { const i = Math.round(f * (data.length - 1)); s += `<text x="${X(i)}" y="${h - 4}" fill="var(--muted)" font-size="10.5" font-family="ui-monospace,monospace" text-anchor="${f === 0 ? 'start' : f === 1 ? 'end' : 'middle'}">${date(i)}</text>`; });
   s += `<path class="area" d="${line}L${X(data.length - 1)},${h - pad.b}L${X(0)},${h - pad.b}Z" fill="url(#${id})"/><path class="ln" pathLength="1" d="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
-  s += `<line class="vx" y1="${pad.t}" y2="${h - pad.b}" stroke="rgba(255,255,255,.25)" opacity="0"/><circle class="dot" r="4.5" fill="${color}" stroke="#0e1217" stroke-width="2" opacity="0"/></svg><div class="tip"></div>`;
+  s += `<line class="vx" y1="${pad.t}" y2="${h - pad.b}" stroke="color-mix(in srgb,var(--ink) 25%,transparent)" opacity="0"/><circle class="dot" r="4.5" fill="${color}" stroke="var(--card)" stroke-width="2" opacity="0"/></svg><div class="tip"></div>`;
   el.innerHTML = s;
   if (!hover) return;
   const svg = $('svg', el), vx = $('.vx', el), dot = $('.dot', el), tip = $('.tip', el);
@@ -1473,7 +2306,7 @@ function lineChart(el, data, { fmt, date, ticks = 4, color = 'var(--accent)', ho
 const today = new Date(2026, 9, 21);
 const dayStr = n => { const d = new Date(today); d.setDate(d.getDate() - n); return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); };
 const port = (() => { const a = [48212]; for (let i = 1; i < 365; i++) a.unshift(a[0] / (1 + (rng() - .47) * .018)); return a; })();
-const eur = (v, short) => short ? '€' + (v / 1000).toFixed(1) + 'k' : '€' + Math.round(v).toLocaleString('en-US');
+const eur = (v, short) => { const c = CUR[CFG.profile.currency] || '€'; return short ? c + (v / 1000).toFixed(1) + 'k' : c + Math.round(v).toLocaleString('en-US'); };
 let range = 90;
 function drawPortfolio() {
   const d = port.slice(-range);
@@ -1487,7 +2320,7 @@ const tps = Array.from({ length: 96 }, (_, i) => { const h = i / 4; const busy =
 const hhmm = i => { const m = (i * 15 + 19 * 60) % 1440; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
 const drawTps = () => lineChart($('#tchart'), tps, { fmt: (v, s) => s ? v.toFixed(0) : v.toFixed(1) + ' tok/s', date: hhmm });
 function drawCharts() {
-  drawPortfolio(); drawTps();
+  drawPortfolio(); drawTps(); drawLibrary();
   lineChart($('#hspark'), port.slice(-30), { fmt: eur, date: i => dayStr(29 - i), axis: false });
 }
 
@@ -1565,7 +2398,7 @@ $('#addtodo').addEventListener('keydown', e => {
 });
 
 /* ======================================================== projects */
-const COLS = { Idea: 'var(--muted)', Planning: 'var(--s1)', Building: 'var(--accent)', Review: 'var(--warn)', Shipped: 'var(--good)' };
+const KCOLS = { Idea: 'var(--muted)', Planning: 'var(--s1)', Building: 'var(--accent)', Review: 'var(--warn)', Shipped: 'var(--good)' };
 const projects = {
   Idea: [
     { n: 'Smart garden watering', p: 'Water when soil moisture drops under 30% and no rain is forecast for 12 h.', a: 'auto', f: 'suggested by Jarvis', idea: true },
@@ -1579,7 +2412,7 @@ const projects = {
   Review: [{ n: 'Photo dedupe CLI', p: 'Found 4,210 duplicates on vault (dry run). Needs your OK.', a: 'sup', f: 'waiting on you', tags: ['rust'], prog: 100 }],
   Shipped: [{ n: 'Invoice OCR', p: 'Runs Mondays, files to vault.', a: 'auto', f: 'shipped 14 Oct', tags: ['python'] }, { n: 'Harness queue view', p: 'In JARVIS since last week.', a: 'sup', f: 'shipped 17 Oct', tags: ['typescript'] }],
 };
-$('#kanban').innerHTML = Object.entries(projects).map(([k, v]) => `<div class="kcol"><header><i style="background:${COLS[k]}"></i><span>${k}</span><span class="muted">${v.length}</span></header>${v.map(p => `
+$('#kanban').innerHTML = Object.entries(projects).map(([k, v]) => `<div class="kcol"><header><i style="background:${KCOLS[k]}"></i><span>${k}</span><span class="muted">${v.length}</span></header>${v.map(p => `
   <div class="pc ${p.idea ? 'idea' : ''}"><span class="auto ${p.a}">${p.idea ? '✦ JARVIS IDEA' : p.a === 'auto' ? '◆ AUTONOMOUS' : '◇ SUPERVISED'}</span><div class="nm">${p.n}</div><p>${p.p}</p>
   ${p.tags ? `<div class="tags">${p.tags.map(t => `<span>${t}</span>`).join('')}</div>` : ''}
   ${p.prog != null ? `<div class="bar"><b ${p.id ? `id="${p.id}"` : ''} style="width:${p.prog}%;${p.prog === 100 ? 'background:var(--warn)' : ''}"></b></div>` : ''}
@@ -1594,7 +2427,7 @@ const mach = {
   nomad: { d: 'laptop · thinkpad', st: ['idle', 'asleep'], m: { cpu: 0, ram: 0, disk: 54 }, up: '—' },
 };
 for (const m of Object.values(mach)) m.hist = Array.from({ length: 40 }, () => m.m.cpu ? clamp(m.m.cpu + (rng() - .5) * 18, 2, 95) : 0);
-const spark = h => { const w = 200, ht = 30, pts = h.map((v, i) => `${(i / (h.length - 1) * w).toFixed(1)},${(ht - 2 - v / 100 * (ht - 4)).toFixed(1)}`).join(' L'); return `<svg viewBox="0 0 ${w} ${ht}" preserveAspectRatio="none"><path d="M${pts} L${w},${ht} L0,${ht}Z" fill="rgba(143,227,255,.08)"/><path d="M${pts}" fill="none" stroke="var(--accent)" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>`; };
+const spark = h => { const w = 200, ht = 30, pts = h.map((v, i) => `${(i / (h.length - 1) * w).toFixed(1)},${(ht - 2 - v / 100 * (ht - 4)).toFixed(1)}`).join(' L'); return `<svg viewBox="0 0 ${w} ${ht}" preserveAspectRatio="none"><path d="M${pts} L${w},${ht} L0,${ht}Z" fill="color-mix(in srgb,var(--accent) 8%,transparent)"/><path d="M${pts}" fill="none" stroke="var(--accent)" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>`; };
 $('#machines').innerHTML = Object.entries(mach).map(([n, m]) => `<div class="mcard"><div class="row"><span class="n sp">${n}</span><span class="st ${m.st[0]}" data-st="${n}">${m.st[1]}</span></div><div class="muted" style="font-size:12px;margin-top:-6px">${m.d} · up ${m.up}</div><div data-spark="${n}">${spark(m.hist)}</div>${Object.entries(m.m).map(([k, v]) => `<div class="meter" data-m="${n}-${k}"><span>${k}</span><div class="bar"><b class="${v > 80 ? 'w' : ''}" style="width:${v}%"></b></div><span>${m.st[0] === 'idle' && k !== 'disk' ? '—' : v + '%'}</span></div>`).join('')}</div>`).join('');
 function setMeter(n, k, v) {
   mach[n].m[k] = v; const el = $(`[data-m="${n}-${k}"]`); if (!el) return;
@@ -1621,10 +2454,10 @@ function log(sel, text, color) {
 const HX = (() => {
   const NS = 'http://www.w3.org/2000/svg', hx = $('#hx'), body = $('.hx-body', hx), wires = $('.hx-wires', hx);
   const SRC = [
-    { id: 'hermes', name: 'hermes', sub: 'planner', hex: '#3987e5' },
-    { id: 'codex', name: 'codex', sub: 'agent', hex: '#d95926' },
-    { id: 'cron', name: 'cron', sub: 'jobs', hex: '#c98500' },
-    { id: 'cli', name: 'cli', sub: 'you', hex: '#199e70' },
+    { id: 'hermes', name: 'hermes', sub: 'planner', hex: 'var(--s1)' },
+    { id: 'codex', name: 'codex', sub: 'agent', hex: 'var(--s2)' },
+    { id: 'cron', name: 'cron', sub: 'jobs', hex: 'var(--s4)' },
+    { id: 'cli', name: 'cli', sub: 'you', hex: 'var(--s3)' },
   ];
   const MOD = [
     { id: 'coder', name: 'qwen3-coder-30b', where: 'forge · gpu0', base: 62, tok: 486e3, active: true, job: 'offline list sync · subtask 4' },
@@ -1643,7 +2476,7 @@ const HX = (() => {
   $('.hx-col.src', hx).innerHTML = SRC.map(s => `<div class="hx-src" data-s="${s.id}"><i style="background:${s.hex}"></i>${s.name}<small>${s.sub}</small></div>`).join('');
   $('.hx-col.mid', hx).innerHTML = `<div class="hx-hub" id="hxhub"><div class="hd"><span>HARNESS</span><span class="sp"></span><em>forge · local</em></div>
     <div><span class="v num" id="hxtps">0</span><span class="u">tok/s</span></div>
-    <svg viewBox="0 0 200 30" preserveAspectRatio="none"><path id="hxarea" fill="rgba(255,191,122,.12)"/><path id="hxline" fill="none" stroke="var(--warm)" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>
+    <svg viewBox="0 0 200 30" preserveAspectRatio="none"><path id="hxarea" fill="color-mix(in srgb,var(--warm) 12%,transparent)"/><path id="hxline" fill="none" stroke="var(--warm)" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>
     <div class="meta"><span class="tag hot" id="hxq">queue 4</span><span class="tag" id="hxa">3 active</span><span class="tag" id="hxl">p50 410 ms</span></div></div>`;
   $('.hx-col.mod', hx).innerHTML = MOD.map(m => `<div class="hx-mod" data-m="${m.id}"><div class="t"><i></i>${m.name}<small>${m.where}</small></div>
     <div class="r"><span class="tps num"><b>0</b> tok/s</span><span class="hx-bars">${'<b></b>'.repeat(26)}</span><span class="tot num"></span></div><div class="job"></div></div>`).join('');
@@ -1657,7 +2490,7 @@ const HX = (() => {
     const hy = hub.y + hub.h / 2;
     wires.setAttribute('viewBox', `0 0 ${body.offsetWidth} ${body.offsetHeight}`);
     SRC.forEach((s, i) => { const r = rel($(`[data-s="${s.id}"]`, hx)); s.p = [r.x + r.w, r.y + r.h / 2, hub.x, hy + (i - 1.5) * 13]; });
-    MOD.forEach((m, j) => { const r = rel(mEl(m)); m.p = [hub.x + hub.w, hy + (j - 1) * 15, r.x, r.y + r.h / 2]; m.hex = m.cloud ? '#d95926' : '#4cc38a'; });
+    MOD.forEach((m, j) => { const r = rel(mEl(m)); m.p = [hub.x + hub.w, hy + (j - 1) * 15, r.x, r.y + r.h / 2]; m.hex = m.cloud ? 'var(--s2)' : 'var(--good)'; });
     const nodes = [...SRC, ...MOD];
     wires.innerHTML = nodes.map(n => `<path class="w" d="${curve(...n.p)}"/><path class="wf" data-w="${n.id}" d="${curve(...n.p)}" style="stroke:${n.hex}"/>`).join('')
       + nodes.map(n => `<circle class="an" r="3" cx="${n.p[0]}" cy="${n.p[1]}"/><circle class="an" r="3" cx="${n.p[2]}" cy="${n.p[3]}"/>`).join('') + '<g id="hxpk"></g>';
@@ -1765,6 +2598,186 @@ const HX = (() => {
   };
 })();
 
+/* ======================================================== library panes (sample data until connected) */
+const svgEl = (w, h, inner) => `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${inner}</svg>`;
+const axisText = (x, y, t, anchor = 'start') => `<text x="${x}" y="${y}" fill="var(--muted)" font-size="10.5" font-family="ui-monospace,monospace" text-anchor="${anchor}">${t}</text>`;
+
+// Rooms
+const ROOMS = [
+  { n: 'Living room', t: 21.6, h: 44, dev: [['✹', 'Ceiling', 1, '70%'], ['✹', 'Floor lamp', 1, 'warm'], ['▭', 'TV', 0, 'off'], ['♫', 'Speaker', 0, 'idle']] },
+  { n: 'Kitchen', t: 22.1, h: 51, dev: [['✹', 'Spots', 1, '100%'], ['◌', 'Dishwasher', 0, 'at 13:00'], ['❄', 'Fridge', 1, '4 °C']] },
+  { n: 'Office', t: 21.2, h: 41, dev: [['✹', 'Desk light', 1, 'focus'], ['▣', 'atlas', 1, 'on'], ['≋', 'Air purifier', 1, 'auto']] },
+  { n: 'Bedroom', t: 19.4, h: 47, dev: [['✹', 'Bedside', 0, 'off'], ['▤', 'Blinds', 0, 'open'], ['♨', 'Radiator', 1, '19 °C']] },
+  { n: 'Bathroom', t: 22.8, h: 63, dev: [['✹', 'Mirror', 0, 'off'], ['≋', 'Fan', 0, 'auto'], ['♨', 'Floor heating', 0, 'eco']] },
+  { n: 'Hallway', t: 20.3, h: 45, dev: [['✹', 'Hall', 0, 'motion'], ['⚿', 'Front door', 1, 'locked'], ['◎', 'Doorbell', 1, 'online']] },
+];
+function renderRooms() {
+  $('#rooms').innerHTML = ROOMS.map((r, i) => `<div class="card room ${r.dev.some(d => d[0] === '✹' && d[2]) ? 'lit' : ''}" data-room="${i}">
+    <div class="hd"><span class="nm">${r.n}</span><span class="tmp">${r.t.toFixed(1)}°</span></div><div class="sub">humidity ${r.h}% · ${r.dev.length} devices</div>
+    <div class="list scroll">${r.dev.map((d, j) => `<div class="dev ${d[2] ? 'on' : ''}"><span class="ic">${d[0]}</span><span>${d[1]}</span><span class="v">${d[3]}</span>${d[0] === '✹' ? `<span class="sw ${d[2] ? 'on' : ''}" role="switch" aria-checked="${!!d[2]}" data-d="${i}.${j}"></span>` : ''}</div>`).join('')}</div></div>`).join('');
+  const lights = ROOMS.flatMap(r => r.dev).filter(d => d[0] === '✹' && d[2]).length;
+  $('#rm-lights').textContent = lights;
+}
+const SCENES = [['☀', 'Morning'], ['◐', 'Focus'], ['▶', 'Movie'], ['☾', 'Night'], ['⌂', 'Away'], ['✦', 'Guests']];
+$('#scenes').innerHTML = SCENES.map(s => `<button class="scene" data-scene="${s[1]}"><i>${s[0]}</i>${s[1]}</button>`).join('');
+$('#secu').innerHTML = [['good', 'locked', 'Front door'], ['good', 'closed', 'Garage'], ['good', '2 online', 'Cameras'], ['idle', 'disarmed', 'Alarm · home'], ['good', 'dry', 'Leak sensors']]
+  .map(r => `<div class="sec"><span class="sp">${r[2]}</span><span class="st ${r[0]}">${r[1]}</span></div>`).join('');
+renderRooms();
+$('#rooms').addEventListener('click', e => {
+  const sw = e.target.closest('.sw'); if (!sw) return;
+  const [i, j] = sw.dataset.d.split('.').map(Number), d = ROOMS[i].dev[j];
+  d[2] = d[2] ? 0 : 1; d[3] = d[2] ? 'on' : 'off'; renderRooms(); orb.ripple(0, 0, .25);
+});
+$('#scenes').addEventListener('click', e => {
+  const b = e.target.closest('.scene'); if (!b) return;
+  $$('.scene').forEach(x => x.classList.toggle('on', x === b));
+  const on = { Morning: ['Kitchen', 'Living room'], Focus: ['Office'], Movie: ['Living room'], Night: [], Away: [], Guests: ['Living room', 'Kitchen', 'Hallway'] }[b.dataset.scene];
+  ROOMS.forEach(r => r.dev.forEach(d => { if (d[0] === '✹') { d[2] = on.includes(r.n) ? 1 : 0; d[3] = d[2] ? 'on' : 'off'; } }));
+  renderRooms(); orb.ripple(0, 0, .35);
+  say(`${b.dataset.scene} scene is on.${b.dataset.scene === 'Away' ? ' Doors locked, heating on eco, cameras armed.' : ''}`, { force: true, state: 'success', ttl: 3200 });
+});
+let tgt = 21;
+$$('.tbtn').forEach(b => b.onclick = () => { tgt = clamp(tgt + +b.dataset.t * .5, 16, 26); $('#rm-tgt').textContent = $('#rm-tgt2').textContent = tgt % 1 ? tgt.toFixed(1) : tgt; });
+
+// Energy
+const sun = Array.from({ length: 49 }, (_, i) => { const h = i / 2; return Math.max(0, Math.sin((h - 6.5) / 13 * Math.PI)) * 4.6 * (.85 + rng() * .2); });
+const use = Array.from({ length: 49 }, (_, i) => { const h = i / 2; return .35 + (h > 6.5 && h < 9 ? 1.4 : 0) + (h > 17.5 && h < 21.5 ? 1.8 : 0) + (h > 12.5 && h < 14 ? 1.6 : 0) + rng() * .35; });
+function drawEnergy() {
+  const el = $('#echart'); el.innerHTML = '';
+  const w = el.clientWidth, h = el.clientHeight; if (w < 20 || h < 20) return;
+  const pad = { r: 46, t: 8, b: 22 }, mx = 5, X = i => i / 48 * (w - pad.r), Y = v => pad.t + (1 - v / mx) * (h - pad.t - pad.b);
+  const path = a => a.map((v, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(v).toFixed(1)).join('');
+  let g = '';
+  for (let k = 0; k <= 5; k++) g += `<line x1="0" x2="${w - pad.r}" y1="${Y(k)}" y2="${Y(k)}" stroke="var(--line)" stroke-dasharray="2 4"/>` + (k % 1 === 0 ? axisText(w - pad.r + 10, Y(k) + 4, k + ' kW') : '');
+  [0, 6, 12, 18, 24].forEach(t => g += axisText(X(t * 2), h - 4, String(t).padStart(2, '0') + ':00', t === 0 ? 'start' : t === 24 ? 'end' : 'middle'));
+  const nowX = X(37.4);
+  el.innerHTML = svgEl(w, h, `${g}<path class="area" d="${path(sun)}L${X(48)},${Y(0)}L0,${Y(0)}Z" fill="color-mix(in srgb,var(--warn) 18%,transparent)"/>
+    <path class="ln" pathLength="1" d="${path(sun)}" fill="none" stroke="var(--warn)" stroke-width="2"/><path class="ln" pathLength="1" d="${path(use)}" fill="none" stroke="var(--accent)" stroke-width="2"/>
+    <line x1="${nowX}" x2="${nowX}" y1="${pad.t}" y2="${h - pad.b}" stroke="var(--line-2)"/>${axisText(nowX + 6, pad.t + 10, 'now')}`);
+}
+function drawFlow() {
+  const el = $('#eflow'), w = el.clientWidth, h = el.clientHeight; if (w < 20) return;
+  const P = { sol: [w * .5, h * .14], home: [w * .5, h * .86], bat: [w * .14, h * .5], grid: [w * .86, h * .5] };
+  const c = (a, b) => `M${P[a][0]},${P[a][1]} Q${w * .5},${h * .5} ${P[b][0]},${P[b][1]}`;
+  const lines = [['sol', 'home', 'var(--warn)'], ['sol', 'bat', 'var(--warn)'], ['sol', 'grid', 'var(--good)']];
+  el.innerHTML = `<svg>${lines.map(l => `<path class="base" d="${c(l[0], l[1])}"/><path class="fl" d="${c(l[0], l[1])}" style="stroke:${l[2]}"/>`).join('')}</svg>` +
+    [['sol', 'Solar', $('#en-sol').textContent], ['home', 'Home', $('#en-use').textContent], ['bat', 'Battery', $('#en-bat').textContent + ' · +1.4 kW'], ['grid', 'Grid', '−0.7 kW export']]
+      .map(n => `<div class="fnode" style="left:${P[n[0]][0]}px;top:${P[n[0]][1]}px"><span>${n[1]}</span><b>${n[2]}</b></div>`).join('');
+}
+const price = Array.from({ length: 24 }, (_, i) => 18 + 9 * Math.cos((i - 19) / 24 * Math.PI * 2) + (i > 11 && i < 15 ? -9 : 0) + rng() * 3);
+$('#eprice').innerHTML = price.map((v, i) => `<b class="${i === 18 ? 'now' : i >= 12 && i < 15 ? 'cheap' : ''}" style="height:${v / 32 * 100}%" title="${String(i).padStart(2, '0')}:00 · ${v.toFixed(1)} ct/kWh"></b>`).join('');
+$('#econs').innerHTML = [['Heat pump', 6.8], ['Car charger', 4.2], ['Server rack', 2.9], ['Kitchen', 1.7], ['Office', 1.1]]
+  .map(r => `<div class="cons"><span>${r[0]}</span><span class="v">${r[1]} kWh</span><div class="bar"><b style="width:${r[1] / 6.8 * 100}%;background:var(--warn)"></b></div></div>`).join('');
+
+// Health
+function drawSleep() {
+  const nights = Array.from({ length: 14 }, (_, i) => ({ d: 1 + rng() * .7, r: 1.2 + rng() * .6, l: 3.6 + rng() * 1.4, k: dayStr(13 - i).split(' ')[0] }));
+  $('#sleep').innerHTML = nights.map(n => `<div class="n" title="${(n.d + n.r + n.l).toFixed(1)} h"><i style="height:${n.d / 9 * 100}%;background:var(--s1)"></i><i style="height:${n.r / 9 * 100}%;background:var(--accent)"></i><i style="height:${n.l / 9 * 100}%;background:color-mix(in srgb,var(--ink) 18%,transparent)"></i><small>${n.k}</small></div>`).join('');
+}
+function drawRings() {
+  const R = [['Move', 420, 600, 'kcal', 'var(--crit)'], ['Exercise', 22, 30, 'min', 'var(--good)'], ['Stand', 9, 12, 'h', 'var(--accent)']];
+  const ring = (i, f, col) => { const r = 40 - i * 11, L = 2 * Math.PI * r; return `<circle cx="50" cy="50" r="${r}" fill="none" stroke="color-mix(in srgb,${col} 18%,transparent)" stroke-width="8"/><circle cx="50" cy="50" r="${r}" fill="none" stroke="${col}" stroke-width="8" stroke-linecap="round" stroke-dasharray="${L * f} ${L}" transform="rotate(-90 50 50)"/>`; };
+  $('#rings').innerHTML = `<svg viewBox="0 0 100 100">${R.map((r, i) => ring(i, r[1] / r[2], r[4])).join('')}</svg><div class="rkey">${R.map(r => `<div><b style="color:${r[4]}">${r[1]} / ${r[2]}</b>${r[0]} · ${r[3]}</div>`).join('')}</div>`;
+}
+$('#habits').innerHTML = [['Sleep before 23:30', .7], ['10k steps', .45], ['No screens after 22:00', .55], ['Read 20 minutes', .8]]
+  .map(h => { const dots = Array.from({ length: 35 }, () => rng() < h[1]); return `<div class="habit"><span>${h[0]}</span><span class="v">${dots.filter(Boolean).length}/35</span><div class="dots">${dots.map(o => `<i class="${o ? 'on' : ''}"></i>`).join('')}</div></div>`; }).join('');
+$('#workouts').innerHTML = [['▲', 'Strength · upper body', 'Mon · 52 min · 312 kcal', '7.2'], ['➚', 'Run · 6.4 km', 'Sat · 34 min · 5:19 /km', '6.8'], ['◎', 'Ride · 28 km', 'Thu · 61 min · 140 W avg', '8.1'], ['∿', 'Mobility', 'Wed · 20 min', '2.0']]
+  .map(w => `<div class="wo"><i>${w[0]}</i><span>${w[1]}</span><span class="v">load ${w[3]}</span><span class="w">${w[2]}</span></div>`).join('');
+const hrv = Array.from({ length: 30 }, (_, i) => 56 + Math.sin(i / 4) * 5 + rng() * 6 + i * .12);
+
+// Inbox
+const MSGS = [
+  ['Needs a reply', [['Landlord', 'mail', 'Re: heating in the bedroom', 'Could you tell me which days work for the plumber next week?', 'var(--s1)', 'draft'],
+    ['Mia', 'signal', 'Thursday call', 'Still on for 16:00? I have the slides ready.', 'var(--s2)'],
+    ['GitHub', 'github', 'Review requested · jarvis-hermes#212', 'Codex opened a PR and asked for your review.', 'var(--muted)']]],
+  ['Waiting on others', [['Domain registrar', 'mail', 'Your domain renews on 2 Nov', 'Auto-renew is off for example.com.', 'var(--warn)'],
+    ['Sam', 'signal', 'Dinner Thursday', 'Booked for 19:00, I will send the place.', 'var(--s3)']]],
+  ['FYI', [['Bank', 'mail', 'Monthly statement ready', 'Your October statement is available.', 'var(--good)'], ['Energy provider', 'mail', 'Price change from January', 'Base fee +€2/month.', 'var(--s4)'],
+    ['Home Assistant', 'push', 'Leak sensor battery low', 'Bathroom sensor at 12%.', 'var(--accent)']]],
+];
+$('#triage').innerHTML = MSGS.map(([g, list]) => `<div class="tg">${g} · ${list.length}</div>${list.map((m, i) => `<div class="msg ${g === 'Needs a reply' && !i ? 'sel' : ''}" data-who="${m[0]}"><span class="av" style="background:${m[4]}">${m[0][0]}</span><span class="who">${m[0]}<span class="t2" style="font-weight:400"> · ${m[2]}</span></span><span class="src">${m[1]}</span><p>${m[3]}</p></div>`).join('')}`).join('');
+$('#triage').addEventListener('click', e => {
+  const m = e.target.closest('.msg'); if (!m) return;
+  $$('#triage .msg').forEach(x => x.classList.toggle('sel', x === m));
+  $('#dr-to').textContent = 'to: ' + m.dataset.who;
+  $('#dr-text').textContent = { Landlord: 'Hi Mark, thanks for checking. The radiator in the bedroom still doesn\'t get warm past level 3. Thursday after 16:00 works for the plumber — could you confirm the time? Best regards', Mia: 'Yes, 16:00 works. Send the slides over when you can and I\'ll have a look before.', Sam: 'Perfect, see you at 19:00!' }[m.dataset.who] || `Thanks — noted. I'll get back to you on this by Friday.`;
+});
+$('#ibrules').addEventListener('click', e => { const sw = e.target.closest('.sw'); if (!sw) return; const on = sw.classList.toggle('on'); sw.setAttribute('aria-checked', on); orb.ripple(0, 0, .25); });
+
+// Network
+const bw = Array.from({ length: 96 }, (_, i) => { const h = i / 4; return Math.max(8, (h > 19 && h < 23 ? 260 : h > 8 && h < 18 ? 120 : 30) + (rng() - .3) * 140); });
+$('#ndev').innerHTML = [['atlas', '10.0.0.11', 'desktop', '38 GB'], ['forge', '10.0.0.12', 'server', '112 GB'], ['vault', '10.0.0.13', 'nas', '64 GB'], ['nomad', '10.0.0.24', 'laptop', '2.1 GB'], ['living-tv', '10.0.0.40', 'tv', '21 GB'], ['phone', '10.0.0.52', 'phone', '3.4 GB'], ['hue-bridge', '10.0.0.60', 'iot', '41 MB'], ['doorbell', '10.0.0.61', 'iot', '1.2 GB']]
+  .map(d => `<tr><td>${d[0]}</td><td><span class="mono">${d[1]}</span></td><td class="t2">${d[2]}</td><td class="n mono">${d[3]}</td></tr>`).join('');
+$('#ndns').innerHTML = [['telemetry.tv-vendor.com', 1840], ['ads.example-network.net', 912], ['metrics.app-analytics.io', 640], ['tracker.smart-plug.cn', 388], ['beacon.video-cdn.com', 205]]
+  .map(d => `<div class="dns"><span>${d[0]}</span><span class="v">${d[1].toLocaleString('en-US')}</span><div class="bar"><b style="width:${d[1] / 1840 * 100}%;background:var(--crit)"></b></div></div>`).join('');
+
+// Insights
+const PROV = [['local', 'var(--s3)'], ['codex', 'var(--s2)'], ['claude', 'var(--s1)'], ['other', 'var(--s4)']];
+const daily = Array.from({ length: 30 }, (_, i) => [600 + rng() * 700 + (i % 7 > 4 ? -300 : 0), 120 + rng() * 300, 60 + rng() * 240, rng() * 80]);
+$('#ileg').innerHTML = PROV.map(p => `<span><i style="background:${p[1]}"></i>${p[0]}</span>`).join('');
+function drawUsage() {
+  const el = $('#ichart'); el.innerHTML = '';
+  const w = el.clientWidth, h = el.clientHeight; if (w < 20 || h < 20) return;
+  const step = 400, mx = Math.ceil(Math.max(...daily.map(d => d.reduce((a, b) => a + b))) / step) * step, pad = { r: 46, b: 22, t: 6 }, bw2 = (w - pad.r) / 30, Y = v => (h - pad.t - pad.b) * v / mx;
+  let g = '';
+  for (let k = 0; k <= mx / step; k++) { const y = h - pad.b - Y(k * step); g += `<line x1="0" x2="${w - pad.r}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-dasharray="2 4"/>${axisText(w - pad.r + 10, y + 4, k * step + 'k')}`; }
+  daily.forEach((d, i) => { let y = h - pad.b; d.forEach((v, k) => { const hh = Y(v); y -= hh; g += `<rect class="rise" style="--i:${i % 10}" x="${(i * bw2 + 2).toFixed(1)}" y="${y.toFixed(1)}" width="${(bw2 - 4).toFixed(1)}" height="${Math.max(0, hh - 1).toFixed(1)}" rx="2" fill="${PROV[k][1]}"><title>${dayStr(29 - i)} · ${PROV[k][0]} ${Math.round(v)}k</title></rect>`; }); });
+  [0, 15, 29].forEach((i, k) => g += axisText(i * bw2 + bw2 / 2, h - 4, dayStr(29 - i), ['start', 'middle', 'end'][k]));
+  el.innerHTML = svgEl(w, h, g);
+}
+$('#imod').innerHTML = [['qwen3-32b', 'local', 412, 97, '0.9 s', '€0'], ['qwen3-coder-30b', 'local', 268, 91, '1.4 s', '€0'], ['gpt-5.5', 'codex', 74, 96, '3.1 s', '€12.10'], ['claude-opus-5-5', 'claude', 38, 98, '2.2 s', '€6.30']]
+  .map(m => `<tr><td>${m[0]}<div class="mono" style="font-size:11px;color:var(--muted)">${m[1]}</div></td><td class="n">${m[2]}</td><td class="n ${m[3] > 95 ? 'up' : ''}">${m[3]}%</td><td class="n mono">${m[4]}</td><td class="n">${m[5]}</td></tr>`).join('');
+$('#heat').innerHTML = Array.from({ length: 26 * 7 }, (_, i) => { const a = rng(); return `<i style="--a:${a < .18 ? .04 : a < .45 ? .3 : a < .75 ? .55 : a < .92 ? .8 : 1}"></i>`; }).join('');
+$('#itime').innerHTML = [['Coding & tests', 41, 'var(--s2)'], ['Research & summaries', 23, 'var(--s1)'], ['Infra & ops', 18, 'var(--s3)'], ['Planning & reviews', 12, 'var(--s4)'], ['Inbox & admin', 6, 'var(--muted)']]
+  .map(t => `<div class="goal"><span>${t[0]}</span><span class="v">${t[1]}%</span><div class="bar"><b style="width:${t[1] / 41 * 100}%;background:${t[2]}"></b></div></div>`).join('');
+
+function drawLibrary() {
+  drawEnergy(); drawFlow(); drawSleep(); drawRings(); drawUsage();
+  lineChart($('#hchart'), hrv, { fmt: (v, s) => s ? v.toFixed(0) : v.toFixed(0) + ' ms', date: i => dayStr(29 - i), color: 'var(--crit)' });
+  lineChart($('#nchart'), bw, { fmt: (v, s) => s ? v.toFixed(0) : v.toFixed(0) + ' Mbit/s', date: hhmm, floor: 0 });
+}
+
+// Status: real checks when the server runs, a believable sample otherwise.
+const SAMPLE_CONNS = [
+  { name: 'JARVIS (hermes)', kind: 'jarvis-hermes · forge:8787', icon: 'J', ok: true, ms: 38 }, { name: 'Home Assistant', kind: 'home-assistant · vault:8123', icon: '⌂', ok: true, ms: 64 },
+  { name: 'Prometheus', kind: 'prometheus · forge:9090', icon: 'P', ok: true, ms: 22 }, { name: 'Calendar', kind: 'calendar · private ICS', icon: '◷', ok: true, ms: 211 },
+  { name: 'GitHub', kind: 'github · api.github.com', icon: 'GH', ok: true, ms: 148 }, { name: 'AdGuard Home', kind: 'adguard · 10.0.0.2', icon: 'AG', ok: true, ms: 9 },
+  { name: 'Uptime Kuma', kind: 'uptime-kuma · vault:3001', icon: 'UK', ok: false, ms: 0, error: 'timed out after 8 s' }, { name: 'Weather', kind: 'weather · open-meteo.com', icon: '☁', ok: true, ms: 96 },
+];
+// Live connections show their real recent checks; the sample ones get a plausible history.
+const statusHist = {};
+const uptimeBar = c => { const h = c.id ? statusHist[c.id] || [] : null; return Array.from({ length: 24 }, (_, i) => { const v = h ? h[h.length - 24 + i] : !c.ok && i > 20 ? false : rng() < .04 ? 'w' : true; return `<i class="${v === undefined ? 'n' : v === false ? 'c' : v === 'w' ? 'w' : ''}"></i>`; }).join(''); };
+function renderStatus(list, ai, live) {
+  $('#st-src').textContent = live ? 'live · checked by the server' : 'sample data';
+  $('#conns').innerHTML = list.length ? list.map(c => `<div class="conn"><span class="ic">${c.icon || '•'}</span><span class="nm">${esc(c.name)}</span><span class="up" title="last 24 checks">${uptimeBar(c)}</span><span class="lat">${c.ok ? c.ms + ' ms' : '—'}</span><span class="st ${c.ok ? 'good' : c.ok === false ? 'crit' : 'idle'}">${c.ok ? 'healthy' : c.ok === false ? 'down' : 'unchecked'}</span><span class="kd">${esc(c.error ? c.kind + ' · ' + c.error : c.kind)}</span></div>`).join('')
+    : `<div class="empty"><div>No connections yet.</div><button class="btn pri" data-settings="connections">Add your first connection</button></div>`;
+  const ok = list.filter(c => c.ok).length, ms = list.filter(c => c.ok).map(c => c.ms).sort((a, b) => a - b);
+  $('#st-ok').textContent = ok; $('#st-bad').textContent = list.length - ok; $('#st-lat').textContent = ms.length ? ms[ms.length >> 1] + ' ms' : '—';
+  $('#st-eb').dataset.base = 'Connections · checked ' + hm(); if (placed('status')) $('#st-eb').textContent = $('#st-eb').dataset.orig = coordOf('status') + ' · ' + $('#st-eb').dataset.base;
+  $('#st-ai').innerHTML = ai.length ? ai.map(a => `<div class="eng" style="grid-template-columns:auto 1fr auto"><span class="chip"><i style="background:${a.local ? 'var(--s3)' : 'var(--s1)'}"></i>${a.local ? 'local' : a.group === 'sub' ? 'subscription' : 'api'}</span><span>${esc(a.name)}</span><span class="${a.def ? 'badge def' : 'badge'}">${a.def ? 'DEFAULT' : 'READY'}</span><span class="d">${esc(a.model || 'default model')}</span></div>`).join('')
+    : `<p class="t2" style="font-size:13px">No AI connected yet. Pick a subscription, an API key or a local model.</p><div class="row" style="margin-top:10px"><button class="btn pri" data-settings="ai">Connect an AI</button></div>`;
+}
+let statusPrev = {};
+async function checkStatus(manual) {
+  if (!API.server) {
+    renderStatus(SAMPLE_CONNS, [{ name: 'Ollama · qwen3-32b', model: 'local, forge gpu0', local: true, def: true }, { name: 'Claude subscription', model: 'via Claude Code CLI', group: 'sub' }], false);
+    if (manual) log('#st-log', 'sample data · connect the server to check for real');
+    else if (!$('#st-log').children.length) [['uptime-kuma · down: timed out after 8 s', 'crit'], ['prometheus · slow response, 1.8 s', 'warn'], ['calendar · back up', 'good'], ['weather · added']].forEach(l => log('#st-log', ...l));
+    return;
+  }
+  $('#st-check').disabled = true;
+  try {
+    const d = await api('status' + (manual ? '?fresh=1' : ''));
+    const list = d.connections.map(c => ({ ...c, icon: (DATA_BY[c.type] || AI_BY[c.type] || {}).icon }));
+    for (const c of list) { (statusHist[c.id] ??= []).push(c.ok ? (c.ms > 1500 ? 'w' : true) : false); statusHist[c.id].splice(0, statusHist[c.id].length - 24); }
+    for (const c of list) { if (statusPrev[c.id] !== undefined && statusPrev[c.id] !== c.ok) log('#st-log', `${esc(c.name)} · ${c.ok ? 'back up' : 'down: ' + esc(c.error || '')}`, c.ok ? 'good' : 'crit'); statusPrev[c.id] = c.ok; }
+    if (manual || !$('#st-log').children.length) log('#st-log', `checked ${list.length} connection${list.length === 1 ? '' : 's'}`);
+    renderStatus(list, aiList(), true);
+  } catch (e) { log('#st-log', 'check failed · ' + esc(e.message), 'crit'); }
+  $('#st-check').disabled = false;
+}
+$('#st-check').onclick = () => checkStatus(true);
+
 /* ======================================================== actions (things Jarvis does when you say yes) */
 const NEED_WORDS = ['nothing needs you', 'one thing needs you', 'two things need you', 'three things need you'];
 function markNeed(key) {
@@ -1804,7 +2817,7 @@ function applySSH() {
   log('#ilog', 'atlas, forge · nixos-rebuild switch (openssh bump)');
   setTimeout(() => {
     b.textContent = '✓ Patched';
-    const eb = $('#ieyebrow'); eb.textContent = eb.dataset.orig = 'B3 · Machines & services · NixOS gen 413';
+    const eb = $('#ieyebrow'); eb.dataset.base = 'Machines & services · NixOS gen 413'; eb.textContent = eb.dataset.orig = coordOf('infra') + ' · ' + eb.dataset.base;
     log('#ilog', 'atlas, forge · openssh patched, gen 413', 'good'); updateWarn();
     say("Both hosts patched. Generation 413 is live; rollback is one command away.", { force: true, state: 'success' });
   }, 2200);
@@ -1833,6 +2846,11 @@ const ACTIONS = {
   explain: () => say("Selling would realise gains and trigger tax. Redirecting new money gets you to 60% by December without touching anything.", { force: true }),
   spec: () => { jSet('planning'); say("Drafting the spec now — sensors, rain forecast, and a manual override. I'll move it to Planning when it's ready.", { force: true, state: 'planning' }); },
   dismiss: () => say("Parked it. I'll bring it up again in spring.", { force: true }),
+  send: () => { const m = $('#triage .msg.sel'); if (m) m.classList.add('done'); $('#ib-drafts').textContent = Math.max(0, +$('#ib-drafts').textContent - 1); $('#ib-need').textContent = Math.max(0, +$('#ib-need').textContent - 1); say('Sent. I\'ll file the reply when it comes in.', { force: true, state: 'success', ttl: 3200 }); },
+  shorter: () => { $('#dr-text').textContent = $('#dr-text').textContent.split(/(?<=[.?!])\s/).slice(0, 2).join(' '); say('Trimmed it to the point.', { force: true, ttl: 2600 }); },
+  discard: () => { $('#dr-text').textContent = 'Draft discarded. Pick a message and I\'ll write a new one.'; },
+  morning: () => say("Moved Thursday's workout to 07:15. I'll nudge you at 06:50.", { force: true, state: 'success' }),
+  explainSleep: () => say("On your last six late-training nights deep sleep averaged 52 minutes, versus 81 on other nights.", { force: true }),
 };
 
 /* ======================================================== terminal */
@@ -1844,7 +2862,7 @@ function toggleTerm(force) {
 }
 $('#termbtn').onclick = () => toggleTerm();
 const out = html => { tout.insertAdjacentHTML('beforeend', html + '\n'); tout.scrollTop = tout.scrollHeight; };
-out(`<span class="m">JARVIS terminal · local-first routing · type "help"</span>
+const termIntro = () => API.server ? out(`<span class="m">JARVIS terminal · type "help" · ${chatConn() ? 'answers come from ' + esc(chatConn().name) : 'connect an AI in Settings → AI'}</span>\n`) : out(`<span class="m">JARVIS terminal · local-first routing · type "help"</span>
 <span class="p">jarvis ›</span> <span class="u">why did the backup fail last night?</span>
 <span class="rt">◆ route</span>  <span class="m">auto → local · qwen3-32b @ harness/forge (41 tok/s) · €0.00</span>
 <span class="m">◇ tool </span>  ssh forge journalctl -u restic-backup --since yesterday
@@ -1861,7 +2879,7 @@ const replies = [
   [/build|code|app|project|pr|implement|idea/, 'harness → codex (escalation)', ['<span class="m">◇ plan </span>  hermes splits the idea into tasks, harness codes locally,', '          codex takes over after 2 failed attempts.', 'Created a project draft in <b>Projects › Idea</b>. Want me to start planning now?']],
   [/money|invest|portfolio|market|stock/, 'local only (money never leaves home)', ['<span class="m">◇ tool </span>  broker.read positions (read-only)', () => `Portfolio ${eur(pval)}, +0.8% today, +9.4% YTD. World ETFs are 6 pts over target.`, 'Suggestion: route the next two €650 contributions to bonds/cash. <span class="m">No trades without approval.</span>']],
   [/hello|hi\b|hey/, 'local · qwen3-32b', ['Evening. Everything important is on Home; everything else can wait.']],
-  [/help/, 'built-in', ['commands: status · plan my week · run fix · build &lt;idea&gt; · portfolio · go &lt;tab&gt; · clear', 'anything else is routed automatically (local first, cloud if needed).']],
+  [/help/, 'built-in', ['commands: go &lt;page&gt; · theme &lt;name&gt; · settings · clear', () => API.server && chatConn() ? `anything else goes to ${esc(chatConn().name)}.` : 'demo prompts: status · plan my week · run fix · build &lt;idea&gt; · portfolio']],
 ];
 // Replies queue up, so a question asked mid-answer waits its turn instead of interleaving.
 let replying = Promise.resolve();
@@ -1869,8 +2887,12 @@ const respond = q => (replying = replying.then(() => answer(q)));
 async function answer(q) {
   const lc = q.toLowerCase();
   if (lc === 'clear') { tout.innerHTML = ''; return; }
-  const gm = lc.match(/^go (\w+)/); if (gm) { const id = order.find(o => o.startsWith(gm[1])); if (id) { toggleTerm(false); go(id); } return; }
-  const r = replies.find(([re]) => re.test(lc)) || [0, 'local · qwen3-32b', ['Noted. In the real build this goes to Hermes with your context, tools and memory.']];
+  const gm = lc.match(/^go (\w+)/); if (gm) { const id = order.find(o => o.startsWith(gm[1]) || byId[o].dataset.name.toLowerCase().startsWith(gm[1])); if (id) { toggleTerm(false); go(id); } else out('<span class="m">no page "' + esc(gm[1]) + '" on the board</span>\n'); return; }
+  if (/^(settings|config|prefs)$/.test(lc)) { openSettings(); return; }
+  const tm = lc.match(/^theme\s+(.+)/);
+  if (tm) { const t = themeList().find(x => x.id.startsWith(tm[1].replace(/\s+/g, '-')) || x.name.toLowerCase().startsWith(tm[1])); if (t) { CFG.appearance.theme = t.id; changed('appearance'); out('<span class="ok">theme → ' + esc(t.name) + '</span>\n'); } else out('<span class="m">themes: ' + themeList().map(x => x.id).join(' · ') + '</span>\n'); return; }
+  if (API.server && chatConn() && !/^help$/.test(lc)) return askAI(q);
+  const r = replies.find(([re]) => re.test(lc)) || [0, 'local · sample', [API.server ? 'No AI is connected yet. Open Settings → AI and pick a subscription, an API key or a local model.' : 'This demo answers from a script. Run the server and connect an AI in Settings → AI for real answers.']];
   jSet(r[1].includes('hermes') ? 'planning' : 'thinking');
   out(`<span class="rt">◆ route</span>  <span class="m">auto → ${r[1]}</span>`);
   await new Promise(s => setTimeout(s, 700));
@@ -1897,6 +2919,42 @@ for (const input of [$('#ask'), tin, $('#addtodo')]) {
 $('#ask').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.value.trim()) { sendToTerm(e.target.value.trim()); e.target.value = ''; } });
 $$('.hero .sugg button').forEach(b => b.onclick = () => sendToTerm(b.textContent.replace('…', '')));
 
+/* ======================================================== real AI in the terminal (server mode)
+   The server streams the answer of whichever provider is the default: a subscription CLI, an
+   API or a local model. The browser only ever sees the text. */
+const chatHistory = [];
+async function askAI(q) {
+  const c = chatConn(), e = AI_BY[c.type] || {};
+  out(`<span class="rt">◆ route</span>  <span class="m">${esc(c.name)} · ${esc(c.values?.model || e.via || 'default model')}${e.local ? ' · stays home' : ''}</span>`);
+  jSet('thinking');
+  const line = document.createElement('span'); line.className = 'typing'; tout.appendChild(line); tout.scrollTop = tout.scrollHeight;
+  chatHistory.push({ role: 'user', content: q });
+  let text = '', failed = '';
+  try {
+    const r = await fetch('/api/ai/chat', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json', 'x-jarvis': '1' },
+      body: JSON.stringify({ connection: c.id, messages: chatHistory.slice(-16), context: { page: byId[current]?.dataset.name, pages: order.map(id => byId[id].dataset.name), name: CFG.profile.name, time: new Date().toString() } }) });
+    if (r.status === 401) { location.assign('/login'); return; }
+    if (!r.ok || !r.body) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+    const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+    for (;;) {
+      const { value, done } = await rd.read(); if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i; while ((i = buf.indexOf('\n\n')) >= 0) {
+        const ev = buf.slice(0, i); buf = buf.slice(i + 2);
+        const data = ev.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5).trim()).join('');
+        if (!data) continue;
+        const m = JSON.parse(data);
+        if (m.t === 'text') { if (!text) jSet('generating'); text += m.v; line.textContent = text; tout.scrollTop = tout.scrollHeight; }
+        else if (m.t === 'error') failed = m.v;
+      }
+    }
+  } catch (err) { failed = err.message; }
+  line.classList.remove('typing');
+  if (text) chatHistory.push({ role: 'assistant', content: text }); else chatHistory.pop();
+  if (failed) { out(`\n<span class="w">✗ ${esc(failed)}</span>`); jSet('error', 2600); }
+  else { out('\n'); jSet('success', 2400); }
+}
+
 /* ======================================================== life: live data + a few scripted moments */
 let pval = 48212, r3 = 41, benchMin = 138;
 function flash(el, up) { el.classList.remove('flash-up', 'flash-dn'); void el.offsetWidth; el.classList.add(up ? 'flash-up' : 'flash-dn'); setTimeout(() => el.classList.remove('flash-up', 'flash-dn'), 60); }
@@ -1917,6 +2975,10 @@ function lifeTick() {
   if (tickN % 4 === 2) log('#ilog', pick(ILOG));
   if (tickN % 5 === 3) log('#blog', pick(BLOG));
   if (tickN % 2 === 0) { tps.push(tps.shift()); if (current === 'lab') drawTps(); }
+  $('#nw-down').textContent = Math.round(380 + rng() * 80); $('#nw-up').textContent = Math.round(30 + rng() * 14);
+  $('#en-sol').textContent = (3 + rng() * .5).toFixed(1) + ' kW'; $('#en-use').textContent = (.9 + rng() * .4).toFixed(1) + ' kW';
+  if (current === 'energy') drawFlow();
+  if (tickN % 30 === 0 && current === 'status') checkStatus();
   if (tickN % 19 === 0 && benchMin > 0) { benchMin--; $('#bench').textContent = `${Math.floor(benchMin / 60)} h ${benchMin % 60} m`; }
 }
 function codexDone() {
@@ -1931,33 +2993,42 @@ function stormNudge() {
   say("Heads-up: storm warning Friday night. Want me to shut forge down cleanly at 21:45?", { force: !termOpen, state: 'waiting_approval', acts: [['Schedule it', scheduleStorm], ['No thanks']] });
 }
 function ambient() {
-  if (chatty && !termOpen && !sp && performance.now() - lastInput > 4000 && performance.now() - lastSay > 30000) say(pick(AMBIENT));
+  if (chatty && !termOpen && !setOpen && !sp && performance.now() - lastInput > 4000 && performance.now() - lastSay > 30000) say(pick(API.server ? TIPS : AMBIENT));
   setTimeout(ambient, 30000 + Math.random() * 30000);
 }
 
 /* ======================================================== boot */
 function boot() {
+  const start = applyLayout(CFG.layout);
   layout(); drawCharts();
-  const start = location.hash.slice(1);
-  current = byId[start] ? start : 'home';
+  const want = location.hash.slice(1);
+  current = placed(want) ? want : start;
   panes.forEach(p => p.classList.toggle('active', p.dataset.id === current));
   cam = paneCam(current); flight = { type: 'pan', tx: cam.fx, ty: cam.fy }; apply();
   measureSlot(); syncChrome();
+  return start;
 }
-boot();
-const intro = !location.hash && !reduce;
-if (intro) { overview = true; body.classList.add('overview'); cam = overviewCam(); flight = null; apply(); syncChrome(); }
-placeOrb(); paintCap();
-requestAnimationFrame(() => requestAnimationFrame(() => { jEl.classList.add('ready'); jCap.classList.add('ready'); }));
-setTimeout(() => jSet('idle'), intro ? 900 : 400);
-if (intro) setTimeout(() => go('home'), 950);
-else setTimeout(() => onArrive({ id: current, fresh: true }), 300);
-setInterval(lifeTick, 3200);
-setTimeout(codexDone, 15000);
-setTimeout(stormNudge, 50000);
-setTimeout(ambient, 75000);
-document.fonts?.ready.then(() => { measureSlot(); placeOrb(); syncChrome(); });
-let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { layout(); drawCharts(); cam = overview ? overviewCam() : paneCam(current); zoomF = 1; flight = { type: 'pan', tx: cam.fx, ty: cam.fy }; apply(); measureSlot(); placeOrb(); syncChrome(); }, 80); });
+async function start() {
+  await loadSettings();
+  applyAppearance(); applyProfile(); termIntro();
+  const first = boot();
+  const intro = !placed(location.hash.slice(1)) && !reduce;
+  if (intro) { overview = true; body.classList.add('overview'); cam = overviewCam(); flight = null; apply(); syncChrome(); }
+  placeOrb(); paintCap();
+  requestAnimationFrame(() => requestAnimationFrame(() => { jEl.classList.add('ready'); jCap.classList.add('ready'); }));
+  setTimeout(() => jSet('idle'), intro ? 900 : 400);
+  if (intro) setTimeout(() => go(first), 950);
+  else setTimeout(() => onArrive({ id: current, fresh: true }), 300);
+  setInterval(lifeTick, 3200);
+  // The scripted story belongs to the sample board; a real install stays quiet about it.
+  if (!API.server) { setTimeout(codexDone, 15000); setTimeout(stormNudge, 50000); }
+  else if (!API.conns.some(c => c.kind === 'ai')) setTimeout(() => say("Welcome. Shall we connect an AI first? A subscription, an API key or a local model all work.", { force: true, acts: [['Connect an AI', () => openSettings('ai')], ['Later']] }), 2600);
+  setTimeout(ambient, 75000);
+  checkStatus();
+  document.fonts?.ready.then(() => { measureSlot(); placeOrb(); syncChrome(); fitGreet(); });
+  let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { layout(); drawCharts(); cam = overview ? overviewCam() : paneCam(current); zoomF = 1; flight = { type: 'pan', tx: cam.fx, ty: cam.fy }; apply(); measureSlot(); placeOrb(); syncChrome(); fitGreet(); }, 80); });
+}
+start();
 })();
 </script>
 </body>

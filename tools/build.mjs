@@ -37,6 +37,8 @@ function load(file) {
   if (modules.has(id)) return id;
   modules.set(id, null);
   let src = fs.readFileSync(file, "utf8");
+  // The board feeds the theme's colours to the orb, so its palette table must stay writable.
+  if (id === "atmosphere.js") src = src.replace("export const ATMOSPHERES = Object.freeze(", "export const ATMOSPHERES = (");
   const exported = [];
   const dep = (spec) => JSON.stringify(load(path.resolve(path.dirname(file), spec)));
   src = src.replace(/export\s*\{([^}]*)\}\s*from\s*"([^"]+)";/g, (_, names, spec) =>
@@ -62,15 +64,26 @@ const __req = (id) => {
 };
 ${[...modules].map(([id, code]) => `__defs[${JSON.stringify(id)}] = (__e) => {\n${code}\n};`).join("\n")}
 window.JarvisOrbModule = __req("orb.js");
+window.JarvisOrbAtmospheres = __req("atmosphere.js").ATMOSPHERES;
 })();`.replace(/<\/script/gi, "<\\/script");
 
 const font = fs.readFileSync(path.join(vendor, "fonts/SpaceGrotesk.ttf")).toString("base64");
+
+const themes = fs.readFileSync(path.join(root, "src/themes.css"), "utf8");
+// The catalog is an ES module for the server; in the page it becomes plain constants.
+const catalog = fs.readFileSync(path.join(root, "src/catalog.mjs"), "utf8").replace(/^export /gm, "");
+const version = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).version;
 
 // Function replacements, so "$$" or "$'" in the inlined code is never read as a replace pattern.
 const html = fs
   .readFileSync(path.join(root, "src/index.html"), "utf8")
   .replace("/*@FONT@*/", () => font)
+  .replace("/*@THEMES@*/", () => themes)
+  .replace("/*@CATALOG@*/", () => catalog)
   .replace("<!--@ORB@-->", () => `<script>\n${orb}\n</script>`);
+const login = fs.readFileSync(path.join(root, "src/login.html"), "utf8").replace("/*@FONT@*/", () => font);
 fs.mkdirSync(path.join(root, "dist"), { recursive: true });
 fs.writeFileSync(path.join(root, "dist/index.html"), html);
-console.log(`dist/index.html: ${(Buffer.byteLength(html) / 1024).toFixed(0)} KB · orb ${modules.size} modules from ${source} · Space Grotesk inlined`);
+fs.writeFileSync(path.join(root, "dist/login.html"), login);
+fs.writeFileSync(path.join(root, "dist/version.txt"), version + "\n");
+console.log(`dist/index.html: ${(Buffer.byteLength(html) / 1024).toFixed(0)} KB · orb ${modules.size} modules from ${source} · Space Grotesk inlined · login ${(Buffer.byteLength(login) / 1024).toFixed(0)} KB`);

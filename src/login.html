@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Sign in</title>
+<meta name="theme-color" content="#07090c">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%238fe3ff'/%3E%3C/svg%3E">
+<style>
+@font-face{font-family:"Space Grotesk";src:url(data:font/ttf;base64,/*@FONT@*/) format("truetype");font-weight:300 700;font-display:swap}
+/* Deliberately anonymous: nothing on this page says whose dashboard this is. */
+:root{color-scheme:dark;--bg:#07090c;--card:#0e1217;--text:#eceef1;--text-2:#a6aebb;--muted:#677080;--accent:#8fe3ff;--crit:#ef6b5b;--line:rgba(255,255,255,.08);--line-2:rgba(255,255,255,.14)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{display:grid;place-items:center;background:radial-gradient(60% 50% at 50% 30%,rgba(143,227,255,.07),transparent 70%),var(--bg);color:var(--text);font:15px/1.5 "Space Grotesk",ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:24px}
+body::before{content:"";position:fixed;inset:0;background-image:radial-gradient(rgba(255,255,255,.06) 1px,transparent 1.2px);background-size:30px 30px;pointer-events:none}
+main{position:relative;width:min(380px,100%);display:flex;flex-direction:column;align-items:center;gap:26px}
+.orb{width:120px;height:120px;border-radius:50%;position:relative}
+.orb::before,.orb::after{content:"";position:absolute;inset:0;border-radius:50%}
+.orb::before{inset:22%;background:radial-gradient(circle at 35% 30%,#fff,#bff0ff 12%,var(--accent) 38%,#1d6f9a 75%,#0b2a3c);box-shadow:0 0 50px rgba(143,227,255,.45),0 0 120px rgba(143,227,255,.18);animation:breathe 4s ease-in-out infinite}
+.orb::after{border:1px solid rgba(143,227,255,.25);animation:ring 4s ease-out infinite}
+.orb.busy::before{animation-duration:1s}
+.orb.bad::before{background:radial-gradient(circle at 35% 30%,#fff,#ffd0c8 12%,var(--crit) 38%,#7a2a22 75%,#2a0b08);box-shadow:0 0 50px rgba(239,107,91,.45)}
+@keyframes breathe{50%{transform:scale(.94);filter:brightness(.85)}}
+@keyframes ring{0%{transform:scale(.55);opacity:.9}100%{transform:scale(1.15);opacity:0}}
+h1{font-size:15px;font-weight:600;letter-spacing:.32em;text-align:center}
+h1 small{display:block;margin-top:8px;font:500 12px ui-monospace,monospace;letter-spacing:.08em;color:var(--muted)}
+form{width:100%;display:flex;flex-direction:column;gap:12px;padding:22px;border-radius:18px;background:rgba(14,18,23,.85);border:1px solid var(--line);box-shadow:0 30px 80px -20px rgba(0,0,0,.7)}
+label{display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--text-2)}
+input{width:100%;padding:11px 13px;border-radius:11px;border:1px solid var(--line-2);background:var(--bg);color:var(--text);font:inherit;outline:0;transition:border-color .2s,box-shadow .2s}
+input:focus{border-color:rgba(143,227,255,.6);box-shadow:0 0 0 3px rgba(143,227,255,.1)}
+input.code{font:600 20px ui-monospace,monospace;letter-spacing:.4em;text-align:center}
+button{margin-top:4px;padding:11px;border-radius:11px;border:0;background:var(--text);color:#06080b;font:600 14.5px "Space Grotesk",ui-sans-serif,system-ui,sans-serif;cursor:pointer;transition:background .2s}
+button:hover{background:var(--accent)}
+button:disabled{opacity:.6;cursor:wait}
+.msg{min-height:20px;font-size:13px;color:var(--crit);text-align:center}
+.hint{font-size:12.5px;color:var(--muted);text-align:center;line-height:1.55}
+.hint code{font:12px ui-monospace,monospace;color:var(--text-2)}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<main>
+ <div class="orb" id="orb" aria-hidden="true"></div>
+ <h1 id="title">SIGN IN<small id="sub">private dashboard</small></h1>
+ <form id="f" autocomplete="on" novalidate>
+  <label id="l-token" hidden>Setup code<input id="token" autocomplete="off" spellcheck="false" placeholder="printed by the server on first start"></label>
+  <label>Password<input id="pw" type="password" autocomplete="current-password" required></label>
+  <label id="l-pw2" hidden>Repeat password<input id="pw2" type="password" autocomplete="new-password"></label>
+  <label id="l-code" hidden>Code from your authenticator<input id="code" class="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code"></label>
+  <button id="go" type="submit">Sign in</button>
+  <div class="msg" id="msg" role="alert"></div>
+ </form>
+ <p class="hint" id="hint" hidden></p>
+</main>
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  let setup = false;
+  const msg = (t) => { $("#msg").textContent = t || ""; $("#orb").classList.toggle("bad", !!t); };
+  async function call(path, body) {
+    const r = await fetch("/api/auth/" + path, { method: body ? "POST" : "GET", credentials: "same-origin", headers: { "x-jarvis": "1", ...(body ? { "content-type": "application/json" } : {}) }, body: body && JSON.stringify(body) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw Object.assign(new Error(d.error || "Something went wrong"), d);
+    return d;
+  }
+  call("state").then((s) => {
+    if (s.authed) return location.replace("/");
+    setup = s.setup;
+    if (setup) {
+      $("#title").firstChild.textContent = "SET UP";
+      $("#sub").textContent = "choose the password for this dashboard";
+      $("#l-token").hidden = $("#l-pw2").hidden = false;
+      $("#pw").autocomplete = "new-password";
+      $("#go").textContent = "Create password";
+      const h = $("#hint"); h.hidden = false;
+      h.innerHTML = "The setup code is in the server log and in <code>data/setup-code</code>. It proves you run this server.";
+      $("#token").focus();
+    } else { $("#l-code").hidden = !s.totp; $("#pw").focus(); }
+  }).catch(() => msg("The server is not reachable."));
+  $("#f").addEventListener("submit", async (e) => {
+    e.preventDefault(); msg("");
+    const pw = $("#pw").value;
+    if (setup && pw !== $("#pw2").value) return msg("The passwords differ.");
+    $("#go").disabled = true; $("#orb").classList.add("busy");
+    try {
+      if (setup) await call("setup", { token: $("#token").value.trim(), password: pw });
+      else await call("login", { password: pw, code: $("#code").value.trim() });
+      location.replace("/");
+    } catch (err) {
+      msg(err.message);
+      if (err.totp) { $("#l-code").hidden = false; $("#code").focus(); }
+      $("#go").disabled = false; $("#orb").classList.remove("busy");
+    }
+  });
+})();
+</script>
+</body>
+</html>
