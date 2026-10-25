@@ -40,7 +40,7 @@ It runs two ways:
 
 ### What each page reads
 
-On the server every page renders from live data, refreshed every 15 seconds. A page whose source is not connected says which connection it needs, instead of showing anything made up.
+On the server every page renders from live data, refreshed every 15 seconds. Harness changes (a new task, a status change, an approval request) arrive at once: the server follows the Harness WebSocket and pushes each change to open boards. A page whose source is not connected says which connection it needs, instead of showing anything made up.
 
 | Page | Live from | What you can do there |
 | --- | --- | --- |
@@ -262,7 +262,6 @@ docs/                   themes guide and screenshots
 
 - Chat (Matrix, Signal) in the Inbox, and reply drafts for mail
 - Direct fitness services (Oura, Withings) for people without Home Assistant
-- Live updates over the Harness WebSocket instead of polling
 - Per-task routing (for example: money and health questions only to local models)
 - More themes and integrations from the community
 

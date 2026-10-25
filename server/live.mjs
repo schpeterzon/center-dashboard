@@ -4,7 +4,7 @@
 import crypto from "node:crypto";
 import { state, persist, open } from "./store.mjs";
 import { request, str, num } from "./net.mjs";
-import { harnessSnapshot, harnessAction } from "./harness.mjs";
+import { harnessSnapshot, harnessAction, harnessStream } from "./harness.mjs";
 import { calendarEvents } from "./calendar.mjs";
 import { mail } from "./mail.mjs";
 import * as src from "./sources.mjs";
@@ -201,6 +201,21 @@ export async function watchHarness() {
     for (const t of s.tasks) if (t.status === "failed" && !seen.has(t.id + ":f")) { seen.add(t.id + ":f"); await notify("Task failed", `${t.title}: ${t.error}`); }
   } catch {}
 }
+
+// ---------------------------------------------------------------- pushed to open boards
+// The Harness event stream tells every open board to read the snapshot again right away.
+const listeners = new Set();
+export const listenerCount = () => listeners.size;
+export const onChange = (fn) => { listeners.add(fn); return () => listeners.delete(fn); };
+let stream = null;
+export function startStream() {
+  stream = harnessStream(() => first("harness"), (e) => {
+    for (const fn of listeners) { try { fn({ source: "harness", ...e }); } catch {} }
+    if (e.type === "permission.requested" || e.type === "task.failed") watchHarness();
+  });
+}
+export const refreshStream = () => stream?.refresh();
+export const streamState = () => ({ harness: !!stream?.connected });
 
 // ---------------------------------------------------------------- what the AI sees
 const hhmm = (t) => new Date(t).toTimeString().slice(0, 5);

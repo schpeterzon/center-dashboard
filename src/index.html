@@ -1355,15 +1355,21 @@ async function api(path, { method = 'GET', body } = {}) {
   return d;
 }
 async function loadSettings() {
-  if (/^https?:$/.test(location.protocol)) {
+  // A page served by the JARVIS server waits for it (a restart, a flaky tunnel) instead of
+  // showing the sample demo; only a static copy of the page runs as the demo.
+  const served = !!document.querySelector('meta[name="jarvis-server"]');
+  for (let wait = 1000; /^https?:$/.test(location.protocol); wait = Math.min(wait * 2, 10000)) {
     try {
       const r = await fetch('/api/session', { credentials: 'same-origin', headers: { 'x-jarvis': '1' } });
       if (r.status === 401) { location.replace('/login'); await new Promise(() => {}); }
       if (r.ok && (r.headers.get('content-type') || '').includes('json')) {
         const d = await r.json();
-        if (d.jarvis) { API.server = true; API.info = d; API.conns = d.connections || []; CFG = mergeDeep(structuredClone(DEFAULTS), d.settings || {}); return; }
+        if (d.jarvis) { API.server = true; API.info = d; API.conns = d.connections || []; CFG = mergeDeep(structuredClone(DEFAULTS), d.settings || {}); $('#toast')?.classList.remove('show'); return; }
       }
     } catch {}
+    if (!served) break;
+    const t = $('#toast'); if (t) { $('.zz', t).textContent = 'Waiting for the JARVIS server…'; t.classList.add('show'); }
+    await new Promise(r => setTimeout(r, wait));
   }
   try { mergeDeep(CFG, JSON.parse(localStorage.getItem('jarvis-settings') || '{}')); } catch {}
 }
@@ -3149,8 +3155,9 @@ const LIVE = (() => {
   const stLabel = t => t.status === 'completed' ? (t.verified === 'passed' ? 'verified' : t.verified ? 'done · ' + t.verified : 'done') : t.status.replace('_', ' ');
 
   // ---------------------------------------------------------------- polling and rendering
+  let again = false;
   async function poll(fresh) {
-    if (busy) return; busy = true;
+    if (busy) { again = true; return; } busy = true;
     try {
       S = await api('live' + (fresh ? '?fresh=1' : ''));
       const h = ok('harness');
@@ -3164,6 +3171,16 @@ const LIVE = (() => {
       if (Object.values(S.sources).some(v => v.pending)) setTimeout(() => poll(), 2500);
     } catch (e) { console.warn('live:', e.message); }
     busy = false;
+    if (again) { again = false; poll(); }
+  }
+  // The server pushes "change" when the Harness reports an event; the 15 s poll stays as the fallback.
+  let soon = 0;
+  function listen() {
+    if (typeof EventSource !== 'function') return;
+    const es = new EventSource('/api/stream');
+    es.addEventListener('change', () => { clearTimeout(soon); soon = setTimeout(() => { if (!document.hidden) poll(); }, 300); });
+    // Browsers stop retrying after some failures (a server restart, a sign-in redirect); start over.
+    es.onerror = () => { if (es.readyState === EventSource.CLOSED) setTimeout(listen, 10000); };
   }
   function start() {
     HX.stop();
@@ -3171,6 +3188,7 @@ const LIVE = (() => {
     setTimeout(() => $$('.pane').forEach(p => p.classList.add('lv-ready')), 6000);
     poll(true);
     timer = setInterval(() => { if (!document.hidden) poll(); }, 15000);
+    listen();
     document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
   }
   // Re-render a page only when its content changed, and never while you are typing in it.

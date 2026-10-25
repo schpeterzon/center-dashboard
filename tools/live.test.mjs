@@ -4,6 +4,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import http from "node:http";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -16,13 +17,17 @@ const root = path.join(import.meta.dirname, "..");
 const data = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-live-"));
 const PORT = 19000 + Math.floor(Math.random() * 1000), B = `http://127.0.0.1:${PORT}`;
 let server, fx, harness, hx, cookie = "";
-const decisions = [], created = [];
+const decisions = [], created = [], sockets = new Set();
+let liveTask = null;
+// Server-to-client WebSocket text frame (unmasked, as servers send them).
+const frame = (o) => { const p = Buffer.from(JSON.stringify(o)); return Buffer.concat([Buffer.from(p.length < 126 ? [0x81, p.length] : [0x81, 126, p.length >> 8, p.length & 255]), p]); };
 
 // A Harness that answers like hermes-opencode-harness v1, with one task waiting for approval.
 function fakeHarness() {
   const task = { id: "task_0abc123def", title: "Restart a service", status: "waiting_approval", ui_state: "waiting_approval", worker_role: "infrastructure", risk: "critical", activity: { phase: "waiting_approval" }, usage: { total_tokens: 1200, cost: 0.02 }, elapsed_ms: 4000, created_at: new Date().toISOString(), started_at: new Date().toISOString(), completed_at: null };
+  liveTask = task;
   const approval = { id: "apr_0xyz789uvw", task_id: task.id, kind: "task_start", status: "pending", permission: "task_start", patterns: [], risk: "critical", categories: [], description: "Start critical-risk task: Restart a service", created_at: new Date().toISOString() };
-  return http.createServer((req, res) => {
+  const srv = http.createServer((req, res) => {
     const u = new URL(req.url, "http://x"), json = (o, s = 200) => { res.writeHead(s, { "content-type": "application/json" }); res.end(JSON.stringify(o)); };
     if (u.pathname !== "/api/health" && req.headers.authorization !== "Bearer hx-token") return json({ error: { code: "UNAUTHORIZED", message: "no" } }, 401);
     let b = ""; req.on("data", (d) => (b += d)).on("end", () => {
@@ -40,6 +45,16 @@ function fakeHarness() {
       json({ error: { code: "NOT_FOUND", message: u.pathname } }, 404);
     });
   });
+  // GET /events (harness.events.v1): native clients send the bearer token in the handshake.
+  srv.on("upgrade", (req, sock) => {
+    if (!req.url.startsWith("/events") || req.headers.authorization !== "Bearer hx-token") return sock.end("HTTP/1.1 401 Unauthorized\r\n\r\n");
+    const accept = crypto.createHash("sha1").update(req.headers["sec-websocket-key"] + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").digest("base64");
+    sock.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
+    sock.write(frame({ kind: "hello", protocol: "harness.events.v1", last_seq: 10 }));
+    sockets.add(sock);
+    sock.on("close", () => sockets.delete(sock)).on("error", () => {});
+  });
+  return srv;
 }
 
 const call = async (p, { method = "GET", body } = {}) => {
@@ -64,7 +79,7 @@ before(async () => {
     ["jellyfin", { url: f, apiKey: "jf-key" }], ["jarvis-hermes", { url: f, token: "jarvis-token" }], ["http", { label: "Status page", url: `${f}/status.json` }]])
     assert.equal((await connect(t, v)).status, 200, t);
 });
-after(() => { server?.kill(); fx?.server.close(); hx?.close(); fs.rmSync(data, { recursive: true, force: true }); });
+after(() => { server?.kill(); fx?.server.close(); for (const s of sockets) s.destroy(); hx?.close(); fs.rmSync(data, { recursive: true, force: true }); });
 
 test("the live snapshot reads every connected source", async () => {
   const { body } = await call("/api/live?fresh=1");
@@ -189,4 +204,27 @@ test("feeds: RSS and Atom, entities and CDATA", () => {
   const atom = parseFeed('<feed><title>A</title><entry><title>Atom post</title><link href="https://x.test/b"/><updated>2026-10-19T10:00:00Z</updated></entry></feed>', "x");
   assert.equal(atom[0].link, "https://x.test/b");
   assert.deepEqual(parseHoldings("VWCE.DE 120 60% FTSE All-World\n# comment\nbad;sym 3"), [{ symbol: "VWCE.DE", qty: 120, target: 60, name: "FTSE All-World" }]);
+});
+
+test("Harness events reach open boards at once", async () => {
+  assert.equal((await fetch(B + "/api/stream")).status, 401);
+  assert.match(await (await fetch(B + "/", { headers: { cookie } })).text(), /<meta name="jarvis-server"/, "a served page never falls back to the demo");
+  for (let i = 0; !sockets.size && i < 50; i++) await new Promise((r) => setTimeout(r, 100));
+  assert.ok(sockets.size, "the server subscribes to the Harness event stream");
+  const r = await fetch(B + "/api/stream", { headers: { cookie } });
+  assert.match(r.headers.get("content-type"), /text\/event-stream/);
+  const reader = r.body.getReader(), dec = new TextDecoder();
+  let got = "";
+  const until = async (re) => { while (!re.test(got)) { const { value, done } = await reader.read(); if (done) break; got += dec.decode(value); } return re.exec(got); };
+  assert.ok(await until(/event: hello\ndata: (.*)/));
+  assert.equal((await call("/api/live")).body.sources.harness.data.tasks[0].title, "Restart a service");
+  liveTask.title = "Restart a service now";
+  for (const s of sockets) s.write(frame({ kind: "event", event: { v: 1, seq: 11, type: "task.status_changed", task_id: liveTask.id, payload: { from: "queued", to: "waiting_approval" } } }));
+  const m = await until(/event: change\ndata: (.*task\.status_changed.*)/);
+  assert.deepEqual(JSON.parse(m[1]), { source: "harness", type: "task.status_changed", task: liveTask.id });
+  assert.equal((await call("/api/live")).body.sources.harness.data.tasks[0].title, "Restart a service now", "the cached snapshot is dropped");
+  // After the Harness restarts, the server reconnects and the board reads it again.
+  for (const s of sockets) s.destroy();
+  assert.ok(await until(/harness\.connected/), "reconnects and refreshes");
+  await reader.cancel();
 });

@@ -30,7 +30,8 @@ if (process.argv[2] === "reset") {
 
 // Pages are read once; their inline scripts are allowed by hash, so no other script can run.
 function page(file) {
-  const html = fs.readFileSync(path.join(dist, file), "utf8");
+  // The meta tag tells the page it came from this server, so it never falls back to the sample demo.
+  const html = fs.readFileSync(path.join(dist, file), "utf8").replace("<head>", '<head><meta name="jarvis-server" content="1">');
   const hashes = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => `'sha256-${crypto.createHash("sha256").update(m[1]).digest("base64")}'`);
   const csp = [
     "default-src 'none'", `script-src ${hashes.join(" ")}`, "style-src 'self' 'unsafe-inline'", "img-src 'self' data: blob:", "font-src data:",
@@ -199,16 +200,30 @@ async function api(req, res, url, who) {
   }
 
   if (p === "connections" && m === "GET") return json(res, 200, { connections: state.connections.map(publicConn) });
-  if (p === "connections" && m === "POST") { statusCache.at = 0; invalidateHardwareCache(); return json(res, 200, { connection: publicConn(saveConnection(await readBody(req))) }); }
+  if (p === "connections" && m === "POST") { const c = saveConnection(await readBody(req)); statusCache.at = 0; invalidateHardwareCache(); live.refreshStream(); return json(res, 200, { connection: publicConn(c) }); }
   if (p === "connections/test" && m === "POST") return json(res, 200, await test(draft(await readBody(req))));
   const cm = /^connections\/([0-9a-f]{12})$/.exec(p);
-  if (cm && m === "PUT") { statusCache.at = 0; invalidateHardwareCache(); return json(res, 200, { connection: publicConn(saveConnection(await readBody(req), cm[1])) }); }
-  if (cm && m === "DELETE") { removeConnection(cm[1]); statusCache.at = 0; invalidateHardwareCache(); return json(res, 200, { ok: true }); }
+  if (cm && m === "PUT") { const c = saveConnection(await readBody(req), cm[1]); statusCache.at = 0; invalidateHardwareCache(); live.refreshStream(); return json(res, 200, { connection: publicConn(c) }); }
+  if (cm && m === "DELETE") { removeConnection(cm[1]); statusCache.at = 0; invalidateHardwareCache(); live.refreshStream(); return json(res, 200, { ok: true }); }
 
   if (p === "hardware" && m === "GET") return json(res, 200, await hardwareMetrics());
 
   // ---- live data and the actions the board can take
   if (p === "live" && m === "GET") return json(res, 200, await live.snapshot(url.searchParams.has("fresh")));
+  // Server-sent events: "change" whenever the Harness reports something, so the board updates at once.
+  if (p === "stream" && m === "GET") {
+    if (live.listenerCount() >= 50) return json(res, 503, { error: "Too many open boards." });
+    res.writeHead(200, { "content-type": "text/event-stream; charset=utf-8", "x-accel-buffering": "no" });
+    const alive = () => !who.session || state.sessions.includes(who.session);
+    const send = (ev, o) => { if (!alive()) return res.end(); res.write(`event: ${ev}\ndata: ${JSON.stringify(o)}\n\n`); };
+    send("hello", live.streamState());
+    const off = live.onChange((e) => send("change", e));
+    const beat = setInterval(() => send("state", live.streamState()), 25e3);
+    // Reconnecting now and then signs the stream in again (EventSource does it on its own).
+    const stop = setTimeout(() => res.end(), 30 * 60e3);
+    res.on("close", () => { off(); clearInterval(beat); clearTimeout(stop); });
+    return;
+  }
   const lm = /^live\/(harness|home|local|ai)\/([a-z]+)(?:\/([a-z]+))?$/.exec(p);
   if (lm && (m === "POST" || (m === "GET" && lm[2] === "history"))) {
     const b = m === "POST" ? await readBody(req, 64 * 1024) : {};
@@ -306,6 +321,7 @@ server.headersTimeout = 20e3;
 
 auth.initOwner();
 live.startScheduler();
+live.startStream();
 setInterval(() => live.watchHarness(), 60e3).unref();
 server.listen(PORT, HOST, () => {
   console.log(`JARVIS ${VERSION} · http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT} · sign-in: ${auth.MODE}${auth.ACCESS ? " + Cloudflare Access" : ""}`);

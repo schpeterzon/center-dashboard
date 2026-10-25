@@ -95,7 +95,9 @@ always uses TLS, except to a bridge on this machine (127.0.0.1) on a port other 
 subjects are untrusted text in the AI prompt and are left out entirely for the Codex preset. A
 self-signed certificate (Proxmox) is accepted only when its SHA-256 fingerprint matches the one you
 saved, checked before any request is sent. A Custom HTTP check with a secret header does not
-follow redirects.
+follow redirects. The server follows the Harness event stream with its token in the WebSocket
+handshake, never in a URL; the browser only receives which kind of event happened, over a
+signed-in `/api/stream` that closes when its session is revoked.
 
 ## Reporting a problem
 

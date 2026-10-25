@@ -113,3 +113,52 @@ export async function harnessAction(c, action, body = {}) {
   throw new SourceError("Unknown action.");
 }
 export const harnessDone = (s) => TERMINAL.has(s);
+
+// ---------------------------------------------------------------- live events
+// One WebSocket per Harness (GET /events, harness.events.v1) with the bearer token in the handshake,
+// so the token never goes into a URL. Each relevant event drops the cached snapshot and tells the
+// board to read it again; the 15 s poll stays as the fallback. Reconnects resume after the last seq.
+const QUIET = /^(assistant\.(delta|thinking)|session\.)/;
+export function harnessStream(getConn, onEvent) {
+  let ws = null, key = "", lastSeq = 0, delay = 1000, retry = 0, stopped = false, connected = false;
+  const close = () => { clearTimeout(retry); if (ws) { ws.onclose = ws.onerror = ws.onmessage = null; try { ws.close(); } catch {} } ws = null; connected = false; };
+  function connect() {
+    if (stopped || typeof WebSocket !== "function") return;
+    const c = getConn();
+    let t;
+    try { t = c && target(c); } catch { t = null; }
+    const k = t ? c.id + t.url + (t.headers.authorization || "") : "";
+    if (k !== key) { key = k; lastSeq = 0; }
+    if (!t) return;
+    const url = `${t.url.replace(/^http/, "ws")}/events${lastSeq ? `?after=${lastSeq}` : ""}`;
+    try { ws = new WebSocket(url, { headers: t.headers }); } catch { return later(); }
+    ws.onopen = () => { connected = true; delay = 1000; };
+    ws.onmessage = (m) => {
+      let msg;
+      try { msg = JSON.parse(String(m.data)); } catch { return; }
+      // A fresh database (or a different Harness) starts counting again.
+      if (msg.kind === "hello") {
+        if (!lastSeq || (num(msg.last_seq) ?? 0) < lastSeq) lastSeq = num(msg.last_seq) ?? 0;
+        // Whatever happened while we were away, the board reads the Harness again.
+        fast.drop(c.id);
+        return onEvent({ type: "harness.connected", task: null });
+      }
+      if (msg.kind !== "event" || !msg.event?.type) return;
+      const e = msg.event, seq = num(e.seq) ?? 0;
+      if (seq > 0) { if (seq <= lastSeq) return; lastSeq = seq; }
+      if (QUIET.test(e.type)) return;
+      fast.drop(c.id);
+      onEvent({ type: str(e.type, 60), task: e.task_id ? str(e.task_id, 60) : null });
+    };
+    ws.onerror = () => {};
+    ws.onclose = () => { ws = null; connected = false; later(); };
+  }
+  function later() { clearTimeout(retry); retry = setTimeout(connect, delay); retry.unref?.(); delay = Math.min(delay * 2, 15e3); }
+  connect();
+  return {
+    // Called when connections change: reconnect only if the Harness, its URL or token changed.
+    refresh() { const c = getConn(); let k = ""; try { const t = c && target(c); k = t ? c.id + t.url + (t.headers.authorization || "") : ""; } catch {} if (k !== key || (!ws && k)) { close(); delay = 1000; connect(); } },
+    get connected() { return connected; },
+    stop() { stopped = true; close(); },
+  };
+}

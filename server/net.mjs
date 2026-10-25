@@ -54,7 +54,7 @@ export async function request(url, { method = "GET", headers = {}, body, timeout
 // One cached value per key, with in-flight de-duplication, so many open dashboards cost one fetch.
 export function cached(ttl) {
   const entries = new Map();
-  return (key, load, fresh = false) => {
+  const get = (key, load, fresh = false) => {
     const e = entries.get(key), now = Date.now();
     if (!fresh && e?.value && now - e.at < ttl) return Promise.resolve(e.value);
     if (e?.pending) return e.pending;
@@ -65,6 +65,9 @@ export function cached(ttl) {
     entries.set(key, { ...e, pending });
     return pending;
   };
+  // Forget a value (an in-flight load still finishes), so the next read fetches it again.
+  get.drop = (key) => { const e = entries.get(key); if (e?.value) entries.set(key, { ...e, at: 0 }); };
+  return get;
 }
 
 export const str = (v, n = 200) => (v == null ? "" : String(v)).slice(0, n);
