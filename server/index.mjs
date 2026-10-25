@@ -223,7 +223,7 @@ async function api(req, res, url, who) {
       if (lm[1] === "home") {
         const c = live.pick("home-assistant");
         if (!c) return json(res, 409, { error: "Connect Home Assistant in Settings → Connections first." });
-        if (lm[2] === "history") return json(res, 200, { series: await homeAssistantHistory(c, String(url.searchParams.get("ids") || "").split(",")) });
+        if (lm[2] === "history") return json(res, 200, { series: await homeAssistantHistory(c, String(url.searchParams.get("ids") || "").split(","), url.searchParams.get("days")) });
         return json(res, 200, await homeAssistantAction(c, b));
       }
       if (lm[1] === "local") return json(res, 200, live.localAction(lm[2], lm[3], b));

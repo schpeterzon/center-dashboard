@@ -10,6 +10,7 @@ import path from "node:path";
 import { startFixtures } from "./fixtures.mjs";
 import { parseIcs } from "../server/calendar.mjs";
 import { parseFeed, parseHoldings } from "../server/sources.mjs";
+import { decodeWords } from "../server/mail.mjs";
 
 const root = path.join(import.meta.dirname, "..");
 const data = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-live-"));
@@ -58,7 +59,9 @@ before(async () => {
   await new Promise((resolve, reject) => { let log = ""; server.stdout.on("data", (d) => { log += d; if (log.includes("sign-in:")) resolve(); }); server.on("exit", (c) => reject(new Error("server exited " + c))); });
   assert.equal((await call("/api/auth/login", { method: "POST", body: { password: "correct horse battery" } })).status, 200);
   const f = `http://127.0.0.1:${fx.port}`;
-  for (const [t, v] of [["harness", { url: harness, token: "hx-token" }], ["calendar", { url: `${f}/cal.ics` }], ["home-assistant", { url: f, token: "ha-token" }], ["uptime-kuma", { url: f, apiKey: "k" }], ["adguard", { url: f, user: "u", password: "p" }]])
+  for (const [t, v] of [["harness", { url: harness, token: "hx-token" }], ["calendar", { url: `${f}/cal.ics` }], ["home-assistant", { url: f, token: "ha-token" }], ["uptime-kuma", { url: f, apiKey: "k" }], ["adguard", { url: f, user: "u", password: "p" }],
+    ["email", { host: "127.0.0.1", port: String(fx.imapPort), user: "me", password: "mail-pass" }], ["proxmox", { url: `https://127.0.0.1:${fx.pvePort}`, tokenId: "root@pam!jarvis", secret: "pve-secret", fingerprint: fx.fingerprint }],
+    ["jellyfin", { url: f, apiKey: "jf-key" }], ["jarvis-hermes", { url: f, token: "jarvis-token" }], ["http", { label: "Status page", url: `${f}/status.json` }]])
     assert.equal((await connect(t, v)).status, 200, t);
 });
 after(() => { server?.kill(); fx?.server.close(); hx?.close(); fs.rmSync(data, { recursive: true, force: true }); });
@@ -79,6 +82,48 @@ test("the live snapshot reads every connected source", async () => {
   assert.equal(body.sources.uptime.data.monitors.find((m) => m.name === "Backup target").state, "down");
   assert.equal(body.sources.adguard.data.blocked, 6904);
   assert.equal(body.local.automations.length, 3, "default automations are created");
+});
+
+test("mail, Proxmox, Jellyfin, JARVIS, health and custom endpoints feed the board", async () => {
+  const { body } = await call("/api/live?fresh=1");
+  for (const k of ["mail", "proxmox", "jellyfin", "jarvis", "http"]) assert.equal(body.sources[k]?.ok, true, `${k}: ${body.sources[k]?.error}`);
+  const mail = body.sources.mail.data;
+  assert.equal(mail.total, 3);
+  assert.equal(mail.unseen, 2);
+  assert.equal(mail.messages[0].subject, "[center-dashboard] CI passed", "newest first");
+  assert.equal(mail.messages[0].flagged, true);
+  assert.deepEqual([mail.messages[1].from.name, mail.messages[1].subject], ["Märta", "Dinner on Sünday?"], "encoded words are decoded");
+  assert.equal(mail.messages[2].unread, false);
+  const pve = body.sources.proxmox.data;
+  assert.equal(pve.nodes[0].cpu, 18);
+  assert.deepEqual(pve.guests.map((g) => g.name), ["hermes", "adguard", "windows"], "templates are left out");
+  assert.equal(body.sources.jellyfin.data.playing.length, 1);
+  assert.match(body.sources.jellyfin.data.playing[0].title, /Andor · S2E3/);
+  assert.equal(body.sources.jellyfin.data.playing[0].progress, 40);
+  const jv = body.sources.jarvis.data;
+  assert.deepEqual([jv.host.name, jv.host.ram, jv.host.disk], ["hermes-vm", 38, 40]);
+  assert.equal(jv.services.find((x) => x.name === "Hermes gateway").state, "degraded");
+  assert.deepEqual(body.sources.http.data.checks[0].values.slice(0, 2), [["status", "ok"], ["version", "2.1.0"]]);
+  const health = Object.fromEntries(body.sources.home.data.health.map((h) => [h.kind, h.value]));
+  assert.deepEqual(health, { steps: 6412, heartRate: 64, sleep: 442, weight: 72.4 });
+  const hist = await call("/api/live/home/history?days=14&ids=sensor.pixel_steps,sensor.pixel_heart_rate");
+  assert.equal(hist.status, 200);
+  assert.ok(hist.body.series[0].points.length > 24 * 10, "two weeks of history");
+});
+
+test("connection tests read mail and Proxmox for real, and a wrong certificate is refused", async () => {
+  const t = (type, values) => call("/api/connections/test", { method: "POST", body: { kind: "data", type, values } }).then((r) => r.body);
+  assert.deepEqual(await t("email", { host: "127.0.0.1", port: String(fx.imapPort), user: "me", password: "mail-pass" }).then((r) => [r.ok, r.detail]), [true, "2 unread of 3 in INBOX"]);
+  assert.match((await t("email", { host: "127.0.0.1", port: String(fx.imapPort), user: "me", password: "wrong" })).error, /login failed/);
+  const pve = { url: `https://127.0.0.1:${fx.pvePort}`, tokenId: "root@pam!jarvis", secret: "pve-secret" };
+  assert.equal((await t("proxmox", { ...pve, fingerprint: fx.fingerprint })).detail, "1 node · 3 guests");
+  assert.match((await t("proxmox", { ...pve, fingerprint: "AA".repeat(32) })).error, /does not match/);
+  assert.equal((await t("proxmox", pve)).ok, false, "a self-signed certificate is not trusted without the fingerprint");
+  assert.match((await t("email", { host: "imap.example.com\r\nx", user: "me", password: "p" })).error, /mail server/);
+});
+
+test("mail: encoded words", () => {
+  assert.equal(decodeWords("=?ISO-8859-1?Q?caf=E9?= =?utf-8?B?4oCU?= ok"), "café— ok");
 });
 
 test("approvals are decided in the Harness", async () => {

@@ -48,17 +48,20 @@ On the server every page renders from live data, refreshed every 15 seconds. A p
 | **Agents** | Harness | live routing graph, running tasks, approve / reject / cancel, start a new task |
 | **Schedule** | ICS calendars, JARVIS | week view, automations (brief, reviews, Harness tasks, AI prompts on a schedule), todos |
 | **Projects** | Harness, GitHub | kanban from agent tasks and pull requests, ideas you can hand to an agent |
-| **Infra** | Prometheus, Uptime Kuma | CPU / RAM / disk / GPU per machine, scrape targets and monitors, JARVIS' event log |
+| **Infra** | Prometheus, Proxmox VE, Uptime Kuma, JARVIS (hermes), Custom HTTP | CPU / RAM / disk / GPU per machine and node, VMs and containers, scrape targets, monitors and endpoints, JARVIS' event log |
 | **Lab** | Prometheus, Harness, Ollama | GPU load, VRAM, temperature, local models loaded and on disk, GPU queue, workers |
-| **Rooms** · **Energy** | Home Assistant | rooms, lights, scenes, climate, locks · power flow, consumers, energy counters |
+| **Rooms** · **Energy** | Home Assistant, Jellyfin | rooms, lights, scenes, climate, locks, what is playing · power flow, consumers, energy counters |
 | **World** | RSS / Atom feeds | headlines ranked by your topics, the coming week, a summary on request |
 | **Reviews** | JARVIS + your AI | daily and weekly reviews written from your real week, the morning brief |
 | **Markets** | Finnhub + your holdings | value, allocation against targets, drift suggestions (never trades) |
-| **Inbox** | Harness, GitHub, Home Assistant | approvals, pull requests, notifications and failures in one place |
+| **Inbox** | Email (IMAP), Harness, GitHub, Home Assistant | unread mail (read-only), approvals, pull requests, notifications and failures in one place |
 | **Network** | Prometheus, Tailscale, AdGuard, Cloudflare | bandwidth, devices, DNS blocking, which hostnames Access protects |
 | **Insights** | Harness | tokens per day by provider, model usage, activity, agent time by worker |
 | **Status** | every connection | health and latency of each connection, checked from the server |
-| **Health** | — | no source yet; remove it from the board if you do not need it |
+| **Health** | Home Assistant | steps over two weeks, heart rate today, sleep, weight: whatever your phone (companion app, Health Connect) or wearable integration reports |
+
+> [!NOTE]
+> Mail is read with IMAP `EXAMINE`, so nothing is marked as read, and only headers are fetched. Proxmox with its self-signed certificate works when you paste the certificate's SHA-256 fingerprint (Settings → Connections → Proxmox → Advanced); without it the certificate must be trusted.
 
 > [!NOTE]
 > JARVIS sees the same live summary when you ask it something, and can **suggest** actions (a todo, a Harness task, an approval). Nothing happens until you click the suggestion.
@@ -196,7 +199,7 @@ docker logs jarvis     # shows the setup code
 
 The image covers API keys and local models. Subscription CLIs are easiest with `npm start` or the NixOS module running as a user who is already signed in.
 
-**Try the live board without your own services:** `npm run fixtures` starts stand-ins for a calendar, Home Assistant, Uptime Kuma and AdGuard on port 18800 (Home Assistant token `ha-token`, calendar at `/cal.ics`).
+**Try the live board without your own services:** `npm run fixtures` starts stand-ins on port 18800: a calendar (`/cal.ics`), Home Assistant with health sensors (token `ha-token`), Uptime Kuma, AdGuard, Jellyfin (key `jf-key`), a jarvis-hermes server (token `jarvis-token`) and a JSON endpoint (`/status.json`), plus an IMAP mailbox on 18801 (`me` / `mail-pass`) and Proxmox on https://127.0.0.1:18802 with a self-signed certificate. It prints the fingerprint to paste.
 
 ## Expose it with Cloudflare
 
@@ -257,8 +260,8 @@ docs/                   themes guide and screenshots
 
 ## Roadmap
 
-- A health source (Home Assistant companion sensors, or a fitness service)
-- Email and chat in the Inbox
+- Chat (Matrix, Signal) in the Inbox, and reply drafts for mail
+- Direct fitness services (Oura, Withings) for people without Home Assistant
 - Live updates over the Harness WebSocket instead of polling
 - Per-task routing (for example: money and health questions only to local models)
 - More themes and integrations from the community

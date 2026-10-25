@@ -89,6 +89,14 @@ thermostat between 5 and 35 °C. Harness ids and decisions are validated before 
 Automations (brief, reviews, Harness tasks, AI prompts) run on the server at the times you set; agent
 work itself always runs in the Harness, under its own policy and approvals.
 
+Mail is read-only: the mailbox is opened with IMAP `EXAMINE`, only the From, Subject and Date
+headers of the newest 25 messages are fetched, and nothing is marked, moved, deleted or sent. IMAP
+always uses TLS, except to a bridge on this machine (127.0.0.1) on a port other than 993. Mail
+subjects are untrusted text in the AI prompt and are left out entirely for the Codex preset. A
+self-signed certificate (Proxmox) is accepted only when its SHA-256 fingerprint matches the one you
+saved, checked before any request is sent. A Custom HTTP check with a secret header does not
+follow redirects.
+
 ## Reporting a problem
 
 Please open a private security advisory on GitHub (Security → Report a vulnerability) rather than

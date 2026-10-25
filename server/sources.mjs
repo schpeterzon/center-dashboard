@@ -1,10 +1,10 @@
 // Read-only adapters for the data connections in src/catalog.mjs. Each returns a small,
 // display-ready object; anything a service does not report is left out rather than invented.
-import { request, baseUrl, cached, str, num, SourceError } from "./net.mjs";
+import { request, pinnedRequest, baseUrl, cached, str, num, SourceError } from "./net.mjs";
 import { open, state, persist } from "./store.mjs";
 
 const secret = (c, k) => { try { return c.secrets?.[k] ? open(c.secrets[k]) : ""; } catch { throw new SourceError("a saved secret could not be opened"); } };
-const caches = { feeds: cached(15 * 60e3), weather: cached(15 * 60e3), geo: cached(24 * 3600e3), ha: cached(8000), haHistory: cached(5 * 60e3), github: cached(2 * 60e3), markets: cached(60e3), adguard: cached(60e3), tailscale: cached(2 * 60e3), prom: cached(30e3), cloudflare: cached(10 * 60e3), kuma: cached(30e3), ollama: cached(10e3) };
+const caches = { feeds: cached(15 * 60e3), weather: cached(15 * 60e3), geo: cached(24 * 3600e3), ha: cached(8000), haHistory: cached(5 * 60e3), github: cached(2 * 60e3), markets: cached(60e3), adguard: cached(60e3), tailscale: cached(2 * 60e3), prom: cached(30e3), cloudflare: cached(10 * 60e3), kuma: cached(30e3), ollama: cached(10e3), proxmox: cached(20e3), jellyfin: cached(20e3), jarvis: cached(20e3), http: cached(60e3) };
 
 // ---------------------------------------------------------------- news feeds (RSS / Atom)
 const ENT = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
@@ -114,17 +114,41 @@ export async function homeAssistant(c, fresh) {
       flow: { solar: pick(/solar|pv|photovolt/i)?.watts ?? null, grid: pick(/grid|netz|import/i)?.watts ?? null, battery: pick(/battery|akku/i)?.watts ?? null, home: pick(/house|home|consumption|load|verbrauch/i)?.watts ?? null },
       batteryLevel: num(all.find((e) => e.domain === "sensor" && e.cls === "battery" && /home|house|storage|speicher|powerwall/i.test(e.id + e.name))?.state),
       notifications: all.filter((e) => e.domain === "binary_sensor" && e.cls === "problem" && e.state === "on").slice(0, 8).map((e) => e.name),
+      health: healthSensors(all),
     };
   }, fresh);
 }
-// Today's power history for up to three sensors (solar, home, grid), for the Energy chart.
-export async function homeAssistantHistory(c, ids) {
-  const t = haTarget(c), list = ids.filter((id) => /^sensor\.[\w]+$/.test(id)).slice(0, 3);
+// Health numbers phones and wearables report to Home Assistant (companion app with Health Connect,
+// Fitbit, Withings, Garmin, Oura integrations), recognised by unit, device class and name.
+const HEALTH = [
+  ["steps", "Steps", (e) => /^steps?$/i.test(e.unit) || /(^|_)steps?($|_)|schritte/i.test(e.id)],
+  ["restingHeartRate", "Resting heart rate", (e) => /bpm/i.test(e.unit) && /resting|ruhe/i.test(e.id + e.name)],
+  ["heartRate", "Heart rate", (e) => /bpm/i.test(e.unit) || /heart_rate$|herzfrequenz|pulse/i.test(e.id)],
+  ["hrv", "Heart rate variability", (e) => /hrv|heart_rate_variability/i.test(e.id)],
+  ["sleep", "Sleep", (e) => /sleep|schlaf/i.test(e.id) && /^(h|min|s)$/i.test(e.unit)],
+  ["weight", "Weight", (e) => e.cls === "weight" || (/weight|gewicht/i.test(e.id) && /^(kg|lb|lbs)$/i.test(e.unit))],
+  ["calories", "Calories", (e) => /kcal/i.test(e.unit) || /calories|kalorien/i.test(e.id)],
+  ["distance", "Distance", (e) => /distance|strecke/i.test(e.id) && /^(m|km|mi)$/i.test(e.unit)],
+  ["oxygen", "Blood oxygen", (e) => /oxygen|spo2|sauerstoff/i.test(e.id)],
+  ["floors", "Floors", (e) => /floors/i.test(e.id)],
+];
+function healthSensors(all) {
+  const out = [], used = new Set();
+  for (const [kind, label, test] of HEALTH) for (const e of all) {
+    if (e.domain !== "sensor" || used.has(e.id) || num(e.state) == null || !test(e)) continue;
+    used.add(e.id); out.push({ kind, label, id: e.id, name: e.name, value: num(e.state), unit: e.unit });
+  }
+  return out.slice(0, 24);
+}
+
+// History for up to three sensors: today for the Energy chart, up to 14 days for Health.
+export async function homeAssistantHistory(c, ids, days = 1) {
+  const t = haTarget(c), list = ids.filter((id) => /^sensor\.[\w]+$/.test(id)).slice(0, 3), span = Math.min(14, Math.max(1, Math.floor(num(days) || 1)));
   if (!list.length) return [];
-  return caches.haHistory(`${c.id}|${list.join(",")}`, async () => {
-    const since = new Date(); since.setHours(0, 0, 0, 0);
+  return caches.haHistory(`${c.id}|${list.join(",")}|${span}`, async () => {
+    const since = new Date(); since.setHours(0, 0, 0, 0); since.setDate(since.getDate() - span + 1);
     const h = await request(`${t.url}/api/history/period/${since.toISOString()}?filter_entity_id=${list.join(",")}&minimal_response&no_attributes`, { headers: t.headers, limit: 8 * 1024 * 1024 });
-    return (h || []).map((rows) => ({ id: rows[0]?.entity_id, points: rows.map((r) => [Date.parse(r.last_changed || r.lu * 1000), num(r.state ?? r.s)]).filter((p) => p[1] != null).slice(-600) }));
+    return (h || []).map((rows) => ({ id: rows[0]?.entity_id, points: rows.map((r) => [Date.parse(r.last_changed || r.lu * 1000), num(r.state ?? r.s)]).filter((p) => p[1] != null).slice(-3000) }));
   });
 }
 const HA_ACTIONS = { toggle: ["light", "switch", "fan", "cover", "media_player"], scene: ["scene"], lock: ["lock"], unlock: ["lock"], temperature: ["climate"] };
@@ -273,5 +297,62 @@ export async function ollama(c, fresh) {
       models: (tags.models || []).slice(0, 80).map((m) => ({ name: str(m.name, 140), size: num(m.size), family: str(m.details?.family, 30), params: str(m.details?.parameter_size, 20), quant: str(m.details?.quantization_level, 20), loaded: loaded.has(m.name), vram: num(loaded.get(m.name)?.size_vram), until: loaded.get(m.name)?.expires_at || null })),
       loaded: (ps.models || []).slice(0, 10).map((m) => ({ name: str(m.name, 140), size: num(m.size), vram: num(m.size_vram), until: m.expires_at, context: num(m.context_length) })),
     };
+  }, fresh);
+}
+
+// ---------------------------------------------------------------- Proxmox VE: nodes, VMs and containers
+export async function proxmox(c, fresh) {
+  const url = baseUrl(c.values?.url, "Proxmox URL"), pin = str(c.values?.fingerprint, 120).trim();
+  const auth = { authorization: `PVEAPIToken=${str(c.values?.tokenId, 120).trim()}=${secret(c, "secret")}` };
+  return caches.proxmox(c.id, async () => {
+    const path = `${url}/api2/json/cluster/resources`, r = pin ? await pinnedRequest(path, pin, { headers: auth }) : await request(path, { headers: auth });
+    const all = r?.data || [], pct = (a, b) => (a != null && b ? Math.round(a / b * 100) : null);
+    return {
+      nodes: all.filter((x) => x.type === "node").map((n) => ({ name: str(n.node, 60), online: n.status === "online", cpu: n.cpu != null ? Math.round(n.cpu * 100) : null, ram: pct(n.mem, n.maxmem), disk: pct(n.disk, n.maxdisk), uptime: num(n.uptime) })),
+      guests: all.filter((x) => (x.type === "qemu" || x.type === "lxc") && !x.template).slice(0, 120).map((g) => ({ id: num(g.vmid), name: str(g.name || g.vmid, 80), kind: g.type === "lxc" ? "container" : "vm", node: str(g.node, 60), status: str(g.status, 20), cpu: g.status === "running" && g.cpu != null ? Math.round(g.cpu * 100) : null, ram: g.status === "running" ? pct(g.mem, g.maxmem) : null, uptime: num(g.uptime) })),
+      storage: all.filter((x) => x.type === "storage" && x.maxdisk).slice(0, 20).map((s) => ({ name: str(s.storage, 60), node: str(s.node, 60), used: pct(s.disk, s.maxdisk) })),
+    };
+  }, fresh);
+}
+
+// ---------------------------------------------------------------- Jellyfin: what is playing, what is new
+export async function jellyfin(c, fresh) {
+  const url = baseUrl(c.values?.url, "Jellyfin URL"), h = { "x-emby-token": secret(c, "apiKey") };
+  return caches.jellyfin(c.id, async () => {
+    const [sessions, latest] = await Promise.all([
+      request(`${url}/Sessions?activeWithinSeconds=900`, { headers: h }),
+      request(`${url}/Items?Recursive=true&SortBy=DateCreated&SortOrder=Descending&IncludeItemTypes=Movie,Episode,MusicAlbum&Limit=10&Fields=DateCreated`, { headers: h }).catch(() => ({ Items: [] })),
+    ]);
+    const title = (i) => str(i.SeriesName ? `${i.SeriesName} · ${i.ParentIndexNumber != null ? `S${i.ParentIndexNumber}E${i.IndexNumber} ` : ""}${i.Name}` : i.AlbumArtist ? `${i.AlbumArtist} · ${i.Name}` : i.Name, 160);
+    return {
+      playing: (sessions || []).filter((s) => s.NowPlayingItem).slice(0, 8).map((s) => ({ user: str(s.UserName, 40), device: str(s.DeviceName, 60), title: title(s.NowPlayingItem), type: str(s.NowPlayingItem.Type, 20), paused: !!s.PlayState?.IsPaused, progress: s.NowPlayingItem.RunTimeTicks ? Math.round((s.PlayState?.PositionTicks || 0) / s.NowPlayingItem.RunTimeTicks * 100) : null })),
+      latest: (latest?.Items || []).map((i) => ({ title: title(i), type: str(i.Type, 20), added: i.DateCreated || null })),
+    };
+  }, fresh);
+}
+
+// ---------------------------------------------------------------- jarvis-hermes: its host and the services it watches
+export async function jarvisHermes(c, fresh) {
+  const url = baseUrl(c.values?.url, "JARVIS URL"), h = { authorization: `Bearer ${secret(c, "token")}` };
+  return caches.jarvis(c.id, async () => {
+    const sys = await request(`${url}/api/system`, { headers: h });
+    const pct = (a, b) => (a != null && b ? Math.round(a / b * 100) : null), disk = (sys?.disk || []).find((d) => d.total_bytes), gpu = sys?.gpu?.[0];
+    return {
+      host: { name: str(sys?.host?.hostname || "jarvis", 60), uptime: num(sys?.host?.uptime_s), cpu: sys?.cpu?.percent != null ? Math.round(sys.cpu.percent) : null, ram: pct(sys?.memory?.used_bytes, sys?.memory?.total_bytes), disk: disk ? pct(disk.used_bytes, disk.total_bytes) : null,
+        gpu: gpu?.util_percent != null ? Math.round(gpu.util_percent) : null, gpuMemory: gpu ? pct(gpu.vram_used_bytes, gpu.vram_total_bytes) : null },
+      services: (sys?.services || []).slice(0, 40).map((s) => ({ name: str(s.name, 80), state: str(s.state, 20), detail: str(s.detail, 160), ms: num(s.latency_ms) })),
+    };
+  }, fresh);
+}
+
+// ---------------------------------------------------------------- Custom HTTP: up or down, how fast, and a few top-level values
+export async function customHttp(c, fresh) {
+  const url = baseUrl(c.values?.url), hn = str(c.values?.header, 60).trim().toLowerCase(), val = secret(c, "value");
+  if (hn && !/^[a-z0-9-]+$/.test(hn)) throw new SourceError("the header name is not valid");
+  return caches.http(c.id, async () => {
+    const t0 = Date.now(), body = await request(url, { headers: hn && val ? { [hn]: val } : {}, expect: "text", limit: 512 * 1024, redirect: hn && val ? "error" : "follow" });
+    let values = [];
+    try { const j = JSON.parse(body); if (j && typeof j === "object" && !Array.isArray(j)) values = Object.entries(j).filter(([, v]) => v == null || ["string", "number", "boolean"].includes(typeof v)).slice(0, 8).map(([k, v]) => [str(k, 40), str(v, 80)]); } catch {}
+    return { id: c.id, name: str(c.values?.label, 60) || new URL(url).host, ms: Date.now() - t0, values };
   }, fresh);
 }

@@ -3309,7 +3309,7 @@ const LIVE = (() => {
     for (const p of (gh?.pulls || []).filter(p => !p.mine && !p.draft).slice(0, 2)) items.push(`<div class="need"><div class="ic" style="color:var(--s2)">⌥</div><div class="sp"><div class="tt">Review: ${esc(p.title)}</div><p class="mono">${esc(p.repo)}#${p.number}</p><div class="acts"><button class="btn" data-la="open" data-url="${esc(p.url)}">Open on GitHub</button></div></div></div>`);
     return items;
   }
-  const SRCNAME = { ollama: 'Ollama', harness: 'Harness', calendar: 'Calendar', feeds: 'News feeds', weather: 'Weather', home: 'Home Assistant', github: 'GitHub', markets: 'Finnhub', adguard: 'AdGuard Home', tailscale: 'Tailscale', cloudflare: 'Cloudflare', uptime: 'Uptime Kuma', prometheus: 'Prometheus' };
+  const SRCNAME = { ollama: 'Ollama', harness: 'Harness', calendar: 'Calendar', feeds: 'News feeds', weather: 'Weather', home: 'Home Assistant', github: 'GitHub', markets: 'Finnhub', adguard: 'AdGuard Home', tailscale: 'Tailscale', cloudflare: 'Cloudflare', uptime: 'Uptime Kuma', prometheus: 'Prometheus', proxmox: 'Proxmox', jellyfin: 'Jellyfin', jarvis: 'JARVIS (hermes)', mail: 'Email', http: 'Custom HTTP' };
   function todayItems() {
     const now = Date.now(), cal = ok('calendar'), items = [];
     for (const e of cal?.events || []) if (sameDay(evDay(e), now)) items.push({ t: e.allDay ? new Date(now).setHours(0, 0, 0, 0) : e.start, end: e.end, name: e.title, kind: e.allDay ? 'ALL DAY' : '', all: e.allDay });
@@ -3490,20 +3490,31 @@ const LIVE = (() => {
 
   // Infra --------------------------------------------------------------------
   PAGES.infra = () => {
-    const pr = ok('prometheus'), hw = pr?.hardware, up = ok('uptime');
-    const services = [...(pr?.targets || []).map(t => ({ name: t.job, host: t.instance, ok: t.up, label: t.up ? 'up' : 'down', extra: 'prometheus' })), ...(up?.monitors || []).map(m => ({ name: m.name, host: m.host, ok: m.state === 'up', warn: m.state === 'pending' || m.state === 'maintenance', label: m.state, extra: m.ms != null ? m.ms + ' ms' : 'uptime kuma' }))];
-    const bad = services.filter(s => !s.ok && !s.warn).length + (hw?.machines || []).filter(m => Math.max(m.cpu || 0, m.ram || 0, m.disk || 0) >= 90).length;
-    const machines = hw?.ok ? hw.machines.map(m => {
+    const pr = ok('prometheus'), hw = pr?.hardware, up = ok('uptime'), pve = ok('proxmox'), jv = ok('jarvis'), hc = ok('http');
+    const services = [...(pr?.targets || []).map(t => ({ name: t.job, host: t.instance, ok: t.up, label: t.up ? 'up' : 'down', extra: 'prometheus' })), ...(up?.monitors || []).map(m => ({ name: m.name, host: m.host, ok: m.state === 'up', warn: m.state === 'pending' || m.state === 'maintenance', label: m.state, extra: m.ms != null ? m.ms + ' ms' : 'uptime kuma' })),
+      ...(jv?.services || []).filter(s => s.state !== 'not_configured').map(s => ({ name: s.name, host: s.detail || jv.host.name, ok: s.state === 'up', warn: s.state === 'degraded' || s.state === 'unknown', label: s.state, extra: s.ms != null ? s.ms + ' ms' : 'jarvis' })),
+      ...(hc?.checks || []).map(c => ({ name: c.name, host: c.up ? c.values.slice(0, 2).map(([k, v]) => k + ' ' + v).join(' · ') : c.error, ok: c.up, label: c.up ? 'up' : 'down', extra: c.up ? c.ms + ' ms' : 'http' }))];
+    const upt = s => !s ? '' : s >= 172800 ? Math.floor(s / 86400) + ' days' : dur(s * 1000);
+    // Machines from every source; a host Prometheus already reports is not shown twice.
+    const ms = [...(hw?.ok ? hw.machines.map(m => ({ ...m, from: m.instance })) : [])];
+    const seen = n => ms.some(m => m.name.toLowerCase() === String(n).toLowerCase());
+    for (const n of pve?.nodes || []) if (!seen(n.name)) ms.push({ name: n.name, instance: 'pve:' + n.name, from: 'proxmox', cpu: n.cpu, ram: n.ram, disk: n.disk, uptime: upt(n.uptime), offline: !n.online });
+    if (jv && !seen(jv.host.name)) ms.push({ ...jv.host, instance: 'jarvis:' + jv.host.name, from: 'jarvis', uptime: upt(jv.host.uptime) });
+    const bad = services.filter(s => !s.ok && !s.warn).length + ms.filter(m => m.offline || Math.max(m.cpu || 0, m.ram || 0, m.disk || 0) >= 90).length;
+    const any = pr || up || pve || jv || hc;
+    const machines = ms.length ? ms.map(m => {
       const hist = hardwareHistory.get(m.instance) || Array(40).fill(m.cpu ?? 0);
       if (m.cpu != null && hist.at(-1) !== m.cpu) { hist.push(m.cpu); if (hist.length > 40) hist.shift(); hardwareHistory.set(m.instance, hist); }
       const hi = Math.max(m.cpu || 0, m.ram || 0, m.disk || 0) >= 90;
-      return `<div class="mcard"><div class="row"><span class="n sp">${esc(m.name)}</span><span class="st ${hi ? 'warn' : 'good'}">${hi ? 'high usage' : 'online'}</span></div><div class="muted" style="font-size:12px;margin-top:-6px">${esc(m.instance)}${m.uptime ? ' · up ' + esc(m.uptime) : ''}</div>${m.cpu != null ? spark(hist) : ''}${hardwareMeter('cpu', m.cpu)}${hardwareMeter('ram', m.ram)}${hardwareMeter('disk', m.disk)}${m.gpu != null ? hardwareMeter('GPU', m.gpu) : ''}${m.gpuMemory != null ? hardwareMeter('VRAM', m.gpuMemory) : ''}</div>`;
-    }).join('') : `<div class="mcard" style="grid-column:1/-1">${hw && !hw.ok ? `<div class="empty"><div><b>Prometheus answers, but has no machine metrics</b></div><div class="muted">${esc(hw.error || '')}</div></div>` : broken('prometheus', 'Prometheus') || need('prometheus', 'Live CPU, memory, disk and GPU for every machine')}</div>`;
-    return ph('infra', 'Machines & services' + (pr ? ' · Prometheus' : '') + (up ? ' · Uptime Kuma' : ''), 'Infrastructure', `<div class="row"><span class="st ${bad ? 'warn' : pr || up ? 'good' : 'idle'}">${bad ? bad + ' warning' + (bad > 1 ? 's' : '') : pr || up ? 'all healthy' : 'no live source'}</span><button class="btn" data-la="refresh">Refresh</button></div>`) +
-      `<div class="machines" style="grid-template-columns:repeat(${clamp(hw?.machines?.length || 1, 2, 4)},1fr)">${machines}${hw?.ok && hw.machines.length === 1 && pr.rx.length > 1 ? `<div class="mcard"><div class="row"><span class="n sp">Network</span><span class="muted mono" style="font-size:11px">download · 24 h</span></div><div class="chart" id="lv-inet" style="min-height:120px"></div></div>` : ''}</div>
+      return `<div class="mcard"><div class="row"><span class="n sp">${esc(m.name)}</span><span class="st ${m.offline ? 'crit' : hi ? 'warn' : 'good'}">${m.offline ? 'offline' : hi ? 'high usage' : 'online'}</span></div><div class="muted" style="font-size:12px;margin-top:-6px">${esc(m.from)}${m.uptime ? ' · up ' + esc(m.uptime) : ''}</div>${m.cpu != null ? spark(hist) : ''}${hardwareMeter('cpu', m.cpu)}${hardwareMeter('ram', m.ram)}${hardwareMeter('disk', m.disk)}${m.gpu != null ? hardwareMeter('GPU', m.gpu) : ''}${m.gpuMemory != null ? hardwareMeter('VRAM', m.gpuMemory) : ''}</div>`;
+    }).join('') : `<div class="mcard" style="grid-column:1/-1">${hw && !hw.ok ? `<div class="empty"><div><b>Prometheus answers, but has no machine metrics</b></div><div class="muted">${esc(hw.error || '')}</div></div>` : broken('prometheus', 'Prometheus') || broken('proxmox', 'Proxmox') || need(['prometheus', 'proxmox'], 'Live CPU, memory, disk and GPU for every machine')}</div>`;
+    const guests = pve ? `<div class="card" style="max-height:58%;min-height:0"><h3>Proxmox guests <span class="go">${pve.guests.filter(g => g.status === 'running').length} of ${pve.guests.length} running</span></h3><div class="scroll"><table><thead><tr><th>Guest</th><th>Node</th><th>Status</th><th class="n">cpu · ram</th></tr></thead><tbody>${pve.guests.sort((a, b) => (a.status === 'running') - (b.status === 'running') || a.id - b.id).map(g => `<tr><td>${esc(g.name)} <span class="mono muted" style="font-size:11px">${g.id} · ${g.kind}</span></td><td><span class="mono">${esc(g.node)}</span></td><td><span class="st ${g.status === 'running' ? 'good' : 'idle'}">${esc(g.status)}</span></td><td class="n mono">${g.cpu != null ? g.cpu + '% · ' + (g.ram ?? '—') + '%' : '—'}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No VMs or containers.</td></tr>'}</tbody></table></div></div>` : broken('proxmox', 'Proxmox') ? `<div class="card">${broken('proxmox', 'Proxmox')}</div>` : '';
+    const sources = [pr && 'Prometheus', up && 'Uptime Kuma', pve && 'Proxmox', jv && 'JARVIS', hc && 'HTTP checks'].filter(Boolean);
+    return ph('infra', 'Machines & services' + (sources.length ? ' · ' + sources.join(' · ') : ''), 'Infrastructure', `<div class="row"><span class="st ${bad ? 'warn' : any ? 'good' : 'idle'}">${bad ? bad + ' warning' + (bad > 1 ? 's' : '') : any ? 'all healthy' : 'no live source'}</span><button class="btn" data-la="refresh">Refresh</button></div>`) +
+      `<div class="machines" style="grid-template-columns:repeat(${clamp(ms.length || 1, 2, 4)},1fr)">${machines}${ms.length === 1 && pr?.rx.length > 1 ? `<div class="mcard"><div class="row"><span class="n sp">Network</span><span class="muted mono" style="font-size:11px">download · 24 h</span></div><div class="chart" id="lv-inet" style="min-height:120px"></div></div>` : ''}</div>
       <div class="grid" style="grid-template-columns:1.5fr 1fr">
-        <div class="card"><h3>Services <span class="go">${services.length ? services.filter(s => s.ok).length + ' of ' + services.length + ' up' : ''}</span></h3>${services.length ? `<div class="scroll"><table><thead><tr><th>Service</th><th>Host</th><th>Status</th><th class="n">Source</th></tr></thead><tbody>${services.sort((a, b) => a.ok - b.ok).map(s => `<tr><td>${esc(s.name)}</td><td><span class="mono">${esc(s.host)}</span></td><td><span class="st ${s.ok ? 'good' : s.warn ? 'warn' : 'crit'}">${esc(s.label)}</span></td><td class="n mono">${esc(s.extra)}</td></tr>`).join('')}</tbody></table></div>` : need(['prometheus', 'uptime-kuma'], 'Every scrape target and monitor shows up here')}</div>
-        <div class="card fill"><h3>Events <span class="go">JARVIS log</span></h3><div class="scroll log">${L().log.slice(0, 40).map(l => `<div><span class="tm">${esc(time(l.at))}</span>${l.level ? `<span style="color:var(--${l.level})">${esc(l.text)}</span>` : esc(l.text)}</div>`).join('') || '<div class="muted">Automations, agent actions and connection changes are logged here.</div>'}</div></div>
+        <div class="card"><h3>Services <span class="go">${services.length ? services.filter(s => s.ok).length + ' of ' + services.length + ' up' : ''}</span></h3>${services.length ? `<div class="scroll"><table><thead><tr><th>Service</th><th>Host</th><th>Status</th><th class="n">Source</th></tr></thead><tbody>${services.sort((a, b) => a.ok - b.ok).map(s => `<tr><td>${esc(s.name)}</td><td><span class="mono">${esc(s.host)}</span></td><td><span class="st ${s.ok ? 'good' : s.warn ? 'warn' : 'crit'}">${esc(s.label)}</span></td><td class="n mono">${esc(s.extra)}</td></tr>`).join('')}</tbody></table></div>` : need(['prometheus', 'uptime-kuma', 'http'], 'Every scrape target, monitor and endpoint shows up here')}</div>
+        <div class="col-stack">${guests}<div class="card fill"><h3>Events <span class="go">JARVIS log</span></h3><div class="scroll log">${L().log.slice(0, 40).map(l => `<div><span class="tm">${esc(time(l.at))}</span>${l.level ? `<span style="color:var(--${l.level})">${esc(l.text)}</span>` : esc(l.text)}</div>`).join('') || '<div class="muted">Automations, agent actions and connection changes are logged here.</div>'}</div></div></div>
       </div>`;
   };
 
@@ -3592,6 +3603,12 @@ const LIVE = (() => {
   // Rooms (Home Assistant) ---------------------------------------------------
   const ICON = { light: '✹', switch: '◐', fan: '✣', climate: '♨', lock: '⊡', cover: '▤', media_player: '▶', vacuum: '◌' };
   const isOn = e => ['on', 'open', 'playing', 'heat', 'cool', 'auto', 'unlocked', 'cleaning'].includes(e.state);
+  // What Jellyfin is playing, for the Rooms page.
+  const media = () => {
+    const jf = ok('jellyfin');
+    if (!jf) return broken('jellyfin', 'Jellyfin') ? `<div class="card">${broken('jellyfin', 'Jellyfin')}</div>` : '';
+    return `<div class="card"><h3>${jf.playing.length ? 'Now playing' : 'Recently added'} <span class="go">Jellyfin</span></h3><div class="list scroll" style="max-height:150px">${jf.playing.length ? jf.playing.map(p => `<div class="cons"><span>${esc(p.title)} <span class="muted" style="font-size:11.5px">${esc(p.user)} · ${esc(p.device)}${p.paused ? ' · paused' : ''}</span></span><span class="v">${p.progress != null ? p.progress + '%' : ''}</span>${p.progress != null ? `<div class="bar"><b style="width:${p.progress}%;background:var(--accent)"></b></div>` : ''}</div>`).join('') : jf.latest.slice(0, 5).map(i => `<div class="cons"><span>${esc(i.title)}</span><span class="v muted">${i.added ? esc(ago(i.added)) : ''}</span></div>`).join('') || '<div class="muted" style="font-size:12.5px">Nothing playing.</div>'}</div></div>`;
+  };
   PAGES.rooms = () => {
     const ha = ok('home');
     if (!ha) return ph('rooms', 'Smart home', 'Rooms') + (broken('home', 'Home Assistant') || need('home-assistant', 'Connect Home Assistant to see and switch your rooms'));
@@ -3604,6 +3621,7 @@ const LIVE = (() => {
       <div class="col-stack">
         <div class="card"><h3>Scenes <span class="go">one tap</span></h3>${ha.scenes.length ? `<div class="scenes">${ha.scenes.slice(0, 9).map(s => `<button class="scene" data-la="ha" data-action="scene" data-entity="${esc(s.id)}"><i>✦</i>${esc(s.name)}</button>`).join('')}</div>` : '<div class="muted" style="font-size:12.5px">No scenes defined in Home Assistant.</div>'}</div>
         ${cl ? `<div class="card"><h3>Climate <span class="go">${esc(cl.name)} · ${esc(cl.state)}</span></h3><div class="thermo"><button class="tbtn" data-la="ha" data-action="temperature" data-entity="${esc(cl.id)}" data-value="${(cl.target ?? 20) - .5}">−</button><div><div class="big num">${cl.target ?? '—'}<small>°</small></div><div class="muted" style="font-size:12px">target · now ${cl.current ?? '—'}°</div></div><button class="tbtn" data-la="ha" data-action="temperature" data-entity="${esc(cl.id)}" data-value="${(cl.target ?? 20) + .5}">+</button></div></div>` : ''}
+        ${media()}
         <div class="card fill"><h3>Security</h3><div class="list scroll">${ha.security.map(e => `<div class="sec"><span class="sp">${esc(e.name)}</span><span class="st ${['locked', 'off', 'closed', 'armed_away', 'armed_home', 'disarmed'].includes(e.state) ? (e.state === 'disarmed' ? 'idle' : 'good') : 'warn'}">${esc(e.cls === 'door' || e.cls === 'window' || e.cls === 'garage_door' ? (e.state === 'on' ? 'open' : 'closed') : e.cls === 'moisture' ? (e.state === 'on' ? 'wet!' : 'dry') : e.cls === 'motion' ? (e.state === 'on' ? 'motion' : 'quiet') : e.state)}</span></div>`).join('') || '<div class="muted" style="font-size:12.5px">No locks, doors or alarm sensors found.</div>'}</div></div>
       </div></div>`;
   };
@@ -3647,26 +3665,65 @@ const LIVE = (() => {
     }
   };
 
-  // Health -------------------------------------------------------------------
+  // Health (Home Assistant sensors from a phone or wearable) --------------------
+  let healthSeries = null, healthFetched = 0, healthKey = '';
   PAGES.health = () => {
     const ha = ok('home');
-    return ph('health', 'Health', 'Health') + `<div class="empty"><div><b>No health source connected</b></div><div class="muted" style="max-width:560px;font-size:13px">Health data stays on your devices for now. If your phone reports steps or heart rate to Home Assistant (companion app), those sensors will appear here in a future version. Until then, remove this page from the board in Settings → Board if you do not need it.</div>${ha ? '' : '<button class="btn" data-settings="layout">Arrange the board</button>'}</div>`;
+    if (!ha) return ph('health', 'Health', 'Health') + (broken('home', 'Home Assistant') || need('home-assistant', 'Steps, sleep and heart rate from your phone or watch, through Home Assistant'));
+    const hs = ha.health || [], get = k => hs.find(x => x.kind === k);
+    if (!hs.length) return ph('health', 'Health · Home Assistant', 'Health') + `<div class="empty"><div><b>No health sensors in Home Assistant</b></div><div class="muted" style="max-width:580px;font-size:13px">Turn on the step, heart rate and sleep sensors in the Home Assistant companion app (Android: Health Connect), or add a Fitbit, Withings, Garmin or Oura integration. Sensors with units such as steps, bpm, h, kg and kcal appear here on their own. Nothing leaves your network.</div></div>`;
+    const v = (x, d = 0) => x ? (x.value >= 1000 && x.unit !== 'kg' ? Math.round(x.value).toLocaleString('en-US') : +x.value.toFixed(d)) : '—';
+    const sl = get('sleep'), sleepH = sl ? (sl.unit === 'min' ? sl.value / 60 : sl.unit === 's' ? sl.value / 3600 : sl.value) : null, hr = get('restingHeartRate') || get('heartRate');
+    return ph('health', 'Health · from Home Assistant · stays on your network', 'Health', stats([[v(get('steps')), 'steps today'], [sleepH != null ? sleepH.toFixed(1) + ' h' : '—', 'sleep'], [hr ? v(hr) : '—', hr ? hr.label.toLowerCase() : 'heart rate'], [get('weight') ? v(get('weight'), 1) + ' ' + esc(get('weight').unit) : '—', 'weight']])) +
+      `<div class="grid" style="grid-template-columns:1.7fr 1fr;grid-template-rows:1fr 1fr">
+      <div class="card"><h3>Steps · last 14 days <span class="go">${get('steps') ? esc(get('steps').name) : ''}</span></h3>${get('steps') ? '<div class="chart" id="lv-hsteps"></div>' : '<div class="empty"><div class="muted">No step counter sensor.</div></div>'}</div>
+      <div class="card"><h3>All health sensors <span class="go">${hs.length}</span></h3><div class="list scroll">${hs.map(x => `<div class="cons"><span>${esc(x.label)} <span class="muted" style="font-size:11.5px">${esc(x.name)}</span></span><span class="v">${v(x, 1)} ${esc(x.unit)}</span></div>`).join('')}</div></div>
+      <div class="card"><h3>${hr ? esc(hr.label) + ' · today' : 'Heart rate'} <span class="go">${hr ? 'bpm' : ''}</span></h3>${hr ? '<div class="chart" id="lv-hhr"></div>' : '<div class="empty"><div class="muted">No heart rate sensor.</div></div>'}</div>
+      <div class="card insight"><h3>JARVIS can help</h3><p>Ask how the last two weeks went, or plan movement around today's calendar.</p><div class="row" style="margin-top:12px;flex-wrap:wrap;gap:8px"><button class="btn pri" data-la="ask" data-q="Look at my health numbers and my calendar. In three short sentences: how am I doing, and one realistic thing to do today.">How am I doing?</button><button class="btn" data-la="ask" data-q="Find a 30 minute slot for a walk or workout today, based on my calendar and the weather.">Find time to move</button></div></div>
+      </div>`;
+  };
+  charts.health = async () => {
+    const ha = ok('home'), hs = ha?.health || [], steps = hs.find(x => x.kind === 'steps'), hr = hs.find(x => x.kind === 'restingHeartRate') || hs.find(x => x.kind === 'heartRate');
+    const ids = [steps?.id, hr?.id].filter(Boolean), key = ids.join(',');
+    if (!ids.length) return;
+    if (key !== healthKey || Date.now() - healthFetched > 10 * 60e3) { healthKey = key; healthFetched = Date.now(); try { healthSeries = (await api('live/home/history?days=14&ids=' + key)).series; } catch { healthSeries = []; } }
+    const pts = id => (healthSeries || []).find(x => x.id === id)?.points || [];
+    const el = $('#lv-hsteps');
+    if (el && steps) {
+      const t0 = new Date().setHours(0, 0, 0, 0), days = Array.from({ length: 14 }, (_, i) => new Date(t0).setDate(new Date(t0).getDate() - 13 + i)), max = days.map(() => 0);
+      for (const [t, val] of pts(steps.id)) { const i = days.findLastIndex(d => d <= t); if (i >= 0) max[i] = Math.max(max[i], val); }
+      max[13] = Math.max(max[13], steps.value);
+      const w = el.clientWidth, h = el.clientHeight; if (w < 20 || h < 20) return;
+      const raw = Math.max(1000, ...max), step = raw > 10000 ? 5000 : 2000, mx = Math.ceil(raw / step) * step, pad = { r: 46, b: 22, t: 6 }, bw = (w - pad.r) / 14, Y = val => (h - pad.t - pad.b) * val / mx;
+      let g = '';
+      for (let k = 0; k <= mx / step; k++) { const y = h - pad.b - Y(k * step); g += `<line x1="0" x2="${w - pad.r}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-dasharray="2 4"/>${axisText(w - pad.r + 10, y + 4, kfmt(k * step))}`; }
+      max.forEach((val, i) => { const hh = Y(val); if (hh > .5) g += `<rect x="${(i * bw + 3).toFixed(1)}" y="${(h - pad.b - hh).toFixed(1)}" width="${(bw - 6).toFixed(1)}" height="${hh.toFixed(1)}" rx="3" fill="${i === 13 ? 'var(--accent)' : 'var(--s2)'}"><title>${new Date(days[i]).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}: ${Math.round(val).toLocaleString('en-US')} steps</title></rect>`; });
+      [0, 7, 13].forEach((i, k) => g += axisText(i * bw + bw / 2, h - 4, new Date(days[i]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }), ['start', 'middle', 'end'][k]));
+      el.innerHTML = svgEl(w, h, g);
+    }
+    const he = $('#lv-hhr');
+    if (he && hr) {
+      const t0 = new Date().setHours(0, 0, 0, 0), today = pts(hr.id).filter(p => p[0] >= t0);
+      if (today.length < 2) he.innerHTML = '<div class="empty"><div class="muted">Not enough readings today yet.</div></div>';
+      else lineChart(he, today.map(p => p[1]), { fmt: (x, s) => s ? Math.round(x) : Math.round(x) + ' bpm', date: i => hm(new Date(today[i][0])), color: 'var(--crit)' });
+    }
   };
 
   // Inbox: what wants your attention, from every source -----------------------
   PAGES.inbox = () => {
-    const h = ok('harness'), gh = ok('github'), ha = ok('home'), items = [];
+    const h = ok('harness'), gh = ok('github'), ha = ok('home'), mail = ok('mail'), items = [];
     for (const a of h?.approvals || []) items.push({ g: 'Needs a decision', who: 'Harness', src: a.risk + ' risk', title: a.kind === 'task_start' ? 'Task wants to start' : 'Permission: ' + a.permission, text: a.description, c: 'var(--warn)', acts: `<button class="btn pri" data-la="approve" data-id="${esc(a.id)}">Approve</button><button class="btn" data-la="reject" data-id="${esc(a.id)}">Reject</button>`, t: Date.parse(a.created) });
     for (const p of (gh?.pulls || []).filter(p => !p.mine)) items.push({ g: 'Needs a reply', who: p.repo, src: 'github', title: p.title, text: `Pull request #${p.number}${p.draft ? ' (draft)' : ''}`, c: 'var(--s2)', url: p.url, t: Date.parse(p.updated) });
     for (const n of (gh?.notifications || []).filter(n => n.unread)) items.push({ g: n.reason === 'review_requested' || n.reason === 'mention' ? 'Needs a reply' : 'FYI', who: n.repo, src: 'github · ' + n.reason.replace('_', ' '), title: n.title, text: n.type, c: 'var(--muted)', t: Date.parse(n.updated) });
     for (const t of (h?.tasks || []).filter(t => t.status === 'failed' && Date.now() - Date.parse(t.completed || 0) < 3 * 864e5)) items.push({ g: 'FYI', who: 'Harness', src: 'task failed', title: t.title, text: t.error, c: 'var(--crit)', acts: `<button class="btn" data-la="rerun" data-id="${esc(t.id)}">Run again</button>`, t: Date.parse(t.completed) });
     for (const n of ha?.notifications || []) items.push({ g: 'FYI', who: 'Home Assistant', src: 'problem', title: n, text: 'reported a problem', c: 'var(--accent)', t: Date.now() });
-    if (!h && !gh && !ha) return ph('inbox', 'Inbox', 'Inbox') + need(['harness', 'github', 'home-assistant'], 'Approvals, reviews and alerts from your sources collect here');
-    const groups = ['Needs a decision', 'Needs a reply', 'FYI'];
-    return ph('inbox', 'Inbox · approvals, GitHub and alerts', 'Inbox', stats([[items.filter(i => i.g !== 'FYI').length, 'need you'], [items.filter(i => i.g === 'FYI').length, 'for your information'], [gh?.notifications ? gh.notifications.filter(n => n.unread).length : '—', 'unread on GitHub']])) +
+    for (const m of (mail?.messages || []).filter(m => m.unread)) items.push({ g: 'Unread mail', who: m.from.name, src: m.flagged ? 'email · flagged' : 'email', title: m.subject, text: m.from.address + (m.at ? ' · ' + ago(m.at) : ''), c: 'var(--s1)', url: mail.webmail, t: m.at || 0 });
+    if (!h && !gh && !ha && !mail) return ph('inbox', 'Inbox', 'Inbox') + (broken('mail', 'Your mailbox') || need(['email', 'harness', 'github', 'home-assistant'], 'Mail, approvals, reviews and alerts from your sources collect here'));
+    const groups = ['Needs a decision', 'Needs a reply', 'Unread mail', 'FYI'];
+    return ph('inbox', 'Inbox · ' + [mail && 'mail', h && 'approvals', gh && 'GitHub', ha && 'alerts'].filter(Boolean).join(', '), 'Inbox', stats([[items.filter(i => i.g === 'Needs a decision' || i.g === 'Needs a reply').length, 'need you'], [mail ? mail.unseen : '—', mail ? 'unread in ' + mail.folder : 'unread mail'], [items.filter(i => i.g === 'FYI').length, 'for your information'], [gh?.notifications ? gh.notifications.filter(n => n.unread).length : '—', 'unread on GitHub']])) +
       `<div class="grid" style="grid-template-columns:1.55fr 1fr"><div class="card"><h3>Triage <span class="go">newest first within each group</span></h3><div class="scroll">${groups.map(g => { const list = items.filter(i => i.g === g).sort((a, b) => b.t - a.t); return list.length ? `<div class="tg">${g} · ${list.length}</div>` + list.map(i => `<div class="msg" ${i.url ? `data-la="open" data-url="${esc(i.url)}"` : ''}><span class="av" style="background:${i.c}">${esc((i.who || '?')[0].toUpperCase())}</span><span class="who">${esc(i.title)}<span class="t2" style="font-weight:400"> · ${esc(i.who)}</span></span><span class="src">${esc(i.src)}</span><p>${esc(i.text || '')}</p>${i.acts ? `<div class="row" style="grid-column:2/-1;margin-top:6px">${i.acts}</div>` : ''}</div>`).join('') : ''; }).join('') || '<div class="empty"><div>Inbox zero. Nothing wants you.</div></div>'}</div></div>
-      <div class="col-stack"><div class="card insight"><h3>JARVIS can help</h3><p>Ask for a summary of everything waiting, or for a reply draft to a pull request.</p><div class="row" style="margin-top:12px"><button class="btn pri" data-la="ask" data-q="Go through what is waiting for me (approvals, pull requests, failures) and tell me what to do first, briefly.">What first?</button></div></div>
-      <div class="card fill"><h3>Sources</h3><div class="list">${[['harness', 'Agent approvals and failures'], ['github', 'Pull requests and notifications'], ['home-assistant', 'Home problems']].map(([t, d]) => `<div class="cron"><span>${esc(NAMES[t])}</span><span class="nx">${(t === 'home-assistant' ? ha : t === 'github' ? gh : h) ? '<span class="st good">connected</span>' : '<a class="lk" data-settings="connections">connect</a>'}</span><span></span><span class="w">${d}</span></div>`).join('')}</div><p class="muted" style="font-size:12px;margin-top:10px">Email and chat are not connected in this version.</p></div></div></div>`;
+      <div class="col-stack"><div class="card insight"><h3>JARVIS can help</h3><p>Ask for a summary of everything waiting: mail, approvals, pull requests and failures.</p><div class="row" style="margin-top:12px"><button class="btn pri" data-la="ask" data-q="Go through what is waiting for me (unread mail, approvals, pull requests, failures) and tell me what to do first, briefly.">What first?</button></div></div>
+      <div class="card fill"><h3>Sources</h3><div class="list">${[['email', 'Unread mail', mail, 'mail'], ['harness', 'Agent approvals and failures', h, 'harness'], ['github', 'Pull requests and notifications', gh, 'github'], ['home-assistant', 'Home problems', ha, 'home']].map(([t, d, on, k]) => `<div class="cron"><span>${esc(NAMES[t])}</span><span class="nx">${on ? '<span class="st good">connected</span>' : src(k) && !src(k).pending ? '<span class="st crit">not answering</span>' : '<a class="lk" data-settings="connections">connect</a>'}</span><span></span><span class="w">${d}</span></div>`).join('')}</div><p class="muted" style="font-size:12px;margin-top:10px">Mail is read-only: JARVIS reads the headers of new messages and never marks, moves or sends anything.${mail?.webmail ? ' Click a message to open your webmail.' : ''}</p></div></div></div>`;
   };
 
   // Network ------------------------------------------------------------------
@@ -3731,6 +3788,9 @@ const LIVE = (() => {
     home: () => { const n = needsList().length; return n ? `${n} thing${n > 1 ? 's' : ''} need you. The top of the list is the most urgent.` : 'Nothing needs you right now.'; },
     agents: () => { const h = ok('harness'); return h ? (h.approvals.length ? `An agent is waiting for your decision.` : h.active.length ? `${h.active.length} task${h.active.length > 1 ? 's are' : ' is'} running in the Harness.` : 'No agents running. Describe a task on the right and I will hand it over.') : 'Connect the Harness and I can show you what your agents do.'; },
     schedule: () => { const n = todayItems().filter(x => x.t > Date.now() && !x.all).length; return n ? `${n} more thing${n > 1 ? 's' : ''} on today.` : 'The rest of today is free.'; },
+    inbox: () => { const m = ok('mail'); return m ? (m.unseen ? `${m.unseen} unread message${m.unseen > 1 ? 's' : ''}. The newest are at the top.` : 'No unread mail.') : null; },
+    health: () => { const st = ok('home')?.health?.find(x => x.kind === 'steps'); return st ? `${Math.round(st.value).toLocaleString('en-US')} steps so far today.` : null; },
+    infra: () => { const pve = ok('proxmox'); if (!pve) return null; const off = pve.nodes.filter(n => !n.online).length; return off ? `${off} Proxmox node${off > 1 ? 's are' : ' is'} offline.` : `${pve.guests.filter(g => g.status === 'running').length} guests running on Proxmox.`; },
   };
   return { get on() { return API.server; }, start, poll, charts: drawAll, rerender: () => { last = {}; render(); }, line: id => lines[id]?.(), data: () => S };
 })();
