@@ -1,6 +1,6 @@
 {
   "name": "center-dashboard",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "JARVIS home & infrastructure dashboard: a board of pages with a live AI companion. Bring your own AI: a Claude subscription, API keys or local models.",
   "type": "module",
   "engines": {
@@ -9,12 +9,13 @@
   "scripts": {
     "build": "node tools/build.mjs",
     "check": "node tools/build.mjs && node tools/check.mjs",
-    "test": "node tools/build.mjs && node tools/check.mjs && node --test tools/server.test.mjs",
+    "test": "node tools/build.mjs && node tools/check.mjs && node --test tools/server.test.mjs tools/live.test.mjs",
     "start": "node tools/build.mjs && node server/index.mjs",
     "serve": "node server/index.mjs",
     "preview": "node tools/build.mjs && node tools/serve.mjs",
     "reset-password": "node server/index.mjs reset",
-    "sync-orb": "node tools/build.mjs --sync ../jarvis-hermes"
+    "sync-orb": "node tools/build.mjs --sync ../jarvis-hermes",
+    "fixtures": "node tools/fixtures.mjs"
   },
   "license": "MIT",
   "private": true

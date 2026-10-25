@@ -687,6 +687,24 @@ textarea.inp{font:12.5px/1.55 var(--mono);resize:vertical;min-height:150px}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 .toast .zz{padding:8px 14px;border-radius:99px;background:var(--card-2);border:1px solid var(--line-2);font-size:13px;box-shadow:0 10px 30px -10px color-mix(in srgb,var(--shadow) 60%,transparent)}
 body.calm *,body.calm *::before,body.calm *::after{animation-duration:.001s!important;animation-iteration-count:1!important;transition-duration:.001s!important}
+/* ---------- live board ---------- */
+.allday{display:flex;flex-direction:column;gap:2px;padding:2px 3px 6px;border-left:1px solid var(--line);min-height:8px}
+.allday span{font-size:10.5px;font-weight:500;padding:2px 6px;border-radius:5px;background:color-mix(in srgb,var(--s1) 18%,transparent);border-left:2px solid var(--s1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.allday span.td{background:color-mix(in srgb,var(--warn) 16%,transparent);border-color:var(--warn)}
+.lk{color:var(--accent);cursor:pointer;margin-left:6px;font-size:10.5px}
+.lk:hover{text-decoration:underline}
+.newauto{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line-2)}
+.newauto summary{cursor:pointer;font-size:12.5px;color:var(--accent);list-style:none}
+.newauto .days{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;font-size:12px;color:var(--text-2)}
+.newauto .days label{display:inline-flex;align-items:center;gap:3px;cursor:pointer}
+.todo .x{margin-left:auto;color:var(--muted);font-size:15px;opacity:0;transition:opacity .2s;padding:0 4px}
+.todo:hover .x{opacity:1}
+.todo .x:hover{color:var(--crit)}
+#tout .sug{font:500 .92em var(--mono);padding:.3em .8em;margin:.2em .3em .2em 0}
+.pane.live .empty{flex:1;min-height:0;overflow:hidden;padding:10px 8px;gap:8px}
+.pane.live .card.span4 .empty .muted{font-size:11.5px}
+/* In server mode a page stays blank until its live data has rendered, so sample content never flashes. */
+body.server .pane:not(.lv-ready) .pane-inner{visibility:hidden}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -1209,7 +1227,7 @@ body.calm *,body.calm *::before,body.calm *::after{animation-duration:.001s!impo
    <div class="card"><h3>Bandwidth · 24 h <span class="go">download, Mbit/s</span></h3><div class="chart" id="nchart"></div></div>
    <div class="card"><h3>Exposed to the internet <span class="go">via Cloudflare</span></h3>
     <div class="list scroll">
-     <div class="expo"><span class="st good">protected</span><span><b>dashboard.example.com</b><small>tunnel → jarvis:8787 · Access: you only</small></span></div>
+     <div class="expo"><span class="st good">protected</span><span><b>dashboard.example.com</b><small>tunnel → jarvis:8790 · Access: you only</small></span></div>
      <div class="expo"><span class="st good">protected</span><span><b>photos.example.com</b><small>tunnel → vault:2342 · Access: family</small></span></div>
      <div class="expo"><span class="st warn">public</span><span><b>status.example.com</b><small>tunnel → uptime:3001 · no login (read-only)</small></span></div>
      <div class="expo"><span class="st good">closed</span><span><b>Open ports on the router</b><small>0 forwarded · last scan 06:00</small></span></div>
@@ -1427,8 +1445,9 @@ function fitGreet() {
 }
 function applyProfile() {
   if (chatty !== CFG.jarvis.chatty) { chatty = CFG.jarvis.chatty; $('#chatty').classList.toggle('off', !chatty); $('#chatty span').textContent = chatty ? 'Chatty' : 'Quiet'; }
-  $('#modebadge').innerHTML = API.server ? 'SAMPLE<span class="x"> DATA</span>' : 'DEMO<span class="x"> · SAMPLE DATA</span>';
-  $('#modebadge').title = API.server ? 'Panes show sample data until their connection feeds them. Status and AI are live.' : 'Static demo: nothing is stored on a server. Run the server to connect real accounts.';
+  $('#modebadge').innerHTML = API.server ? 'LIVE<span class="x"> · PRIVATE</span>' : 'DEMO<span class="x"> · SAMPLE DATA</span>';
+  $('#modebadge').title = API.server ? 'Every page shows your own data. A page without its connection says which one it needs.' : 'Static demo: nothing is stored on a server. Run the server to connect real accounts.';
+  if (API.server) { $('#modebadge').style.cssText = 'color:var(--good);border-color:color-mix(in srgb,var(--good) 35%,transparent)'; $('.hero .sugg').innerHTML = ['What needs me today?', 'Plan the rest of my day', 'How are my machines?', 'What matters in the news?'].map(t => `<button>${t}</button>`).join(''); $$('.hero .sugg button').forEach(b => b.onclick = () => sendToTerm(b.textContent)); }
   clockTick();
 }
 function relayout() {
@@ -1438,6 +1457,7 @@ function relayout() {
   layout(); drawCharts();
   cam = overview ? overviewCam() : paneCam(current); zoomF = 1; flight = { type: 'pan', tx: cam.fx, ty: cam.fy }; vel = { x: 0, y: 0 }; apply();
   measureSlot(); placeOrb(); syncChrome(); HX.draw();
+  if (LIVE.on) LIVE.rerender();
 }
 
 // ---- the panel
@@ -1447,7 +1467,7 @@ const SECTIONS = [
   ['layout', '▦', 'Board', 'Pick the pages you want and arrange the board.'],
   ['ai', '✳', 'AI', 'How JARVIS thinks: a subscription, an API key or a local model.'],
   ['connections', '⇄', 'Connections', 'Services JARVIS reads from. Secrets stay on the server.'],
-  ['security', '⚿', 'Security', 'Sign-in, two-factor codes, sessions and exposure.'],
+  ['security', '⊡', 'Security', 'Sign-in, two-factor codes, sessions and exposure.'],
   ['data', '⇩', 'Data', 'Export, import and reset.'],
 ];
 const setEl = $('#settings'), sbody = $('#sbody');
@@ -1560,18 +1580,19 @@ const RENDER = {
 
 // ---- connections (AI providers and data integrations share one flow)
 const AI_BY = Object.fromEntries(AI_PROVIDERS.map(p => [p.id, p])), DATA_BY = Object.fromEntries(INTEGRATIONS.map(p => [p.id, p]));
-const aiList = () => API.conns.filter(c => c.kind === 'ai' && AI_BY[c.type]?.available !== false).map(c => ({ ...c, local: AI_BY[c.type]?.local, group: AI_BY[c.type]?.group, model: c.values?.model, def: c.id === chatConn()?.id }));
-const chatConn = () => API.conns.find(c => c.kind === 'ai' && AI_BY[c.type]?.available !== false && c.id === CFG.ai.chat) || API.conns.find(c => c.kind === 'ai' && AI_BY[c.type]?.available !== false);
+const aiOk = id => AI_BY[id] && (AI_BY[id].available !== false || (API.info?.optIn || []).includes(id));
+const aiList = () => API.conns.filter(c => c.kind === 'ai' && aiOk(c.type)).map(c => ({ ...c, local: AI_BY[c.type]?.local, group: AI_BY[c.type]?.group, model: c.values?.model, def: c.id === chatConn()?.id }));
+const chatConn = () => API.conns.find(c => c.kind === 'ai' && aiOk(c.type) && c.id === CFG.ai.chat) || API.conns.find(c => c.kind === 'ai' && aiOk(c.type));
 function connSection(kind) {
   const ai = kind === 'ai', cat = ai ? AI_PROVIDERS : INTEGRATIONS, groups = ai ? AI_GROUPS : DATA_GROUPS, by = ai ? AI_BY : DATA_BY;
   const mine = API.conns.filter(c => c.kind === kind);
   let h = demoNote(ai ? 'Pick how JARVIS should think — a Claude subscription, any API key, or a model running at home.' : 'Connect Home Assistant, Proxmox, calendars, feeds and more.');
   if (form?.kind === kind) h += formHtml();
-  if (mine.length) h += `<div class="grp"><h4>${ai ? 'Connected AI' : 'Connected'} · ${mine.length}</h4><div class="clist">${mine.map(c => { const e = by[c.type] || {}, unsupported = e.available === false; return `<div class="citem"><span class="ic">${e.icon || '•'}</span><span class="nm">${esc(c.name)}</span>
+  if (mine.length) h += `<div class="grp"><h4>${ai ? 'Connected AI' : 'Connected'} · ${mine.length}</h4><div class="clist">${mine.map(c => { const e = by[c.type] || {}, unsupported = ai ? !aiOk(c.type) : e.available === false; return `<div class="citem"><span class="ic">${e.icon || '•'}</span><span class="nm">${esc(c.name)}</span>
       <span>${ai && !unsupported && c.id === chatConn()?.id ? '<span class="badge def">DEFAULT</span>' : unsupported ? '<span class="badge">DISABLED</span>' : ''}</span><span class="row">${ai && !unsupported && c.id !== chatConn()?.id ? `<button class="btn" data-a="default" data-id="${c.id}">Make default</button>` : ''}${unsupported ? '' : `<button class="btn" data-a="edit" data-id="${c.id}">Edit</button>`}<button class="btn" data-a="remove" data-id="${c.id}">Remove</button></span>
       <span class="kd">${esc(unsupported ? e.unavailableReason : [e.name, e.via, c.values?.model, c.values?.url || c.values?.baseUrl].filter(Boolean).join(' · '))}</span></div>`; }).join('')}</div></div>`;
   for (const [g, title, sub] of groups) {
-    const items = cat.filter(x => x.group === g && x.available !== false);
+    const items = cat.filter(x => x.group === g && (ai ? aiOk(x.id) : x.available !== false));
     h += `<div class="grp"><h4>${title}</h4>${sub ? `<p>${sub}</p>` : ''}<div class="prov">${items.map(x => `<button class="pcard" data-a="add" data-type="${x.id}" ${API.server ? '' : 'disabled style="opacity:.75"'}>${x.via ? `<em>${esc(x.via.toUpperCase())}</em>` : ''}<b>${x.icon ? `<span class="mono t2" style="margin-right:8px">${x.icon}</span>` : ''}${esc(x.name)}</b><span>${esc(x.blurb)}</span></button>`).join('')}</div></div>`;
   }
   if (ai && API.server) h += `<div class="grp"><h4>Routing</h4>${fld('Terminal & chat use', `<select class="inp sel" data-k="ai.chat"><option value="">first connected</option>${aiList().map(c => `<option value="${c.id}" ${CFG.ai.chat === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>`)}
@@ -2087,8 +2108,8 @@ function onArrive(a) {
   $$('.stat .v:not([id])', p).forEach(countUp);
   const first = !visited.has(a.id); visited.add(a.id);
   if (first || (Math.random() < .3 && performance.now() - lastSay > 40000)) {
-    const l = LINES[a.id]();
-    setTimeout(() => current === a.id && !overview && say(l.text, l), a.id === 'home' ? 500 : 380);
+    const l = API.server ? { text: LIVE.line(a.id) } : LINES[a.id]();
+    if (l.text) setTimeout(() => current === a.id && !overview && say(l.text, l), a.id === 'home' ? 500 : 380);
   }
 }
 let charged = false;
@@ -2102,7 +2123,7 @@ jEl.addEventListener('click', e => {
   if (sp) { hush(); return; }
   caughtUntil = Math.max(caughtUntil, performance.now() + 6000);
   orb.pulseAt(e.clientX, e.clientY);
-  const l = LINES[current]?.();
+  const l = API.server ? (LIVE.line(current) ? { text: LIVE.line(current) } : null) : LINES[current]?.();
   say(Math.random() < .5 && l ? l.text : pick(QUIPS), { force: true, acts: l?.acts || [] });
 });
 
@@ -2274,7 +2295,7 @@ addEventListener('pointerdown', () => lastInput = performance.now(), { passive: 
 /* ======================================================== clock + greeting */
 function clockTick() {
   const d = new Date(), t = hm();
-  $('#clock').textContent = t; $('#nowt').textContent = t;
+  $('#clock').textContent = t; if ($('#nowt')) $('#nowt').textContent = t;
   const h = d.getHours();
   const name = CFG.profile.name.trim();
   $('#greet').textContent = (h < 5 ? 'Late night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening') + (name ? ', ' + name : '');
@@ -2329,6 +2350,7 @@ const tps = Array.from({ length: 96 }, (_, i) => { const h = i / 4; const busy =
 const hhmm = i => { const m = (i * 15 + 19 * 60) % 1440; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
 const drawTps = () => lineChart($('#tchart'), tps, { fmt: (v, s) => s ? v.toFixed(0) : v.toFixed(1) + ' tok/s', date: hhmm });
 function drawCharts() {
+  if (LIVE.on) return LIVE.charts();
   drawPortfolio(); drawTps(); drawLibrary();
   lineChart($('#hspark'), port.slice(-30), { fmt: eur, date: i => dayStr(29 - i), axis: false });
 }
@@ -2523,6 +2545,7 @@ function log(sel, text, color) {
    Sources hand work to the Harness, which routes it to a model. Packets follow the real
    routing; each model's tokens/s, history and current job update live. */
 const HX = (() => {
+  let stopped = false; // the sample widget stops for good once live data takes over the pane
   const NS = 'http://www.w3.org/2000/svg', hx = $('#hx'), body = $('.hx-body', hx), wires = $('.hx-wires', hx);
   const SRC = [
     { id: 'hermes', name: 'hermes', sub: 'planner', hex: 'var(--s1)' },
@@ -2591,6 +2614,7 @@ const HX = (() => {
   const flash = el => { el.classList.add('hit'); clearTimeout(el._h); el._h = setTimeout(() => el.classList.remove('hit'), 160); };
   let lastF = performance.now();
   function frame(now) {
+    if (stopped) return;
     requestAnimationFrame(frame);
     const dt = Math.min(.1, (now - lastF) / 1000); lastF = now;
     if (reduce || document.hidden || (current !== 'agents' && !overview)) return;
@@ -2640,7 +2664,7 @@ const HX = (() => {
     $('#hxcost').textContent = '€' + (byM('gpt').tok / 1e6 * 2.2).toFixed(2);
     $('#hxl').textContent = `p50 ${Math.round(360 + Math.random() * 110)} ms`;
   }
-  setInterval(stats, 500); stats();
+  const statsTimer = setInterval(stats, 500); stats();
 
   function ticker(html) { const t = $('#hxtick'); t.innerHTML = html; t.classList.remove('new'); void t.offsetWidth; t.classList.add('new'); }
   function jobDone() {
@@ -2652,7 +2676,7 @@ const HX = (() => {
       m.job = pick(JOBS[m.id].filter(j => j !== m.job));
       $('#hxq').textContent = 'queue ' + Math.round(2 + Math.random() * 4);
     }
-    setTimeout(jobDone, 4500 + Math.random() * 4500);
+    if (!stopped) setTimeout(jobDone, 4500 + Math.random() * 4500);
   }
   ticker('<b>✓</b> backup diagnosis · qwen3-32b · 2,318 tok · 41 s');
   setTimeout(jobDone, 3000);
@@ -2664,7 +2688,8 @@ const HX = (() => {
     if (e.target.closest('#hxhub')) say(`The Harness is pushing ${$('#hxtps').textContent} tok/s across ${MOD.filter(x => x.active).length} models. ${$('#hxloc').textContent} of today's tokens never left the house.`, { force: true });
   });
   return {
-    draw,
+    stop() { stopped = true; clearInterval(statsTimer); },
+    draw() { if (!stopped) draw(); },
     set(id, active, text) { const m = byM(id); m.active = active; if (active) m.job = text || m.job; else m.note = text; paintLinks(); stats(); },
   };
 })();
@@ -2680,7 +2705,7 @@ const ROOMS = [
   { n: 'Office', t: 21.2, h: 41, dev: [['✹', 'Desk light', 1, 'focus'], ['▣', 'atlas', 1, 'on'], ['≋', 'Air purifier', 1, 'auto']] },
   { n: 'Bedroom', t: 19.4, h: 47, dev: [['✹', 'Bedside', 0, 'off'], ['▤', 'Blinds', 0, 'open'], ['♨', 'Radiator', 1, '19 °C']] },
   { n: 'Bathroom', t: 22.8, h: 63, dev: [['✹', 'Mirror', 0, 'off'], ['≋', 'Fan', 0, 'auto'], ['♨', 'Floor heating', 0, 'eco']] },
-  { n: 'Hallway', t: 20.3, h: 45, dev: [['✹', 'Hall', 0, 'motion'], ['⚿', 'Front door', 1, 'locked'], ['◎', 'Doorbell', 1, 'online']] },
+  { n: 'Hallway', t: 20.3, h: 45, dev: [['✹', 'Hall', 0, 'motion'], ['⊡', 'Front door', 1, 'locked'], ['◎', 'Doorbell', 1, 'online']] },
 ];
 function renderRooms() {
   $('#rooms').innerHTML = ROOMS.map((r, i) => `<div class="card room ${r.dev.some(d => d[0] === '✹' && d[2]) ? 'lit' : ''}" data-room="${i}">
@@ -2945,6 +2970,7 @@ function toggleTerm(force) {
   jSet(baseState()); placeOrb();
 }
 $('#termbtn').onclick = () => toggleTerm();
+tout.addEventListener('click', e => { const b = e.target.closest('.sug'); if (!b || b.disabled) return; b.disabled = true; runSuggested(b.dataset.sk, b.dataset.sv); });
 $('#term-close').onclick = () => toggleTerm(false);
 const out = html => { tout.insertAdjacentHTML('beforeend', html + '\n'); tout.scrollTop = tout.scrollHeight; };
 const termIntro = () => API.server ? out(`<span class="m">JARVIS terminal · type "help" · ${chatConn() ? 'answers come from ' + esc(chatConn().name) : 'connect an AI in Settings → AI'}</span>\n`) : out(`<span class="m">JARVIS terminal · local-first routing · type "help"</span>
@@ -2964,7 +2990,7 @@ const replies = [
   [/build|code|app|project|pr|implement|idea/, 'harness → codex (escalation)', ['<span class="m">◇ plan </span>  hermes splits the idea into tasks, harness codes locally,', '          codex takes over after 2 failed attempts.', 'Created a project draft in <b>Projects › Idea</b>. Want me to start planning now?']],
   [/money|invest|portfolio|market|stock/, 'local only (money never leaves home)', ['<span class="m">◇ tool </span>  broker.read positions (read-only)', () => `Portfolio ${eur(pval)}, +0.8% today, +9.4% YTD. World ETFs are 6 pts over target.`, 'Suggestion: route the next two €650 contributions to bonds/cash. <span class="m">No trades without approval.</span>']],
   [/hello|hi\b|hey/, 'local · qwen3-32b', ['Evening. Everything important is on Home; everything else can wait.']],
-  [/help/, 'built-in', ['commands: go &lt;page&gt; · theme &lt;name&gt; · settings · clear', () => API.server && chatConn() ? `anything else goes to ${esc(chatConn().name)}.` : 'demo prompts: status · plan my week · run fix · build &lt;idea&gt; · portfolio']],
+  [/help/, 'built-in', ['commands: go &lt;page&gt; · theme &lt;name&gt; · settings · clear', () => API.server ? 'actions: task &lt;objective&gt; · todo &lt;text&gt; · idea &lt;text&gt; · approve &lt;id&gt; · reject &lt;id&gt;' : '', () => API.server && chatConn() ? `anything else goes to ${esc(chatConn().name)}.` : 'demo prompts: status · plan my week · run fix · build &lt;idea&gt; · portfolio']],
 ];
 // Replies queue up, so a question asked mid-answer waits its turn instead of interleaving.
 let replying = Promise.resolve();
@@ -2976,6 +3002,9 @@ async function answer(q) {
   if (/^(settings|config|prefs)$/.test(lc)) { openSettings(); return; }
   const tm = lc.match(/^theme\s+(.+)/);
   if (tm) { const t = themeList().find(x => x.id.startsWith(tm[1].replace(/\s+/g, '-')) || x.name.toLowerCase().startsWith(tm[1])); if (t) { CFG.appearance.theme = t.id; changed('appearance'); out('<span class="ok">theme → ' + esc(t.name) + '</span>\n'); } else out('<span class="m">themes: ' + themeList().map(x => x.id).join(' · ') + '</span>\n'); return; }
+  // Direct commands act at once, without asking the AI.
+  const cm = API.server && q.match(/^(task|todo|idea|approve|reject)\s+(.+)$/i);
+  if (cm) { await runSuggested(cm[1].toLowerCase() === 'idea' ? 'idea' : cm[1].toLowerCase(), cm[2].trim()); return; }
   if (API.server && chatConn() && !/^help$/.test(lc)) return askAI(q);
   const r = replies.find(([re]) => re.test(lc)) || [0, 'local · sample', [API.server ? 'No AI is connected yet. Open Settings → AI and pick a subscription, an API key or a local model.' : 'This demo answers from a script. Run the server and connect an AI in Settings → AI for real answers.']];
   jSet(r[1].includes('hermes') ? 'planning' : 'thinking');
@@ -3036,6 +3065,11 @@ async function askAI(q) {
   } catch (err) { failed = err.message; }
   line.classList.remove('typing');
   if (text) chatHistory.push({ role: 'assistant', content: text }); else chatHistory.pop();
+  const sug = liveActions(text);
+  if (sug.acts.length) {
+    line.textContent = sug.body;
+    out('\n' + sug.acts.map(([k, v], i) => `<button class="btn sug" data-sk="${esc(k)}" data-sv="${esc(v)}">${esc({ todo: '+ Todo', task: '▶ Start task', approve: '✓ Approve', reject: '✗ Reject', go: '→ Open' }[k])}: ${esc(v.slice(0, 70))}</button>`).join(' '));
+  }
   if (failed) { out(`\n<span class="w">✗ ${esc(failed)}</span>`); jSet('error', 2600); }
   else { out('\n'); jSet('success', 2400); }
 }
@@ -3048,6 +3082,7 @@ const ILOG = ['forge · load 1.2', 'vault · snapshot created', 'atlas · nix st
 const BLOG = ['recipe-planner · test: offline sync round-trip', 'recipe-planner · refactor: list reducer', 'jarvis-hermes · docs: scheduler API', 'energy-dashboard · chore: pick meter driver', 'recipe-planner · feat: share list link'];
 let tickN = 0;
 function lifeTick() {
+  if (LIVE.on) return;
   tickN++;
   const d = (rng() - .45) * 26; pval += d;
   for (const id of ['#pv', '#hpv']) { $(id).textContent = eur(pval); flash($(id), d >= 0); }
@@ -3084,6 +3119,636 @@ function ambient() {
   setTimeout(ambient, 30000 + Math.random() * 30000);
 }
 
+/* ======================================================== live board (server mode)
+   With the server running, every page renders from /api/live: the Harness, calendars, feeds,
+   Prometheus, Home Assistant, GitHub and the dashboard's own todos, automations and reviews.
+   A page whose source is not connected says so and links to the connection it needs.
+   The sample board above is only used by the static demo. */
+const LIVE = (() => {
+  let S = null, timer = 0, busy = false, last = {}, prevUsage = null, rate = {};
+  const src = k => S?.sources?.[k];
+  const ok = k => src(k)?.ok ? src(k).data : null;
+  const L = () => S?.local || { todos: [], ideas: [], automations: [], reviews: [], log: [] };
+  const usd = v => v == null ? '—' : '$' + (v < 10 ? v.toFixed(2) : Math.round(v).toLocaleString('en-US'));
+  const money = v => v == null ? '—' : (CUR[CFG.profile.currency] || '€') + Math.round(v).toLocaleString('en-US');
+  const kfmt = n => n == null ? '—' : n >= 1e9 ? (n / 1e9).toFixed(2) + 'B' : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 1 : 2) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(Math.round(n));
+  const ago = t => { if (!t) return ''; const s = (Date.now() - (typeof t === 'number' ? t : Date.parse(t))) / 1000; return s < 60 ? 'just now' : s < 3600 ? Math.round(s / 60) + ' min ago' : s < 86400 ? Math.round(s / 3600) + ' h ago' : Math.round(s / 86400) + ' d ago'; };
+  const dur = ms => { if (ms == null) return ''; const m = Math.round(ms / 60000); return m < 1 ? '<1 min' : m < 60 ? m + ' min' : Math.floor(m / 60) + ' h' + (m % 60 ? ' ' + (m % 60) + ' min' : ''); };
+  const time = t => hm(new Date(t));
+  const sameDay = (a, b) => { const x = new Date(a), y = new Date(b); return x.getFullYear() === y.getFullYear() && x.getMonth() === y.getMonth() && x.getDate() === y.getDate(); };
+  // All-day events are stored as UTC midnight; read their date in UTC so they land on the right day.
+  const evDay = e => e.allDay ? new Date(new Date(e.start).getUTCFullYear(), new Date(e.start).getUTCMonth(), new Date(e.start).getUTCDate()).getTime() : e.start;
+  const eb = (id, text) => `<div class="eyebrow">${placed(id) ? coordOf(id) + ' · ' : ''}${esc(text)}</div>`;
+  const ph = (id, text, title, right = '') => `<div class="ph"><div>${eb(id, text)}<h1>${esc(title)}</h1></div>${right}</div>`;
+  const stats = list => `<div class="ph-stats">${list.map(([v, k, cls]) => `<div class="stat"><div class="v num ${cls || ''}">${v}</div><div class="k">${esc(k)}</div></div>`).join('')}</div>`;
+  const NAMES = Object.fromEntries(INTEGRATIONS.map(i => [i.id, i.name]));
+  const need = (types, why) => `<div class="empty"><div><b>${esc(why)}</b></div><div class="muted" style="font-size:12.5px">Connect ${[].concat(types).map(t => esc(NAMES[t] || t)).join(' or ')} in Settings → Connections.</div><button class="btn pri" data-settings="connections">Connect</button></div>`;
+  const broken = (k, what) => { const s = src(k); if (s?.pending) return `<div class="empty"><div class="muted">${esc(what)} · loading…</div></div>`; return s && !s.ok ? `<div class="empty"><div><b>${esc(what)} is not answering</b></div><div class="muted mono" style="font-size:12px">${esc(s.error)}</div><button class="btn" data-la="refresh">Try again</button></div>` : null; };
+  const card = (title, inner, { go = '', cls = '', style = '' } = {}) => `<div class="card ${cls}" ${style ? `style="${style}"` : ''}><h3>${title}${go ? `<span class="go">${go}</span>` : ''}</h3>${inner}</div>`;
+  const stCls = s => ({ running: 'good', completed: 'good', waiting_approval: 'warn', reviewing: 'warn', queued: 'idle', created: 'idle', retrying: 'warn', failed: 'crit', cancelled: 'idle' })[s] || 'idle';
+  const stLabel = t => t.status === 'completed' ? (t.verified === 'passed' ? 'verified' : t.verified ? 'done · ' + t.verified : 'done') : t.status.replace('_', ' ');
+
+  // ---------------------------------------------------------------- polling and rendering
+  async function poll(fresh) {
+    if (busy) return; busy = true;
+    try {
+      S = await api('live' + (fresh ? '?fresh=1' : ''));
+      const h = ok('harness');
+      if (h) {
+        const now = Date.now();
+        if (prevUsage && now > prevUsage.at) for (const m of h.usage.byModel) { const p = prevUsage.models[m.provider + '/' + m.model]; if (p != null) rate[m.provider + '/' + m.model] = Math.max(0, (m.tokens - p) / ((now - prevUsage.at) / 1000)); }
+        prevUsage = { at: now, models: Object.fromEntries(h.usage.byModel.map(m => [m.provider + '/' + m.model, m.tokens])) };
+        orbFromHarness(h);
+      }
+      render();
+      if (Object.values(S.sources).some(v => v.pending)) setTimeout(() => poll(), 2500);
+    } catch (e) { console.warn('live:', e.message); }
+    busy = false;
+  }
+  function start() {
+    HX.stop();
+    $$('.pane').forEach(p => { p.classList.add('live'); if (!PAGES[p.dataset.id]) p.classList.add('lv-ready'); });
+    setTimeout(() => $$('.pane').forEach(p => p.classList.add('lv-ready')), 6000);
+    poll(true);
+    timer = setInterval(() => { if (!document.hidden) poll(); }, 15000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+  }
+  // Re-render a page only when its content changed, and never while you are typing in it.
+  function render() {
+    if (!S) return;
+    for (const p of panes) {
+      const id = p.dataset.id, fn = PAGES[id];
+      if (!fn || !placed(id)) continue;
+      const inner = $('.pane-inner', p);
+      if (inner.contains(document.activeElement) && document.activeElement.matches('input,textarea,select')) continue;
+      if ([...inner.querySelectorAll('input,textarea')].some(i => i.value && !i.closest('[data-keep]'))) continue;
+      let html;
+      try { html = fn(); } catch (e) { console.error('live page', id, e); continue; }
+      if (html == null || html === last[id]) continue;
+      const scrolls = $$('.scroll', inner).map(x => x.scrollTop);
+      if (id === 'home') renderHome(inner, html); else inner.innerHTML = html;
+      $$('.scroll', inner).forEach((x, i) => { if (scrolls[i]) x.scrollTop = scrolls[i]; });
+      last[id] = html;
+      p.classList.add('lv-ready');
+      drawPage(id);
+    }
+    $$('[data-go]').forEach(el => el.classList.toggle('off', !placed(el.dataset.go)));
+    if (placed('home')) { measureSlot(); placeOrb(); }
+  }
+  // Home keeps its hero (the orb and JARVIS' voice live there) and swaps everything else.
+  function renderHome(inner, html) {
+    const grid = $('.home-grid', inner), hero = $('.hero', grid), tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    $('.brief', hero).innerHTML = $('[data-brief]', tmp).innerHTML;
+    $('.glance', hero).innerHTML = $('[data-glance]', tmp).innerHTML;
+    [...grid.children].forEach(c => c !== hero && c.remove());
+    grid.append(...[...$('[data-cards]', tmp).children]);
+  }
+  const charts = {};
+  function drawPage(id) { charts[id]?.(); }
+  function drawAll() { for (const id of Object.keys(charts)) if (placed(id)) charts[id](); }
+
+  // The orb mirrors what the agents are doing, as the Harness contract suggests.
+  let lastUi = '';
+  function orbFromHarness(h) {
+    if (speaking || termOpen) return;
+    const ui = h.approvals.length ? 'waiting_approval' : h.ui;
+    if (ui === lastUi) return; lastUi = ui;
+    const map = { waiting_approval: 'waiting_approval', reviewing: 'thinking', running: 'tool', thinking: 'thinking', planning: 'planning' };
+    if (map[ui]) jSet(map[ui]); else if (jstate !== 'idle') jSet('idle');
+  }
+
+  // ---------------------------------------------------------------- actions from live pages
+  async function act(kind, action, body, okText) {
+    try {
+      const r = await api(`live/${kind}/${action}`, { method: 'POST', body: body || {} });
+      if (okText) toast(okText);
+      orb.ripple(0, 0, .3);
+      await poll(true);
+      return r;
+    } catch (e) { toast(e.message); jSet('error', 2000); return null; }
+  }
+  document.addEventListener('click', async e => {
+    const b = e.target.closest('[data-la]'); if (!b || !LIVE.on) return;
+    e.stopPropagation();
+    const d = b.dataset, a = d.la;
+    if (a === 'refresh') return poll(true);
+    if (a === 'approve' || a === 'reject' || a === 'always') {
+      b.disabled = true;
+      const r = await act('harness', 'decide', { id: d.id, decision: a === 'always' ? 'approve_always' : a }, a === 'reject' ? 'Rejected' : 'Approved');
+      if (r) say(a === 'reject' ? "Rejected. I told the agent why it can't do that." : "Approved. The agent carries on.", { force: true, state: a === 'reject' ? 'idle' : 'success', ttl: 3500 });
+      return;
+    }
+    if (a === 'cancel') { if (d.sure !== '1') { d.sure = '1'; b.textContent = 'Sure?'; return; } return act('harness', 'cancel', { id: d.id }, 'Cancelled'); }
+    if (a === 'rerun') return act('harness', 'run', { id: d.id }, 'Started again');
+    if (a === 'task') return showTask(d.id);
+    if (a === 'newtask') {
+      const f = b.closest('[data-form]'), objective = $('[name=objective]', f).value.trim();
+      if (!objective) return toast('Describe the task first');
+      const r = await act('harness', 'create', { objective, worker: $('[name=worker]', f)?.value || '', risk: $('[name=risk]', f)?.value || '', directory: $('[name=dir]', f)?.value || '' });
+      if (r) { $('[name=objective]', f).value = ''; say(`Sent to the Harness as ${r.id}. I'll tell you when it needs you.`, { force: true, state: 'success', ttl: 4000 }); poll(true); }
+      return;
+    }
+    if (a === 'idea2task') { const r = await act('harness', 'create', { objective: d.text }, 'Sent to an agent'); if (r) await act('local', 'ideas/remove', { id: d.id }); return; }
+    if (a === 'todo') return act('local', 'todos/toggle', { id: d.id });
+    if (a === 'todo-rm') return act('local', 'todos/remove', { id: d.id });
+    if (a === 'idea-rm') return act('local', 'ideas/remove', { id: d.id });
+    if (a === 'auto-toggle') return act('local', 'automations/toggle', { id: d.id });
+    if (a === 'auto-run') { say('Running it now. Give me a moment.', { force: true, state: 'thinking', ttl: 2500 }); return act('local', 'automations/run', { id: d.id }); }
+    if (a === 'auto-rm') { if (d.sure !== '1') { d.sure = '1'; b.textContent = 'Sure?'; return; } return act('local', 'automations/remove', { id: d.id }, 'Removed'); }
+    if (a === 'auto-new') return autoForm(b.closest('[data-form]'));
+    if (a === 'brief') { b.disabled = true; b.textContent = 'Writing…'; jSet('thinking'); const r = await act('ai', 'brief', {}); if (r) say(r.brief.text.split('\n')[0], { force: true, ttl: 6000 }); return; }
+    if (a === 'review') { b.disabled = true; b.textContent = 'Writing…'; jSet('thinking'); await act('ai', 'review', { scope: d.scope }); toast('Writing the review — it appears here in a minute'); setTimeout(() => poll(true), 20000); setTimeout(() => poll(true), 60000); return; }
+    if (a === 'showreview') { reviewShown = d.id; last.reviews = null; render(); return; }
+    if (a === 'ha') { b.classList.toggle('on'); return act('home', 'toggle', { action: d.action || 'toggle', entity: d.entity, value: d.value }); }
+    if (a === 'ask') return sendToTerm(d.q);
+    if (a === 'open') return window.open(d.url, '_blank', 'noopener,noreferrer');
+  }, true);
+  document.addEventListener('keydown', async e => {
+    if (e.key !== 'Enter' || !LIVE.on) return;
+    const i = e.target.closest?.('[data-add]'); if (!i || !i.value.trim()) return;
+    e.preventDefault();
+    const kind = i.dataset.add, text = i.value.trim(); i.value = '';
+    await act('local', kind + '/add', { text }, kind === 'todos' ? 'Todo added' : 'Idea saved');
+  });
+  async function showTask(id) {
+    try {
+      const t = await api('live/harness/detail', { method: 'POST', body: { id } });
+      toggleTerm(true);
+      out(`<span class="rt">◆ task</span>  <b>${esc(t.title)}</b> <span class="m">${esc(t.id)} · ${esc(t.worker)}${t.model ? ' · ' + esc(t.model) : ''} · ${esc(stLabel(t))}</span>`);
+      if (t.objective) out(`<span class="m">objective</span>  ${esc(t.objective.slice(0, 800))}`);
+      if (t.summaryText) out(`<span class="ok">result</span>  ${esc(t.summaryText)}`);
+      if (t.error) out(`<span class="w">error</span>  ${esc(t.error)}`);
+      for (const r of t.reasons) out(`<span class="m">  · ${esc(r)}</span>`);
+      for (const f of t.files) out(`<span class="m">  ${esc(f.status)}</span> ${esc(f.path)}`);
+      for (const ev of t.events.slice(0, 14)) out(`<span class="m">${esc(time(ev.at))}  ${esc(ev.text)}</span>`);
+      out('');
+    } catch (e) { toast(e.message); }
+  }
+  function autoForm(f) {
+    const v = n => $(`[name=${n}]`, f)?.value || '';
+    const days = $$('[name=day]:checked', f).map(x => +x.value);
+    const k = v('akind');
+    act('local', 'automations/save', { name: v('aname') || $(`[name=akind] option[value="${k}"]`, f).textContent, kind: k === 'daily' || k === 'weekly' ? 'review' : k, time: v('atime'), days, prompt: v('aprompt'), scope: k === 'weekly' ? 'weekly' : 'daily' }, 'Automation saved').then(r => { if (r) $$('input,textarea', f).forEach(i => { if (i.type !== 'checkbox' && i.type !== 'time') i.value = ''; }); });
+  }
+  let reviewShown = null;
+
+
+  // ---------------------------------------------------------------- pages
+  const PAGES = {};
+
+  // Home ---------------------------------------------------------------------
+  function needsList() {
+    const h = ok('harness'), items = [];
+    for (const a of h?.approvals || []) items.push(`<div class="need"><div class="ic" style="color:var(--${a.risk === 'critical' || a.risk === 'high' ? 'crit' : 'warn'})">⌥</div><div class="sp"><div class="tt">${esc(a.kind === 'task_start' ? 'A task wants to start' : 'An agent asks permission')}</div><p>${esc(a.description)}${a.categories.length ? ` <span class="mono">· ${esc(a.categories.join(', '))}</span>` : ''}</p><div class="acts"><button class="btn pri" data-la="approve" data-id="${esc(a.id)}">Approve</button><button class="btn" data-la="reject" data-id="${esc(a.id)}">Reject</button><button class="btn" data-la="task" data-id="${esc(a.task)}">Details</button></div></div></div>`);
+    for (const t of (h?.tasks || []).filter(t => t.status === 'failed' && t.completed && Date.now() - Date.parse(t.completed) < 2 * 864e5).slice(0, 3)) items.push(`<div class="need"><div class="ic" style="color:var(--crit)">!</div><div class="sp"><div class="tt">${esc(t.title)} failed</div><p>${esc(t.error || 'see the task for details')}</p><div class="acts"><button class="btn pri" data-la="rerun" data-id="${esc(t.id)}">Run again</button><button class="btn" data-la="task" data-id="${esc(t.id)}">Details</button></div></div></div>`);
+    const today = new Date().toISOString().slice(0, 10);
+    for (const t of L().todos.filter(t => !t.done && t.due && t.due <= today).slice(0, 3)) items.push(`<div class="need"><div class="ic" style="color:var(--warn)">◷</div><div class="sp"><div class="tt">${esc(t.text)}</div><p>${t.due < today ? 'overdue since ' + esc(t.due) : 'due today'}</p><div class="acts"><button class="btn" data-la="todo" data-id="${esc(t.id)}">Mark done</button></div></div></div>`);
+    for (const [k, v] of Object.entries(S.sources)) if (!v.ok && !v.pending) items.push(`<div class="need"><div class="ic" style="color:var(--warn)">▲</div><div class="sp"><div class="tt">${esc(SRCNAME[k] || k)} is not answering</div><p class="mono">${esc(v.error)}</p><div class="acts"><button class="btn" data-settings="connections">Check the connection</button></div></div></div>`);
+    const gh = ok('github');
+    for (const p of (gh?.pulls || []).filter(p => !p.mine && !p.draft).slice(0, 2)) items.push(`<div class="need"><div class="ic" style="color:var(--s2)">⌥</div><div class="sp"><div class="tt">Review: ${esc(p.title)}</div><p class="mono">${esc(p.repo)}#${p.number}</p><div class="acts"><button class="btn" data-la="open" data-url="${esc(p.url)}">Open on GitHub</button></div></div></div>`);
+    return items;
+  }
+  const SRCNAME = { ollama: 'Ollama', harness: 'Harness', calendar: 'Calendar', feeds: 'News feeds', weather: 'Weather', home: 'Home Assistant', github: 'GitHub', markets: 'Finnhub', adguard: 'AdGuard Home', tailscale: 'Tailscale', cloudflare: 'Cloudflare', uptime: 'Uptime Kuma', prometheus: 'Prometheus' };
+  function todayItems() {
+    const now = Date.now(), cal = ok('calendar'), items = [];
+    for (const e of cal?.events || []) if (sameDay(evDay(e), now)) items.push({ t: e.allDay ? new Date(now).setHours(0, 0, 0, 0) : e.start, end: e.end, name: e.title, kind: e.allDay ? 'ALL DAY' : '', all: e.allDay });
+    for (const a of L().automations) if (a.next && sameDay(a.next, now)) items.push({ t: a.next, end: a.next, name: a.name, kind: 'JARVIS' });
+    for (const t of L().todos) if (!t.done && t.due === new Date().toISOString().slice(0, 10)) items.push({ t: new Date(now).setHours(23, 59), end: 0, name: t.text, kind: 'TODO', all: true });
+    return items.sort((a, b) => a.t - b.t);
+  }
+  PAGES.home = () => {
+    const h = ok('harness'), w = ok('weather'), cal = ok('calendar'), mk = ok('markets'), hw = ok('prometheus')?.hardware, feeds = ok('feeds');
+    const needs = needsList(), today = todayItems(), now = Date.now();
+    const brief = L().brief && Date.now() - L().brief.at < 18 * 3600e3 ? esc(L().brief.text.split('\n').filter(Boolean).slice(0, 2).join(' ')) :
+      [h ? `${h.active.length ? `<b>${h.active.length} agent${h.active.length > 1 ? 's' : ''}</b> working` : 'No agents running'}` : '', needs.length ? `<b>${needs.length} thing${needs.length > 1 ? 's' : ''} need${needs.length > 1 ? '' : 's'} you</b>` : 'nothing needs you',
+        cal ? `${today.filter(x => x.t > now && !x.all).length || 'no'} more event${today.filter(x => x.t > now && !x.all).length === 1 ? '' : 's'} today` : '', hw?.ok ? `${hw.machines.length} machine${hw.machines.length === 1 ? '' : 's'} reporting` : ''].filter(Boolean).join(', ') + '.';
+    const next = today.find(x => x.t > now && !x.all);
+    const glance = [
+      w ? `<span class="g"><i>${esc(w.now.icon)}</i>${Math.round(w.now.temp)}${esc(w.unit)} · ${esc(w.nextRain ? 'rain ' + w.nextRain : w.now.text.toLowerCase())}</span>` : '',
+      next ? `<span class="g"><i>◷</i>${esc(time(next.t))} ${esc(next.name.slice(0, 26))}</span>` : '',
+      h?.usage.cost != null ? `<span class="g"><i>$</i>AI ${usd(h.usage.cost)} total</span>` : '',
+      `<span class="g ${needs.length ? 'warn' : ''}"><i>${needs.length ? '▲' : '●'}</i>${needs.length ? needs.length + ' need you' : 'all clear'}</span>`,
+    ].join('');
+    const tl = today.length ? today.map(x => (x.t <= now && (x.end || x.t) > now - 0 && !x.all ? '' : '') + `<div class="ti ${x.end && x.end < now ? 'past' : ''}"><div class="tm">${x.all ? 'today' : esc(time(x.t))}</div><div class="nm">${esc(x.name)}${x.kind ? `<span class="kd">${x.kind}</span>` : ''}</div></div>`) : [];
+    const nowIdx = today.findIndex(x => !x.all && x.t > now);
+    if (today.length) tl.splice(nowIdx < 0 ? tl.length : nowIdx, 0, `<div class="now">NOW <span class="mono">${esc(hm())}</span></div>`);
+    const agents = h ? (h.active.length ? h.active : h.tasks.slice(0, 3)).slice(0, 3).map(t => `<div class="mini-agent"><div class="row"><span class="sp">${esc(t.title)}</span><span class="chip"><i class="${t.status === 'running' ? 'live' : ''}" style="background:var(--${stCls(t.status) === 'crit' ? 'crit' : stCls(t.status) === 'warn' ? 'warn' : 'good'})"></i>${esc(stLabel(t))}</span></div><div class="muted mono" style="font-size:11px;margin-top:3px">${esc(t.worker)}${t.action ? ' · ' + esc(t.action.slice(0, 60)) : t.completed ? ' · ' + ago(t.completed) : ''}</div></div>`).join('') : null;
+    // One or two machines get meters; more get compact tiles.
+    const few = (hw?.machines?.length || 0) <= 2;
+    const machines = hw?.ok ? hw.machines.slice(0, 4).map(m => `<div class="mach"><div class="row"><span class="n sp">${esc(m.name)}</span><span class="st ${Math.max(m.cpu || 0, m.ram || 0, m.disk || 0) >= 90 ? 'warn' : 'good'}">${Math.max(m.cpu || 0, m.ram || 0, m.disk || 0) >= 90 ? 'busy' : 'ok'}</span></div>${few ? `<div style="display:flex;flex-direction:column;gap:5px;margin-top:6px">${hardwareMeter('cpu', m.cpu)}${hardwareMeter('ram', m.ram)}${m.gpu != null ? hardwareMeter('GPU', m.gpu) : hardwareMeter('disk', m.disk)}</div>` : `<div class="r">cpu ${m.cpu ?? '—'}% · ram ${m.ram ?? '—'}%${m.gpu != null ? ` · gpu ${m.gpu}%` : ''}</div>`}</div>`).join('') : null;
+    return `<div data-brief>${brief}</div><div data-glance>${glance}</div><div data-cards>
+      <div class="card needs"><h3>Needs you <span class="go">${needs.length}</span></h3><div class="list scroll">${needs.join('') || `<div class="empty" style="padding:10px"><div>Nothing needs you right now.</div></div>`}</div></div>
+      <div class="card today"><h3>Today <span class="go" data-go="schedule">Schedule →</span></h3>${tl.length ? `<div class="tl scroll">${tl.join('')}</div>` : cal ? '<div class="empty"><div>Nothing on the calendar today.</div></div>' : need('calendar', 'Your day shows up here')}</div>
+      <div class="card span4"><h3>Agents <span class="go" data-go="agents">${h ? h.active.length + ' running →' : 'Agents →'}</span></h3>${agents != null ? `<div class="list scroll">${agents || '<div class="muted">No tasks yet. Ask JARVIS to start one.</div>'}</div>` : broken('harness', 'The Harness') || need('harness', 'Your agents show up here')}</div>
+      <div class="card span4"><h3>Portfolio <span class="go" data-go="markets">Markets →</span></h3>${mk ? `<div class="row" style="align-items:baseline"><span class="big" style="font-size:32px">${money(mk.total)}</span><span class="delta" style="color:var(--${(mk.dayPct || 0) >= 0 ? 'good' : 'crit'})">${mk.dayPct != null ? ((mk.dayPct >= 0 ? '▲ ' : '▼ ') + Math.abs(mk.dayPct).toFixed(2) + '%') : ''}</span></div><div class="chart" id="lv-hspark" style="margin-top:10px"></div>` : broken('markets', 'Finnhub') || need('finnhub', 'Your portfolio shows up here')}</div>
+      <div class="card span4"><h3>Machines <span class="go" data-go="infra">Infra →</span></h3>${machines != null ? `<div class="machines" style="grid-template-columns:${(hw?.machines?.length || 0) === 1 ? '1fr' : '1fr 1fr'};flex:1;min-height:0;gap:8px;grid-auto-rows:minmax(0,1fr)">${machines}</div>` : broken('prometheus', 'Prometheus') || need('prometheus', 'Your machines show up here')}</div>
+      <div class="card span4"><h3>World <span class="go" data-go="world">Briefing →</span></h3>${feeds ? `<div class="list scroll">${feeds.items.slice(0, 4).map(i => `<div class="hl"><span class="lv ${i.topics.length > 1 ? 'hi' : i.topics.length ? 'md' : 'lo'}">${i.topics.length > 1 ? 'HIGH' : i.topics.length ? 'MED' : 'NEWS'}</span><span class="h">${esc(i.title)}</span></div>`).join('')}</div>` : broken('feeds', 'Your feeds') || need('rss', 'Headlines that matter to you')}</div>
+    </div>`;
+  };
+  charts.home = () => { const mk = ok('markets'); if (mk && mk.history.length > 1 && $('#lv-hspark')) lineChart($('#lv-hspark'), mk.history.slice(-60).map(x => x.v), { fmt: money, date: i => mk.history.slice(-60)[i].d, axis: false }); };
+
+  // Agents -------------------------------------------------------------------
+  PAGES.agents = () => {
+    const h = ok('harness');
+    if (!h) return ph('agents', 'Orchestration', 'Agents') + (broken('harness', 'The Harness') || need('harness', 'Connect your Harness to see and steer your agents'));
+    const c = h.counts, cost = h.usage.cost, local = localShare(h);
+    const running = [...h.tasks.filter(t => !['completed', 'failed', 'cancelled'].includes(t.status))];
+    const recent = h.tasks.filter(t => ['completed', 'failed', 'cancelled'].includes(t.status)).slice(0, 8);
+    const row = t => `<div class="run" style="--e:var(--${stCls(t.status) === 'crit' ? 'crit' : t.status === 'waiting_approval' ? 'warn' : t.status === 'running' ? 's2' : 'muted'})"><div><div class="ttl">${esc(t.title)}</div><div class="meta"><span class="chip"><i class="${t.status === 'running' ? 'live' : ''}" style="background:var(--${stCls(t.status) === 'good' ? 'good' : stCls(t.status) === 'crit' ? 'crit' : 'warn'})"></i>${esc(stLabel(t))}</span><span>${esc(t.worker)}</span>${t.model ? `<span>·</span><span>${esc(t.model)}</span>` : ''}<span>·</span><span>${t.started ? dur(t.elapsed) : 'not started'}</span>${t.tokens ? `<span>·</span><span>${kfmt(t.tokens)} tok</span>` : ''}</div></div>
+      <div class="row">${t.status === 'waiting_approval' ? h.approvals.filter(a => a.task === t.id).slice(0, 1).map(a => `<button class="btn pri" data-la="approve" data-id="${esc(a.id)}">Approve</button><button class="btn" data-la="reject" data-id="${esc(a.id)}">Reject</button>`).join('') : ''}<button class="btn" data-la="task" data-id="${esc(t.id)}">Details</button><button class="btn" data-la="cancel" data-id="${esc(t.id)}">Cancel</button></div>
+      ${t.action || t.phase ? `<div class="step"><span class="c">${t.tool ? '$' : '◇'}</span> ${esc(t.action || t.phase)}</div>` : ''}</div>`;
+    const done = t => `<div class="hist"><span>${esc(t.title)}</span><span class="nx"><span class="st ${stCls(t.status)}">${esc(stLabel(t))}</span></span><span class="w">${esc(t.worker)}${t.model ? ' · ' + esc(t.model) : ''} · ${ago(t.completed)}${t.error ? ' · ' + esc(t.error.slice(0, 80)) : ''}</span><span class="nx"><button class="btn" style="padding:2px 8px;font-size:11px" data-la="${t.status === 'completed' ? 'task' : 'rerun'}" data-id="${esc(t.id)}">${t.status === 'completed' ? 'Details' : 'Run again'}</button></span></div>`;
+    return ph('agents', `Orchestration · Harness ${h.version} · ${h.opencode.connected ? 'OpenCode ' + (h.opencode.version || 'connected') : 'OpenCode offline'}`, 'Agents',
+      stats([[running.filter(t => t.status === 'running').length, 'running'], [(c.queued || 0) + (c.created || 0) + (c.retrying || 0), 'queued'], [h.approvals.length, 'need approval', h.approvals.length ? 'warn' : ''], [usd(cost), 'spent so far'], [local == null ? '—' : Math.round(local) + '%', 'tokens served locally']])) +
+      `<div class="grid" style="grid-template-columns:1.7fr 1fr;grid-template-rows:auto minmax(0,1fr)">
+      <div class="card hx" style="grid-column:1/-1"><h3><span>Harness · live</span><span class="hx-cap" style="${h.opencode.connected ? '' : 'color:var(--crit);border-color:color-mix(in srgb,var(--crit) 40%,transparent);background:color-mix(in srgb,var(--crit) 8%,transparent)'}">${h.opencode.connected ? `OpenCode connected · ${h.executing ?? 0}/${h.slots ?? '?'} slots` : 'OpenCode offline · ' + esc(h.opencode.error.slice(0, 60))}</span><span class="sp"></span><span class="go">${h.queue.state === 'available' ? `GPU queue ${h.queue.queued ?? 0}/${h.queue.max ?? '?'}` : 'GPU queue ' + esc(h.queue.state || 'unknown')}</span></h3>
+        <div class="hx-body" id="lhx"><svg class="hx-wires" aria-hidden="true"></svg><div class="hx-col src"></div><div class="hx-col mid"></div><div class="hx-col mod"></div></div>
+        <div class="hx-foot"><div class="stat"><div class="v num">${kfmt(h.usage.tokens)}</div><div class="k">tokens</div></div><div class="stat"><div class="v num">${c.completed || 0}</div><div class="k">tasks completed</div></div><div class="stat"><div class="v num">${c.failed || 0}</div><div class="k">failed</div></div><div class="stat"><div class="v num">${local == null ? '—' : Math.round(local) + '%'}</div><div class="k">served locally</div></div><div class="stat"><div class="v num">${usd(cost)}</div><div class="k">cost</div></div>
+        <div class="hx-tick">${h.lastFinished ? `<b style="color:var(--${h.lastFinished.status === 'completed' ? 'good' : 'crit'})">${h.lastFinished.status === 'completed' ? '✓' : '✗'}</b> ${esc(h.lastFinished.title)} · ${esc(h.lastFinished.status)} · ${ago(h.lastFinished.at)}` : 'no task has finished yet'}</div></div></div>
+      <div class="card"><h3>Running &amp; waiting <span class="go">${running.length}</span></h3><div class="scroll list">${running.map(row).join('') || '<div class="muted" style="padding:8px 0">Nothing running. Start a task on the right, or ask JARVIS.</div>'}${recent.length ? `<div class="tg" style="padding-top:16px">Finished recently</div>${recent.map(done).join('')}` : ''}</div></div>
+      <div class="col-stack">
+        <div class="card" data-form data-keep><h3>New task <span class="go">runs in the Harness</span></h3>
+          <textarea class="inp" name="objective" rows="2" placeholder="What should an agent do? Be specific about the goal and the checks." style="min-height:54px;font:13px/1.5 var(--sans)"></textarea>
+          <div class="row" style="margin-top:8px"><select class="inp sel" name="worker" style="flex:1"><option value="">route by capability</option>${h.workers.map(w => `<option value="${esc(w.name)}">${esc(w.name)}</option>`).join('')}</select><select class="inp sel" name="risk" style="width:110px"><option value="">risk</option><option>low</option><option>medium</option><option>high</option><option>critical</option></select><button class="btn pri" data-la="newtask">Start</button></div>
+          ${h.workspace.allowed.length ? `<select class="inp sel" name="dir" style="margin-top:8px">${[h.workspace.dir, ...h.workspace.allowed.filter(d => d !== h.workspace.dir)].filter(Boolean).map(d => `<option>${esc(d)}</option>`).join('')}</select>` : ''}
+        </div>
+        <div class="card fill"><h3>Activity <span class="go">live</span></h3><div class="scroll log">${h.events.slice(0, 40).map(e => `<div><span class="tm">${esc(time(e.at))}</span>${e.type.startsWith('task.failed') ? `<span style="color:var(--crit)">${esc(e.text)}</span>` : esc(e.text)}</div>`).join('') || '<div class="muted">No events yet.</div>'}</div></div>
+      </div></div>`;
+  };
+  function localShare(h) {
+    const cat = Object.fromEntries((h.models || []).map(m => [m.id, m.billing]));
+    let loc = 0, all = 0;
+    for (const m of h.usage.byModel) { const b = cat[`${m.provider}/${m.model}`] || cat[m.model] || (/ollama|lmstudio|local|llama|vllm|qwen/i.test(m.provider + m.model) ? 'local' : ''); all += m.tokens; if (b === 'local') loc += m.tokens; }
+    return all ? loc / all * 100 : null;
+  }
+  charts.agents = () => liveGraph(ok('harness'));
+
+  // The live Harness graph: workers hand tasks to the Harness, which runs them on models.
+  let graphAnim = 0;
+  function liveGraph(h) {
+    const body = $('#lhx'); if (!h || !body) return;
+    cancelAnimationFrame(graphAnim);
+    const active = h.tasks.filter(t => ['running', 'reviewing', 'waiting_approval', 'retrying'].includes(t.status));
+    const workers = [...new Set([...active.map(t => t.worker), ...h.workers.map(w => w.name)])].filter(Boolean).slice(0, 5);
+    const models = [...new Set([...active.map(t => t.model).filter(Boolean), ...h.usage.byModel.slice().sort((a, b) => b.tokens - a.tokens).map(m => m.model)])].slice(0, 4);
+    const colors = ['var(--s1)', 'var(--s2)', 'var(--s4)', 'var(--s3)', 'var(--accent)'];
+    const usage = m => h.usage.byModel.find(x => x.model === m) || { tokens: 0, provider: '' };
+    const tps = m => rate[`${usage(m).provider}/${m}`];
+    $('.hx-col.src', body).innerHTML = workers.map((w, i) => `<div class="hx-src ${active.some(t => t.worker === w) ? '' : 'idle'}" data-s="${esc(w)}"><i style="background:${colors[i % 5]}"></i>${esc(w)}<small>${active.filter(t => t.worker === w).length || ''}</small></div>`).join('');
+    $('.hx-col.mid', body).innerHTML = `<div class="hx-hub" id="lhxhub"><div class="hd"><span>HARNESS</span><span class="sp"></span><em>${esc(h.ui)}</em></div><div><span class="v num">${active.length}</span><span class="u">active</span></div>
+      <div class="meta" style="margin-top:8px"><span class="tag ${h.approvals.length ? 'hot' : ''}">${h.approvals.length} approval${h.approvals.length === 1 ? '' : 's'}</span><span class="tag">${(h.counts.queued || 0) + (h.counts.created || 0)} queued</span>${h.queue.state === 'available' ? `<span class="tag">GPU ${h.queue.active ? 'busy' : 'idle'}${h.queue.queued ? ' · ' + h.queue.queued + ' waiting' : ''}</span>` : ''}</div></div>`;
+    $('.hx-col.mod', body).innerHTML = models.length ? models.map(m => `<div class="hx-mod ${active.some(t => t.model === m) ? '' : 'idle'}" data-m="${esc(m)}"><div class="t"><i></i>${esc(m.length > 30 ? m.slice(0, 29) + '…' : m)}<small>${esc(usage(m).provider || '')}</small></div><div class="r"><span class="tps num"><b>${tps(m) != null ? Math.round(tps(m)) : '—'}</b> tok/s</span><span class="tot num">${kfmt(usage(m).tokens)} total</span></div><div class="job">${esc(active.find(t => t.model === m)?.title ? '→ ' + active.find(t => t.model === m).title : '◦ idle')}</div></div>`).join('') : '<div class="muted" style="font-size:12.5px">Models appear once a task has run.</div>';
+    const wires = $('.hx-wires', body), NS = 'http://www.w3.org/2000/svg';
+    const rel = el => { let x = 0, y = 0, e = el; while (e && e !== body) { x += e.offsetLeft; y += e.offsetTop; e = e.offsetParent; } return { x, y, w: el.offsetWidth, h: el.offsetHeight }; };
+    const hubEl = $('#lhxhub'); if (!hubEl.offsetWidth) return;
+    const hub = rel(hubEl), hy = hub.y + hub.h / 2, curve = (a, b, c, d) => { const k = (c - a) * .5; return `M${a},${b} C${a + k},${b} ${c - k},${d} ${c},${d}`; };
+    wires.setAttribute('viewBox', `0 0 ${body.offsetWidth} ${body.offsetHeight}`);
+    const paths = [];
+    $$('.hx-src', body).forEach((el, i) => { const r = rel(el); paths.push({ id: 's' + i, on: !el.classList.contains('idle'), d: curve(r.x + r.w, r.y + r.h / 2, hub.x, hy + (i - (workers.length - 1) / 2) * 12), c: colors[i % 5] }); });
+    $$('.hx-mod', body).forEach((el, j) => { const r = rel(el); paths.push({ id: 'm' + j, on: !el.classList.contains('idle'), d: curve(hub.x + hub.w, hy + (j - (models.length - 1) / 2) * 14, r.x, r.y + r.h / 2), c: 'var(--good)' }); });
+    wires.innerHTML = paths.map(p => `<path class="w" d="${p.d}"/><path class="wf" data-lw="${p.id}" d="${p.d}" style="stroke:${p.c};opacity:${p.on ? .55 : 0}"/>`).join('') + '<g id="lpk"></g>';
+    const live = paths.filter(p => p.on).map(p => ({ ...p, el: $(`[data-lw="${p.id}"]`, wires) })).map(p => ({ ...p, len: p.el.getTotalLength() }));
+    if (!live.length || reduce) return;
+    const pk = $('#lpk', wires), dots = [];
+    let lastT = performance.now(), acc = 0;
+    const frame = now => {
+      graphAnim = requestAnimationFrame(frame);
+      if (document.hidden || (current !== 'agents' && !overview)) return;
+      const dt = Math.min(.1, (now - lastT) / 1000); lastT = now; acc += dt * live.length * .9;
+      if (acc > 1 && dots.length < 30) { acc = 0; const p = pick(live), g = document.createElementNS(NS, 'g'); g.innerHTML = `<circle r="7" fill="${p.c}" opacity=".16"/><circle r="2.6" fill="${p.c}"/>`; pk.appendChild(g); dots.push({ p, g, t: 0 }); }
+      for (let i = dots.length - 1; i >= 0; i--) { const d = dots[i]; d.t += dt / 1.1; const k = Math.min(1, d.t), e = k * k * (3 - 2 * k), pt = d.p.el.getPointAtLength(d.p.len * e); d.g.setAttribute('transform', `translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})`); if (d.t >= 1) { d.g.remove(); dots.splice(i, 1); } }
+    };
+    graphAnim = requestAnimationFrame(frame);
+  }
+
+
+  // Schedule -----------------------------------------------------------------
+  const DAYN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  function weekStart() { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); }
+  function weekNo(t) { const d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7)); const w1 = new Date(d.getFullYear(), 0, 4); return 1 + Math.round(((d - w1) / 864e5 - 3 + ((w1.getDay() + 6) % 7)) / 7); }
+  PAGES.schedule = () => {
+    const cal = ok('calendar'), ws = weekStart(), days = Array.from({ length: 7 }, (_, i) => ws + i * 864e5), now = Date.now();
+    const events = (cal?.events || []).filter(e => e.end > ws && e.start < ws + 7 * 864e5);
+    const timed = events.filter(e => !e.allDay), allday = events.filter(e => e.allDay);
+    let H0 = 7, H1 = 23;
+    for (const e of timed) { const s = new Date(e.start), en = new Date(e.end); H0 = Math.min(H0, s.getHours()); H1 = Math.max(H1, Math.min(24, en.getHours() + (en.getMinutes() ? 1 : 0))); }
+    const span = H1 - H0, pos = t => { const d = new Date(t); return clamp(((d.getHours() + d.getMinutes() / 60) - H0) / span * 100, 0, 100); };
+    const blocks = [];
+    for (const [i, d] of days.entries()) {
+      const de = d + 864e5, mine = timed.filter(e => e.start < de && e.end > d).map(e => ({ s: Math.max(e.start, d), e: Math.min(e.end, de), title: e.title, cls: 'ev' }));
+      for (const a of L().automations) if (a.enabled && a.days.includes(new Date(d).getDay())) { const [hh, mm] = a.time.split(':').map(Number), t = new Date(d).setHours(hh, mm); mine.push({ s: t, e: t + 30 * 60e3, title: a.name, cls: a.kind === 'review' ? 'rv' : 'ag' }); }
+      blocks.push(mine);
+    }
+    const lanes = list => { list.sort((a, b) => a.s - b.s); const ends = []; for (const b of list) { let l = ends.findIndex(x => x <= b.s); if (l < 0) { l = ends.length; ends.push(0); } ends[l] = b.e; b.lane = l; } const n = Math.max(1, ends.length); list.forEach(b => b.n = n); return list; };
+    const week = `<div class="week" style="grid-template-rows:auto auto 1fr"><div></div>${days.map(d => `<div class="dh ${sameDay(d, now) ? 'on' : ''}">${DAYN[new Date(d).getDay()]}<b>${new Date(d).getDate()}</b></div>`).join('')}
+      <div></div>${days.map(d => `<div class="allday">${allday.filter(e => evDay(e) <= d && evDay(e) + (e.end - e.start) > d).map(e => `<span title="${esc(e.title)}">${esc(e.title)}</span>`).join('')}${L().todos.filter(t => !t.done && t.due && sameDay(new Date(t.due + 'T12:00').getTime(), d)).map(t => `<span class="td" title="todo">${esc(t.text)}</span>`).join('')}</div>`).join('')}
+      <div class="hours">${Array.from({ length: Math.floor(span / 2) + 1 }, (_, i) => `<span style="top:${i * 2 / span * 100}%">${String(H0 + i * 2).padStart(2, '0')}</span>`).join('')}</div>
+      ${days.map((d, i) => `<div class="day ${sameDay(d, now) ? 'on' : d + 864e5 < now ? 'past' : ''}" style="background-image:repeating-linear-gradient(transparent 0 calc(${100 / span * 2}% - 1px),color-mix(in srgb,var(--ink) 2.5%,transparent) calc(${100 / span * 2}% - 1px) ${100 / span * 2}%)">${lanes(blocks[i]).map(b => { const top = pos(b.s), h = Math.max(2.2, pos(b.e) - top), short = (b.e - b.s) < 45 * 60e3; return `<div class="blk ${b.cls} ${short ? 'short' : ''}" style="top:${top}%;height:${h}%;left:calc(${b.lane / b.n * 100}% + 3px);right:calc(${(b.n - b.lane - 1) / b.n * 100}% + 3px)" title="${esc(time(b.s))} ${esc(b.title)}">${esc(b.title)}${short ? '' : `<small>${esc(time(b.s))}</small>`}</div>`; }).join('')}${sameDay(d, now) ? `<div class="nowline" style="top:${pos(now)}%"></div>` : ''}</div>`).join('')}</div>`;
+    const autos = L().automations.map(a => `<div class="cron ${a.enabled ? '' : 'off'}"><span>${esc(a.name)}</span><span class="nx">${a.enabled && a.next ? (sameDay(a.next, now) ? 'today ' : DAYN[new Date(a.next).getDay()] + ' ') + esc(time(a.next)) : 'paused'}</span><span class="sw ${a.enabled ? 'on' : ''}" role="switch" aria-checked="${a.enabled}" data-la="auto-toggle" data-id="${esc(a.id)}" title="Pause / resume"></span><span class="w">${esc({ brief: 'brief', review: a.scope + ' review', task: 'Harness task', prompt: 'ask AI' }[a.kind])} · ${a.days.length === 7 ? 'daily' : a.days.map(d => DAYN[d]).join(' ')} ${esc(a.time)}${a.lastStatus ? ` · last ${esc(a.lastStatus)}${a.lastError ? ': ' + esc(a.lastError.slice(0, 60)) : ''}` : ''} <a class="lk" data-la="auto-run" data-id="${esc(a.id)}">run now</a> <a class="lk" data-la="auto-rm" data-id="${esc(a.id)}">remove</a></span></div>`).join('');
+    const todos = L().todos.slice().sort((a, b) => a.done - b.done || (a.due || '9').localeCompare(b.due || '9') || b.created - a.created).slice(0, 40);
+    return ph('schedule', `Week ${weekNo(now)} · ${new Date(ws).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}–${new Date(ws + 6 * 864e5).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}${cal ? ' · ' + cal.calendars.join(', ') : ''}`, 'Schedule',
+      `<div class="legend"><span><i style="background:var(--s1)"></i>Calendar</span><span><i style="background:var(--s2)"></i>JARVIS jobs</span><span><i style="background:var(--s3)"></i>Reviews</span><span><i style="background:var(--warn)"></i>Todos due</span></div>`) +
+      `<div class="grid" style="grid-template-columns:1.8fr 1fr">
+      <div class="card">${cal || L().automations.length ? week : ''}${!cal ? `<div style="${L().automations.length ? 'position:absolute;inset:auto 20px 16px 60px' : ''}">${broken('calendar', 'Your calendar') || need('calendar', 'Add your calendar to see your week')}</div>` : ''}</div>
+      <div style="display:grid;grid-template-rows:1fr 1fr;gap:16px;min-height:0">
+        <div class="card" data-form data-keep><h3>Automations <span class="go">${L().automations.filter(a => a.enabled).length} active</span></h3><div class="scroll list">${autos || '<div class="muted">None yet.</div>'}
+          <details class="newauto"><summary>+ New automation</summary><div class="row" style="margin-top:8px;flex-wrap:wrap"><input class="inp" name="aname" placeholder="Name" style="flex:1;min-width:120px"><select class="inp sel" name="akind" style="width:150px"><option value="prompt">Ask JARVIS</option><option value="task">Harness task</option><option value="brief">Morning brief</option><option value="daily">Daily review</option><option value="weekly">Weekly review</option></select><input class="inp" type="time" name="atime" value="08:00" style="width:110px"></div>
+          <div class="days">${[1, 2, 3, 4, 5, 6, 0].map(d => `<label><input type="checkbox" name="day" value="${d}" ${d > 0 && d < 6 ? 'checked' : ''}>${DAYN[d]}</label>`).join('')}</div>
+          <textarea class="inp" name="aprompt" rows="2" placeholder="What should it do? e.g. Summarise overnight failures, or a task objective" style="min-height:56px;font:12.5px/1.5 var(--sans)"></textarea><button class="btn pri" style="margin-top:8px" data-la="auto-new">Save automation</button></details></div></div>
+        <div class="card"><h3>Todo <span class="go">${L().todos.filter(t => !t.done).length} open</span></h3><div class="scroll list">${todos.map(t => `<div class="todo ${t.done ? 'on' : ''}" data-la="todo" data-id="${esc(t.id)}"><span class="bx"></span><span class="tx">${esc(t.text)}<span class="by">${t.due ? 'due ' + esc(t.due) + ' · ' : ''}${esc(t.from || 'added ' + ago(t.created))}</span></span><button class="x" data-la="todo-rm" data-id="${esc(t.id)}" title="Remove">×</button></div>`).join('') || '<div class="muted">Nothing to do. Add something below, or ask JARVIS.</div>'}</div>
+          <label class="addrow"><span>+</span><input data-add="todos" placeholder="Add a todo and press Enter"></label></div>
+      </div></div>`;
+  };
+
+  // Projects -----------------------------------------------------------------
+  PAGES.projects = () => {
+    const h = ok('harness'), gh = ok('github'), now = Date.now();
+    const cols = { Ideas: [], Queued: [], Building: [], Review: [], Done: [] };
+    for (const i of L().ideas) cols.Ideas.push(`<div class="pc idea"><span class="auto">✦ IDEA</span><p style="color:var(--text)">${esc(i.text)}</p><div class="ft"><span>${ago(i.created)}</span></div><div class="row">${h ? `<button class="btn pri" data-la="idea2task" data-id="${esc(i.id)}" data-text="${esc(i.text)}">Send to an agent</button>` : ''}<button class="btn" data-la="idea-rm" data-id="${esc(i.id)}">Remove</button></div></div>`);
+    const pc = t => `<div class="pc" data-la="task" data-id="${esc(t.id)}" style="cursor:pointer"><span class="auto ${t.status === 'failed' ? 'sup' : ''}" style="${t.status === 'failed' ? 'color:var(--crit)' : ''}">${t.status === 'running' ? '◆ RUNNING' : t.status === 'failed' ? '■ FAILED' : t.status === 'completed' ? (t.verified === 'passed' ? '✓ VERIFIED' : '◇ ' + (t.verified || 'DONE').toUpperCase()) : '◇ ' + t.status.replace('_', ' ').toUpperCase()}</span><div class="nm">${esc(t.title)}</div>
+      <div class="tags">${[t.worker, t.model, t.risk !== 'low' ? t.risk + ' risk' : ''].filter(Boolean).map(x => `<span>${esc(x)}</span>`).join('')}</div>${t.action && t.status === 'running' ? `<p class="mono" style="font-size:11px">${esc(t.action.slice(0, 120))}</p>` : ''}<div class="ft"><span>${t.status === 'running' ? '<i class="live" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:6px"></i>' + dur(t.elapsed) : ago(t.completed || t.created)}</span><span>${t.tokens ? kfmt(t.tokens) + ' tok' : ''}</span></div></div>`;
+    for (const t of h?.tasks || []) {
+      if (['created', 'queued', 'retrying'].includes(t.status)) cols.Queued.push(pc(t));
+      else if (t.status === 'running') cols.Building.push(pc(t));
+      else if (['waiting_approval', 'reviewing'].includes(t.status)) cols.Review.push(pc(t));
+      else if (t.completed && now - Date.parse(t.completed) < 14 * 864e5 && t.status !== 'cancelled') cols.Done.push(pc(t));
+    }
+    for (const p of gh?.pulls || []) cols.Review.push(`<div class="pc" data-la="open" data-url="${esc(p.url)}" style="cursor:pointer"><span class="auto" style="color:var(--s2)">⌥ PULL REQUEST${p.draft ? ' · DRAFT' : ''}</span><div class="nm">${esc(p.title)}</div><div class="ft"><span class="mono">${esc(p.repo)}#${p.number}</span><span>${ago(p.updated)}</span></div></div>`);
+    const COLC = { Ideas: 'var(--muted)', Queued: 'var(--s1)', Building: 'var(--accent)', Review: 'var(--warn)', Done: 'var(--good)' };
+    const done7 = (h?.tasks || []).filter(t => t.status === 'completed' && now - Date.parse(t.completed) < 7 * 864e5);
+    return ph('projects', h ? 'Agent work · Harness' + (gh ? ' + GitHub' : '') : 'Projects', 'Projects', stats([[cols.Building.length, 'building now'], [cols.Review.length, 'waiting for review'], [done7.length, 'done this week'], [gh ? gh.pulls.length : '—', 'open pull requests']])) +
+      (!h && !gh ? (broken('harness', 'The Harness') || need(['harness', 'github'], 'Your projects come from your agents and repositories')) :
+      `<div class="kanban">${Object.entries(cols).map(([k, v]) => `<div class="kcol"><header><i style="background:${COLC[k]}"></i><span>${k}</span><span class="muted">${v.length}</span></header>${k === 'Ideas' ? `<label class="addrow" style="margin:0"><span>+</span><input data-add="ideas" placeholder="New idea…"></label>` : ''}${v.join('') || `<div class="muted" style="font-size:12px;padding:4px">${k === 'Ideas' ? 'Write down ideas; send them to an agent when ready.' : 'Nothing here.'}</div>`}</div>`).join('')}</div>
+      <div class="grid" style="flex:0 0 212px;grid-template-columns:1.5fr 1fr 1fr">
+        <div class="card"><h3>Build log <span class="go">live</span></h3><div class="scroll log">${(h?.events || []).filter(e => /^(task|tool|review)\./.test(e.type)).slice(0, 30).map(e => `<div><span class="tm">${esc(time(e.at))}</span>${esc(e.text)}</div>`).join('') || '<div class="muted">No agent activity yet.</div>'}</div></div>
+        <div class="card"><h3>Repositories <span class="go">${gh ? 'recently pushed' : ''}</span></h3>${gh ? `<div class="scroll list">${gh.repos.slice(0, 8).map(r => `<div class="hist" data-la="open" data-url="${esc(r.url)}" style="cursor:pointer"><span>${esc(r.name.split('/')[1] || r.name)}</span><span class="nx">${ago(r.pushed)}</span><span class="w">${esc(r.language || '')}${r.issues ? ' · ' + r.issues + ' open' : ''}${r.private ? ' · private' : ''}</span></div>`).join('')}</div>` : broken('github', 'GitHub') || need('github', 'Your repositories')}</div>
+        <div class="card"><h3>This week</h3><div class="ph-stats" style="justify-content:space-between"><div class="stat"><div class="v">${done7.length}</div><div class="k">tasks done</div></div><div class="stat"><div class="v">${done7.filter(t => t.verified === 'passed').length}</div><div class="k">verified</div></div><div class="stat"><div class="v">${kfmt(done7.reduce((s, t) => s + t.tokens, 0))}</div><div class="k">tokens</div></div></div>
+          <p class="muted" style="font-size:12.5px;margin-top:auto">${(h?.tasks || []).filter(t => t.status === 'failed' && now - Date.parse(t.completed || 0) < 7 * 864e5).length} failed this week. Only tasks whose checks passed count as verified.</p></div>
+      </div>`);
+  };
+
+  // Infra --------------------------------------------------------------------
+  PAGES.infra = () => {
+    const pr = ok('prometheus'), hw = pr?.hardware, up = ok('uptime');
+    const services = [...(pr?.targets || []).map(t => ({ name: t.job, host: t.instance, ok: t.up, label: t.up ? 'up' : 'down', extra: 'prometheus' })), ...(up?.monitors || []).map(m => ({ name: m.name, host: m.host, ok: m.state === 'up', warn: m.state === 'pending' || m.state === 'maintenance', label: m.state, extra: m.ms != null ? m.ms + ' ms' : 'uptime kuma' }))];
+    const bad = services.filter(s => !s.ok && !s.warn).length + (hw?.machines || []).filter(m => Math.max(m.cpu || 0, m.ram || 0, m.disk || 0) >= 90).length;
+    const machines = hw?.ok ? hw.machines.map(m => {
+      const hist = hardwareHistory.get(m.instance) || Array(40).fill(m.cpu ?? 0);
+      if (m.cpu != null && hist.at(-1) !== m.cpu) { hist.push(m.cpu); if (hist.length > 40) hist.shift(); hardwareHistory.set(m.instance, hist); }
+      const hi = Math.max(m.cpu || 0, m.ram || 0, m.disk || 0) >= 90;
+      return `<div class="mcard"><div class="row"><span class="n sp">${esc(m.name)}</span><span class="st ${hi ? 'warn' : 'good'}">${hi ? 'high usage' : 'online'}</span></div><div class="muted" style="font-size:12px;margin-top:-6px">${esc(m.instance)}${m.uptime ? ' · up ' + esc(m.uptime) : ''}</div>${m.cpu != null ? spark(hist) : ''}${hardwareMeter('cpu', m.cpu)}${hardwareMeter('ram', m.ram)}${hardwareMeter('disk', m.disk)}${m.gpu != null ? hardwareMeter('GPU', m.gpu) : ''}${m.gpuMemory != null ? hardwareMeter('VRAM', m.gpuMemory) : ''}</div>`;
+    }).join('') : `<div class="mcard" style="grid-column:1/-1">${hw && !hw.ok ? `<div class="empty"><div><b>Prometheus answers, but has no machine metrics</b></div><div class="muted">${esc(hw.error || '')}</div></div>` : broken('prometheus', 'Prometheus') || need('prometheus', 'Live CPU, memory, disk and GPU for every machine')}</div>`;
+    return ph('infra', 'Machines & services' + (pr ? ' · Prometheus' : '') + (up ? ' · Uptime Kuma' : ''), 'Infrastructure', `<div class="row"><span class="st ${bad ? 'warn' : pr || up ? 'good' : 'idle'}">${bad ? bad + ' warning' + (bad > 1 ? 's' : '') : pr || up ? 'all healthy' : 'no live source'}</span><button class="btn" data-la="refresh">Refresh</button></div>`) +
+      `<div class="machines" style="grid-template-columns:repeat(${clamp(hw?.machines?.length || 1, 2, 4)},1fr)">${machines}${hw?.ok && hw.machines.length === 1 && pr.rx.length > 1 ? `<div class="mcard"><div class="row"><span class="n sp">Network</span><span class="muted mono" style="font-size:11px">download · 24 h</span></div><div class="chart" id="lv-inet" style="min-height:120px"></div></div>` : ''}</div>
+      <div class="grid" style="grid-template-columns:1.5fr 1fr">
+        <div class="card"><h3>Services <span class="go">${services.length ? services.filter(s => s.ok).length + ' of ' + services.length + ' up' : ''}</span></h3>${services.length ? `<div class="scroll"><table><thead><tr><th>Service</th><th>Host</th><th>Status</th><th class="n">Source</th></tr></thead><tbody>${services.sort((a, b) => a.ok - b.ok).map(s => `<tr><td>${esc(s.name)}</td><td><span class="mono">${esc(s.host)}</span></td><td><span class="st ${s.ok ? 'good' : s.warn ? 'warn' : 'crit'}">${esc(s.label)}</span></td><td class="n mono">${esc(s.extra)}</td></tr>`).join('')}</tbody></table></div>` : need(['prometheus', 'uptime-kuma'], 'Every scrape target and monitor shows up here')}</div>
+        <div class="card fill"><h3>Events <span class="go">JARVIS log</span></h3><div class="scroll log">${L().log.slice(0, 40).map(l => `<div><span class="tm">${esc(time(l.at))}</span>${l.level ? `<span style="color:var(--${l.level})">${esc(l.text)}</span>` : esc(l.text)}</div>`).join('') || '<div class="muted">Automations, agent actions and connection changes are logged here.</div>'}</div></div>
+      </div>`;
+  };
+
+  // Lab ----------------------------------------------------------------------
+  PAGES.lab = () => {
+    const h = ok('harness'), pr = ok('prometheus'), ol = ok('ollama'), gpuM = pr?.hardware?.machines?.find(m => m.gpu != null);
+    const gb = b => b == null ? '—' : (b / 1e9).toFixed(1) + ' GB';
+    const local = ol ? `<div class="card"><h3>Local models <span class="go">Ollama ${esc(ol.version)} · ${ol.loaded.length} loaded</span></h3>${ol.loaded.length ? `<div class="vram">${ol.loaded.map((m, i) => `<div style="flex:${m.vram || m.size};background:var(--s${i % 4 + 1})" title="${esc(m.name)} ${gb(m.vram)}"></div>`).join('')}</div>` : ''}<div class="list scroll">${ol.models.slice().sort((a, b) => b.loaded - a.loaded).map((m, i) => `<div class="model"><i style="background:${m.loaded ? 'var(--good)' : 'color-mix(in srgb,var(--ink) 14%,transparent)'}"></i><span>${esc(m.name)}</span><span class="st ${m.loaded ? 'good' : 'idle'}">${m.loaded ? 'loaded' : 'on disk'}</span><span class="s">${esc([m.params, m.quant, gb(m.size)].filter(Boolean).join(' · '))}${m.loaded && m.until ? ' · unloads ' + esc(time(m.until)) : ''}</span></div>`).join('')}</div></div>` : null;
+    const q = h?.queue, waits = (h?.events || []).filter(e => e.type === 'inference.queue_waited').slice(0, 8);
+    const models = (h?.models || []).slice().sort((a, b) => (b.billing === 'local') - (a.billing === 'local') || b.preferred - a.preferred).slice(0, 14);
+    const BILL = { local: 'var(--s3)', subscription: 'var(--s1)', api_key: 'var(--s2)', credits: 'var(--s4)', free: 'var(--good)' };
+    return ph('lab', 'Local AI · ' + [gpuM ? gpuM.name + ' GPU' : '', h ? 'Harness model catalog' : ''].filter(Boolean).join(' · ') || 'Local AI', 'Lab',
+      stats([[gpuM ? Math.round(gpuM.gpu) + '%' : '—', 'GPU busy'], [gpuM?.gpuMemory != null ? Math.round(gpuM.gpuMemory) + '%' : '—', 'VRAM used'], [pr?.gpuTemp != null ? Math.round(pr.gpuTemp) + ' °C' : '—', pr?.gpuPower != null ? 'GPU · ' + Math.round(pr.gpuPower) + ' W' : 'GPU temperature'], [q?.state === 'available' ? `${q.queued ?? 0} / ${q.max ?? '?'}` : '—', 'inference queue']])) +
+      `<div class="grid" style="grid-template-columns:1.6fr 1fr;grid-template-rows:1.2fr 1fr">
+      ${h?.hourly.length || !(pr?.gpu?.length > 1) ? `<div class="card"><h3>Tokens per hour · last 48 h <span class="go">all models, from Harness usage</span></h3>${h ? (h.hourly.length ? '<div class="chart" id="lv-tph"></div>' : '<div class="empty"><div>No usage recorded yet.</div></div>') : broken('harness', 'The Harness') || need('harness', 'Model usage over time')}</div>` : `<div class="card"><h3>GPU · last 24 h <span class="go">utilisation, from Prometheus</span></h3><div class="chart" id="lv-gpu"></div></div>`}
+      ${local && !models.length ? local : `<div class="card"><h3>Models <span class="go">${h ? h.models.length + ' available' : ''}</span></h3>${h ? (models.length ? `<div class="list scroll">${models.map(m => `<div class="model"><i style="background:${BILL[m.billing] || 'var(--muted)'}"></i><span>${esc(m.name || m.id)}</span><span class="st ${m.billing === 'local' ? 'good' : 'idle'}">${esc(m.billing.replace('_', ' '))}</span><span class="s">${esc(m.provider)}${m.context ? ' · ' + kfmt(m.context) + ' context' : ''}${m.preferred ? ' · preferred' : ''}</span></div>`).join('')}</div>` : `<div class="empty"><div>${h.opencode.connected ? 'No models reported.' : 'OpenCode is offline, so the catalog is empty.'}</div></div>`) : need(['harness', 'ollama'], 'The models your agents can use')}</div>`}
+      <div class="card"><h3>Inference queue <span class="go">${q ? esc(q.state || 'unknown') : ''}${q?.age != null ? ' · sample ' + Math.round(q.age) + ' s old' : ''}</span></h3>${q && q.state !== 'unconfigured' ? `<div class="ph-stats" style="justify-content:space-between;margin-bottom:12px"><div class="stat"><div class="v">${q.active == null ? '—' : q.active ? 'busy' : 'idle'}</div><div class="k">GPU slot</div></div><div class="stat"><div class="v">${q.queued ?? '—'}</div><div class="k">waiting</div></div><div class="stat"><div class="v">${q.oldest != null ? q.oldest.toFixed(1) + ' s' : '—'}</div><div class="k">oldest wait</div></div><div class="stat"><div class="v">${q.admitted ?? '—'}</div><div class="k">admitted</div></div></div><div class="scroll log">${waits.map(e => `<div><span class="tm">${esc(time(e.at))}</span>${esc(e.text)}</div>`).join('') || '<div class="muted">No recorded waits yet.</div>'}</div>` : h ? '<div class="empty"><div>The Harness has no inference queue configured.</div></div>' : need('harness', 'Who is waiting for the GPU')}</div>
+      ${local && models.length ? local : `<div class="card"><h3>Workers <span class="go">routing</span></h3>${h ? `<div class="list scroll">${h.workers.map(w => `<div class="eng" style="grid-template-columns:110px 1fr"><span class="mono t2">${esc(w.name)}</span><span>${esc(w.models[0] || 'agent default')}</span><span class="d" style="grid-column:2">up to ${esc(w.maxRisk)} risk${w.models.length > 1 ? ' · then ' + esc(w.models.slice(1).join(', ')) : ''}</span></div>`).join('')}</div>` : need('harness', 'Which worker uses which model')}</div>`}
+      </div>`;
+  };
+  charts.infra = () => { const pr = ok('prometheus'), el = $('#lv-inet'); if (pr && el) lineChart(el, pr.rx.map(p => p[1]), { fmt: (v, s) => s ? v.toFixed(0) : v.toFixed(1) + ' Mbit/s', date: i => hm(new Date(pr.rx[i][0])), floor: 0 }); };
+  charts.lab = () => {
+    const pr = ok('prometheus'), ge = $('#lv-gpu');
+    if (pr && ge) lineChart(ge, pr.gpu.map(p => p[1] ?? 0), { fmt: (v, s) => s ? v.toFixed(0) + '%' : v.toFixed(0) + '% busy', date: i => hm(new Date(pr.gpu[i][0])), floor: 0, color: 'var(--s3)' });
+    const h = ok('harness'), el = $('#lv-tph'); if (!h || !el) return;
+    const end = Math.floor(Date.now() / 3600e3), buckets = Array(48).fill(0);
+    for (const r of h.hourly) { const i = 47 - (end - Math.floor(Date.parse(r.hour) / 3600e3)); if (i >= 0 && i < 48) buckets[i] += r.tokens; }
+    lineChart(el, buckets, { fmt: (v, s) => s ? kfmt(v) : kfmt(v) + ' tokens', date: i => hm(new Date((end - 47 + i) * 3600e3)) });
+  };
+
+  // Markets ------------------------------------------------------------------
+  PAGES.markets = () => {
+    const m = ok('markets');
+    if (!m) return ph('markets', 'Portfolio', 'Markets') + (broken('markets', 'Finnhub') || need('finnhub', 'Add a Finnhub key and your holdings to track your portfolio'));
+    const withT = m.holdings.filter(x => x.target != null && x.weight != null), drift = withT.map(x => ({ ...x, d: x.weight - x.target })).sort((a, b) => Math.abs(b.d) - Math.abs(a.d));
+    const COLORS = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--accent)', 'var(--warm)'];
+    let acc = 0;
+    return ph('markets', `Portfolio · ${m.holdings.length} holdings · Finnhub`, 'Markets', stats([[money(m.total), 'total value'], [(m.day >= 0 ? '+' : '−') + money(Math.abs(m.day)).replace('-', ''), 'today', m.day >= 0 ? 'up' : 'dn'], [m.dayPct != null ? (m.dayPct >= 0 ? '+' : '') + m.dayPct.toFixed(2) + '%' : '—', 'day change'], [m.missing ? m.missing + ' missing' : 'all priced', 'quotes']])) +
+      `<div class="grid" style="grid-template-columns:1.7fr 1fr;grid-template-rows:1.35fr 1fr">
+      <div class="card"><div class="row" style="align-items:flex-end;margin-bottom:12px"><div><div class="eyebrow" style="margin-bottom:9px">Total value · since you connected</div><div class="big">${money(m.total)}</div></div></div>${m.history.length > 1 ? '<div class="chart" id="lv-port"></div>' : '<div class="empty"><div>The chart fills in as JARVIS records one value per day.</div></div>'}</div>
+      <div class="card"><h3>Allocation <span class="go">${withT.length ? '│ = target' : 'add target % to compare'}</span></h3><div class="stackwrap"><div class="stack">${m.holdings.filter(x => x.weight).map((x, i) => `<div style="flex:${x.weight};background:${COLORS[i % 6]}" title="${esc(x.symbol)} ${x.weight.toFixed(1)}%"></div>`).join('')}</div>${withT.length === m.holdings.length ? m.holdings.slice(0, -1).map(x => `<span class="tgt" style="left:calc(${(acc += x.target)}% - 1px)"></span>`).join('') : ''}</div>
+        <div class="alloc">${m.holdings.map((x, i) => `<i style="background:${COLORS[i % 6]}"></i><span>${esc(x.name || x.symbol)}</span><span class="n">${x.weight != null ? x.weight.toFixed(1) + '%' : '—'}</span><span class="n muted mono" style="font-size:11.5px">${x.target != null && x.weight != null ? (x.weight - x.target > 0 ? '+' : '') + (x.weight - x.target).toFixed(1) + ' vs target' : ''}</span>`).join('')}</div></div>
+      <div class="card"><h3>Holdings</h3><div class="scroll"><table><thead><tr><th>Name</th><th class="n">Weight</th><th class="n">Value</th><th class="n">Price</th><th class="n">Day</th></tr></thead><tbody>${m.holdings.map(x => `<tr><td>${esc(x.name || x.symbol)}<div class="mono" style="font-size:11px;color:var(--muted)">${esc(x.symbol)} · ${x.qty}</div></td><td class="n mono">${x.weight != null ? x.weight.toFixed(0) + '%' : '—'}</td><td class="n">${x.value != null ? money(x.value) : '—'}</td><td class="n mono">${x.price ?? '—'}</td><td class="n ${x.change > 0 ? 'up' : x.change < 0 ? 'dn' : 'muted'}">${x.change != null ? (x.change > 0 ? '+' : '') + x.change.toFixed(2) + '%' : '—'}</td></tr>`).join('')}</tbody></table></div></div>
+      <div class="card insight"><h3>JARVIS suggests</h3><p>${drift.length && Math.abs(drift[0].d) >= 2 ? `<b>${esc(drift[0].name || drift[0].symbol)}</b> is ${Math.abs(drift[0].d).toFixed(1)} points ${drift[0].d > 0 ? 'over' : 'under'} its target of ${drift[0].target}%. Directing new contributions ${drift[0].d > 0 ? 'elsewhere' : 'to it'} rebalances without selling.` : withT.length ? 'Your allocation is within 2 points of every target. Nothing to do.' : 'Add a target percentage to each holding (third column) and I will watch the drift for you.'}</p>
+        <p class="muted" style="font-size:12px;margin-top:8px">Suggestions only. JARVIS never trades.</p><div class="row" style="margin-top:auto;padding-top:12px"><button class="btn pri" data-la="ask" data-q="Look at my portfolio and allocation and tell me, briefly, whether I should change anything and why.">Ask JARVIS</button><button class="btn" data-settings="connections">Edit holdings</button></div></div>
+      </div>`;
+  };
+  charts.markets = () => { const m = ok('markets'), el = $('#lv-port'); if (m && el && m.history.length > 1) lineChart(el, m.history.map(x => x.v), { fmt: (v, s) => s ? (CUR[CFG.profile.currency] || '€') + (v / 1000).toFixed(1) + 'k' : money(v), date: i => m.history[i].d }); };
+
+  // World --------------------------------------------------------------------
+  PAGES.world = () => {
+    const f = ok('feeds'), cal = ok('calendar'), now = Date.now();
+    const coming = (cal?.events || []).filter(e => e.start > now && e.start < now + 7 * 864e5).slice(0, 8);
+    return ph('world', f ? `World briefing · ${f.feeds} feed${f.feeds > 1 ? 's' : ''}${f.failed ? ` · ${f.failed} not answering` : ''}` : 'World briefing', 'What matters today', f ? stats([[f.items.length, 'stories read'], [f.items.filter(i => i.topics.length).length, 'match your topics'], [f.topics.length, 'topics followed']]) : '') +
+      `<div class="grid" style="grid-template-columns:1.65fr 1fr">
+      <div class="card"><h3>Briefing <span class="go">${f?.topics.length ? 'ranked by your topics, then by time' : 'newest first'}</span></h3>${f ? `<div class="scroll list">${f.items.slice(0, 30).map(i => `<div class="story" ${i.link ? `data-la="open" data-url="${esc(i.link)}" style="cursor:pointer"` : ''}><span class="lv ${i.topics.length > 1 ? 'hi' : i.topics.length ? 'md' : 'lo'}">${i.topics.length > 1 ? 'HIGH' : i.topics.length ? 'MED' : 'LOW'}</span><div class="h">${esc(i.title)}</div><span class="cat">${esc(i.source)}${i.at ? ' · ' + ago(i.at) : ''}</span>${i.summary ? `<p>${esc(i.summary.slice(0, 220))}</p>` : ''}${i.topics.length ? `<div class="why">${esc(i.topics.join(', '))}</div>` : ''}</div>`).join('')}</div>` : broken('feeds', 'Your feeds') || need('rss', 'Add the news feeds you read')}</div>
+      <div class="col-stack">
+        <div class="card insight"><h3>JARVIS' take</h3><p>${f ? 'Ask for a two-minute summary of what in today\'s feeds actually affects you.' : 'Once feeds are connected I can summarise what matters for you.'}</p><div class="row" style="margin-top:14px"><button class="btn pri" data-la="ask" data-q="From today's headlines, what actually matters for me and why? Three short points at most.">Summarise for me</button></div></div>
+        <div class="card fill"><h3>Coming up <span class="go">next 7 days</span></h3>${cal ? `<div class="up-next scroll list">${coming.map(e => `<div class="un"><span class="d">${esc(DAYN[new Date(evDay(e)).getDay()].toUpperCase())}${e.allDay ? '' : ' ' + esc(time(e.start))}</span><span>${esc(e.title)}</span><span class="w">${esc(e.location || (e.allDay ? 'all day' : dur(e.end - e.start)))}</span></div>`).join('') || '<div class="muted">Nothing in the next week.</div>'}</div>` : need('calendar', 'Your week ahead')}</div>
+        <div class="card"><h3>Topics I follow for you</h3><div class="sugg">${(f?.topics || []).map(t => `<button data-la="ask" data-q="What is new about ${esc(t)}?">${esc(t)}</button>`).join('')}<button data-settings="connections">${f?.topics.length ? 'edit topics' : '+ add topics'}</button></div></div>
+      </div></div>`;
+  };
+
+  // Reviews ------------------------------------------------------------------
+  const md = text => esc(text).split('\n').map(l => /^##\s+/.test(l) ? `</ul><h4>${l.replace(/^##\s+/, '')}</h4><ul>` : /^\s*[-*]\s+/.test(l) ? `<li>${l.replace(/^\s*[-*]\s+/, '')}</li>` : l.trim() ? `<p class="t2" style="font-size:14px;margin:6px 0">${l}</p>` : '').join('').replace(/^<\/ul>/, '') + '</ul>';
+  PAGES.reviews = () => {
+    const rv = L().reviews, shown = rv.find(r => r.id === reviewShown) || rv[0], h = ok('harness'), now = Date.now(), ws = weekStart();
+    const wk = { done: L().todos.filter(t => t.done && t.doneAt >= ws).length, open: L().todos.filter(t => !t.done).length, tasks: (h?.tasks || []).filter(t => t.status === 'completed' && Date.parse(t.completed) >= ws).length, failed: (h?.tasks || []).filter(t => t.status === 'failed' && Date.parse(t.completed || 0) >= ws).length, events: (ok('calendar')?.events || []).filter(e => e.start >= ws && e.start < now && !e.allDay).length };
+    const ai = aiList().length > 0;
+    return ph('reviews', 'Daily & weekly reviews · written by JARVIS', 'Reviews', `<div class="row"><span class="muted" style="font-size:13px">${L().automations.filter(a => a.kind === 'review' && a.enabled).map(a => `${a.scope} ${a.next ? DAYN[new Date(a.next).getDay()] + ' ' + time(a.next) : ''}`).join(' · ') || 'no review scheduled'}</span><button class="btn" data-la="review" data-scope="daily" ${ai ? '' : 'disabled'}>Daily review now</button><button class="btn pri" data-la="review" data-scope="weekly" ${ai ? '' : 'disabled'}>Weekly review now</button></div>`) +
+      `<div class="grid" style="grid-template-columns:1.6fr 1fr">
+      <div class="card doc scroll">${shown ? `<div class="eyebrow">${esc(shown.kind)} review · ${esc(new Date(shown.created).toLocaleString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }))}</div><h2 style="margin-top:10px">${esc(shown.title)}</h2>
+        <div class="kpis"><div class="kpi"><div class="v">${wk.done}</div><div class="k">todos closed this week</div></div><div class="kpi"><div class="v">${wk.tasks}</div><div class="k">agent tasks done</div></div><div class="kpi"><div class="v">${h?.usage.cost != null ? usd(h.usage.cost) : '—'}</div><div class="k">AI spend</div></div><div class="kpi"><div class="v">${wk.events}</div><div class="k">events so far</div></div></div>${md(shown.body)}`
+        : `<div class="empty"><div><b>No review yet</b></div><div class="muted" style="font-size:13px">${ai ? 'JARVIS writes one on schedule (see Automations on the Schedule page), or press a button above.' : 'Connect an AI first; JARVIS writes the reviews from your calendar, todos and agents.'}</div>${ai ? '' : '<button class="btn pri" data-settings="ai">Connect an AI</button>'}</div>`}</div>
+      <div class="col-stack">
+        <div class="card"><h3>This week so far <span class="go">${DAYN[new Date().getDay()]} · day ${((new Date().getDay() + 6) % 7) + 1} of 7</span></h3><div class="list">
+          <div class="goal"><span>Todos closed</span><span class="v">${wk.done} / ${wk.done + wk.open}</span><div class="bar"><b style="width:${wk.done + wk.open ? wk.done / (wk.done + wk.open) * 100 : 0}%"></b></div></div>
+          <div class="goal"><span>Agent tasks</span><span class="v">${wk.tasks} done${wk.failed ? ' · ' + wk.failed + ' failed' : ''}</span><div class="bar"><b style="width:${wk.tasks + wk.failed ? wk.tasks / (wk.tasks + wk.failed) * 100 : 0}%;background:var(--good)"></b></div></div>
+          <div class="goal"><span>Week elapsed</span><span class="v">${Math.round((now - ws) / (7 * 864e5) * 100)}%</span><div class="bar"><b style="width:${(now - ws) / (7 * 864e5) * 100}%;background:var(--muted)"></b></div></div></div></div>
+        <div class="card"><h3>Brief <span class="go">${L().brief ? ago(L().brief.at) : ''}</span></h3><p class="t2 scroll" style="font-size:13px;white-space:pre-line;max-height:118px">${L().brief ? esc(L().brief.text.replace(/^\s*ACTION\s+\w+:.*$/gm, '').trim()) : 'The morning brief appears here.'}</p><div class="row" style="margin-top:10px"><button class="btn" data-la="brief" ${ai ? '' : 'disabled'}>Write a brief now</button></div></div>
+        <div class="card fill"><h3>History</h3><div class="scroll list">${rv.map(r => `<div class="hist" data-la="showreview" data-id="${esc(r.id)}" style="cursor:pointer;${r === shown ? 'color:var(--accent)' : ''}"><span>${esc(r.kind === 'weekly' ? 'Week ' + weekNo(r.created) : new Date(r.created).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }))}</span><span class="nx">${esc(r.kind)}</span><span class="w">${esc(r.title)}</span></div>`).join('') || '<div class="muted">Past reviews are kept here.</div>'}</div></div>
+      </div></div>`;
+  };
+
+
+  // Rooms (Home Assistant) ---------------------------------------------------
+  const ICON = { light: '✹', switch: '◐', fan: '✣', climate: '♨', lock: '⊡', cover: '▤', media_player: '▶', vacuum: '◌' };
+  const isOn = e => ['on', 'open', 'playing', 'heat', 'cool', 'auto', 'unlocked', 'cleaning'].includes(e.state);
+  PAGES.rooms = () => {
+    const ha = ok('home');
+    if (!ha) return ph('rooms', 'Smart home', 'Rooms') + (broken('home', 'Home Assistant') || need('home-assistant', 'Connect Home Assistant to see and switch your rooms'));
+    const cl = ha.climate[0], lockE = ha.security.find(e => e.domain === 'lock');
+    const temps = ha.rooms.map(r => r.temp).filter(v => v != null), avg = temps.length ? temps.reduce((a, b) => a + b) / temps.length : null;
+    const dev = e => { const tog = ['light', 'switch', 'fan', 'cover', 'media_player'].includes(e.domain), lk = e.domain === 'lock';
+      return `<div class="dev ${isOn(e) ? 'on' : ''}"><span class="ic">${ICON[e.domain] || '•'}</span><span>${esc(e.name)}</span><span class="v">${e.domain === 'light' && e.brightness != null && isOn(e) ? Math.round(e.brightness / 2.55) + '%' : e.domain === 'climate' ? (e.current ?? '—') + '° → ' + (e.target ?? '—') + '°' : esc(e.state)}</span>${tog ? `<span class="sw ${isOn(e) ? 'on' : ''}" role="switch" aria-checked="${isOn(e)}" data-la="ha" data-entity="${esc(e.id)}"></span>` : lk ? `<button class="btn" style="padding:2px 8px;font-size:11px" data-la="ha" data-action="${e.state === 'locked' ? 'unlock' : 'lock'}" data-entity="${esc(e.id)}">${e.state === 'locked' ? 'Unlock' : 'Lock'}</button>` : ''}</div>`; };
+    return ph('rooms', `Smart home · ${ha.rooms.length} rooms · Home Assistant`, 'Rooms', stats([[avg != null ? avg.toFixed(1) + '°' : '—', 'average inside'], [ha.lightsOn, 'lights on'], [ha.power[0] ? (ha.power[0].watts >= 1000 ? (ha.power[0].watts / 1000).toFixed(1) + ' kW' : ha.power[0].watts + ' W') : '—', ha.power[0] ? ha.power[0].name.slice(0, 20) : 'power']] .concat(lockE ? [[lockE.state === 'locked' ? 'Locked' : 'Unlocked', lockE.name.slice(0, 22), lockE.state === 'locked' ? '' : 'dn']] : []))) +
+      `<div class="grid" style="grid-template-columns:1.9fr 1fr"><div class="rooms" style="grid-template-rows:repeat(${Math.max(1, Math.ceil(Math.min(ha.rooms.length, 6) / 3))},minmax(0,1fr))">${ha.rooms.slice(0, 6).map(r => `<div class="card room ${r.devices.some(e => e.domain === 'light' && e.state === 'on') ? 'lit' : ''}"><div class="hd"><span class="nm">${esc(r.name)}</span><span class="tmp">${r.temp != null ? r.temp.toFixed(1) + '°' : ''}</span></div><div class="sub">${r.humidity != null ? 'humidity ' + Math.round(r.humidity) + '% · ' : ''}${r.devices.length} devices</div><div class="list scroll">${r.devices.map(dev).join('') || '<div class="muted" style="font-size:12px">Only sensors here.</div>'}</div></div>`).join('') || '<div class="card"><div class="empty"><div>Assign devices to areas in Home Assistant to see them as rooms.</div></div></div>'}</div>
+      <div class="col-stack">
+        <div class="card"><h3>Scenes <span class="go">one tap</span></h3>${ha.scenes.length ? `<div class="scenes">${ha.scenes.slice(0, 9).map(s => `<button class="scene" data-la="ha" data-action="scene" data-entity="${esc(s.id)}"><i>✦</i>${esc(s.name)}</button>`).join('')}</div>` : '<div class="muted" style="font-size:12.5px">No scenes defined in Home Assistant.</div>'}</div>
+        ${cl ? `<div class="card"><h3>Climate <span class="go">${esc(cl.name)} · ${esc(cl.state)}</span></h3><div class="thermo"><button class="tbtn" data-la="ha" data-action="temperature" data-entity="${esc(cl.id)}" data-value="${(cl.target ?? 20) - .5}">−</button><div><div class="big num">${cl.target ?? '—'}<small>°</small></div><div class="muted" style="font-size:12px">target · now ${cl.current ?? '—'}°</div></div><button class="tbtn" data-la="ha" data-action="temperature" data-entity="${esc(cl.id)}" data-value="${(cl.target ?? 20) + .5}">+</button></div></div>` : ''}
+        <div class="card fill"><h3>Security</h3><div class="list scroll">${ha.security.map(e => `<div class="sec"><span class="sp">${esc(e.name)}</span><span class="st ${['locked', 'off', 'closed', 'armed_away', 'armed_home', 'disarmed'].includes(e.state) ? (e.state === 'disarmed' ? 'idle' : 'good') : 'warn'}">${esc(e.cls === 'door' || e.cls === 'window' || e.cls === 'garage_door' ? (e.state === 'on' ? 'open' : 'closed') : e.cls === 'moisture' ? (e.state === 'on' ? 'wet!' : 'dry') : e.cls === 'motion' ? (e.state === 'on' ? 'motion' : 'quiet') : e.state)}</span></div>`).join('') || '<div class="muted" style="font-size:12.5px">No locks, doors or alarm sensors found.</div>'}</div></div>
+      </div></div>`;
+  };
+
+  // Energy (Home Assistant) --------------------------------------------------
+  let energySeries = null, energyFetched = 0;
+  PAGES.energy = () => {
+    const ha = ok('home');
+    if (!ha) return ph('energy', 'Energy', 'Energy') + (broken('home', 'Home Assistant') || need('home-assistant', 'Energy comes from your Home Assistant power and energy sensors'));
+    if (!ha.power.length && !ha.energy.length) return ph('energy', 'Energy · Home Assistant', 'Energy') + '<div class="empty"><div><b>No power or energy sensors found</b></div><div class="muted">Add sensors with device class power (W) or energy (kWh) in Home Assistant.</div></div>';
+    const f = ha.flow, kw = w => w == null ? '—' : Math.abs(w) >= 1000 ? (w / 1000).toFixed(1) + ' kW' : Math.round(w) + ' W', top = (ha.consumers || []).slice(0, 8), max = Math.max(...top.map(p => p.watts), 1);
+    const hasFlow = [f.solar, f.grid, f.home, f.battery].filter(v => v != null).length >= 2;
+    return ph('energy', 'Energy · live from Home Assistant', 'Energy', stats([[kw(f.solar), 'solar now'], [kw(f.home ?? top[0]?.watts), f.home != null ? 'home using' : top[0]?.name.slice(0, 22) || 'using'], [ha.batteryLevel != null ? Math.round(ha.batteryLevel) + '%' : '—', 'battery'], [f.grid == null ? '—' : kw(Math.abs(f.grid)), f.grid == null ? 'grid' : f.grid < 0 ? 'exporting to the grid' : 'from the grid']])) +
+      `<div class="grid" style="grid-template-columns:1.7fr 1fr;grid-template-rows:1.25fr 1fr">
+      <div class="card"><h3><span>Today · power</span><span class="legend" id="lv-eleg"></span></h3><div class="chart" id="lv-echart"></div></div>
+      <div class="card"><h3>Power flow <span class="go">live</span></h3>${hasFlow ? `<div class="flow" id="lv-flow"></div>` : '<div class="empty"><div class="muted" style="font-size:12.5px">Name your sensors with solar, grid, battery and home (or house) and the flow appears here.</div></div>'}</div>
+      <div class="card"><h3>Energy counters</h3><div class="list scroll">${ha.energy.slice(0, 10).map(e => `<div class="cons"><span>${esc(e.name)}</span><span class="v">${e.value != null ? (e.value >= 100 ? Math.round(e.value) : e.value.toFixed(1)) : '—'} ${esc(e.unit)}</span></div>`).join('') || '<div class="muted">No energy (kWh) sensors.</div>'}</div></div>
+      <div class="card"><h3>Biggest consumers <span class="go">now</span></h3><div class="list scroll">${top.map(p => `<div class="cons"><span>${esc(p.name)}</span><span class="v">${kw(p.watts)}</span><div class="bar"><b style="width:${p.watts / max * 100}%;background:var(--warn)"></b></div></div>`).join('') || '<div class="muted" style="font-size:12.5px">No per-device power sensors.</div>'}</div></div>
+      </div>`;
+  };
+  charts.energy = async () => {
+    const ha = ok('home'); if (!ha) return;
+    const f = ha.flow, ids = [ha.power.find(p => /solar|pv/i.test(p.id + p.name))?.id, ha.power.find(p => /house|home|consumption|load/i.test(p.id + p.name))?.id, ha.power[0]?.id].filter((v, i, a) => v && a.indexOf(v) === i).slice(0, 2);
+    if (Date.now() - energyFetched > 5 * 60e3 && ids.length) { energyFetched = Date.now(); try { energySeries = (await api('live/home/history?ids=' + ids.join(','))).series; } catch { energySeries = []; } }
+    const el = $('#lv-echart'); if (!el) return;
+    const s = (energySeries || []).filter(x => x.points.length > 1);
+    if (!s.length) { el.innerHTML = '<div class="empty"><div class="muted">No history for today yet.</div></div>'; }
+    else {
+      const t0 = new Date().setHours(0, 0, 0, 0), grid = Array.from({ length: 97 }, (_, i) => t0 + i * 15 * 60e3).filter(t => t <= Date.now());
+      const sample = pts => grid.map(t => { let v = null; for (const [pt, pv] of pts) { if (pt <= t) v = pv; else break; } return v ?? 0; });
+      lineChart(el, sample(s[0].points), { fmt: (v, sh) => sh ? Math.round(v) : Math.round(v) + ' W', date: i => hm(new Date(grid[i])), color: 'var(--warn)' });
+      $('#lv-eleg').innerHTML = s.map((x, i) => `<span><i style="background:${i ? 'var(--accent)' : 'var(--warn)'}"></i>${esc(ha.power.find(p => p.id === x.id)?.name || x.id)}</span>`).slice(0, 1).join('');
+    }
+    const fl = $('#lv-flow');
+    if (fl) {
+      const w = fl.clientWidth, h = fl.clientHeight, P = { sol: [w * .5, h * .14], home: [w * .5, h * .86], bat: [w * .14, h * .5], grid: [w * .86, h * .5] };
+      const c = (a, b) => `M${P[a][0]},${P[a][1]} Q${w * .5},${h * .5} ${P[b][0]},${P[b][1]}`;
+      const kw = v => v == null ? '—' : Math.abs(v) >= 1000 ? (v / 1000).toFixed(1) + ' kW' : Math.round(v) + ' W';
+      const nodes = [['sol', 'Solar', f.solar], ['home', 'Home', f.home], ['bat', 'Battery', f.battery], ['grid', f.grid < 0 ? 'To grid' : 'From grid', f.grid == null ? null : Math.abs(f.grid)]].filter(n => n[2] != null);
+      fl.innerHTML = `<svg>${nodes.filter(n => n[0] !== 'home').map(n => `<path class="base" d="${c(n[0], 'home')}"/><path class="fl" d="${c(n[0], 'home')}" style="stroke:${n[0] === 'sol' ? 'var(--warn)' : n[0] === 'grid' ? 'var(--s1)' : 'var(--good)'}"/>`).join('')}</svg>` + nodes.map(n => `<div class="fnode" style="left:${P[n[0]][0]}px;top:${P[n[0]][1]}px"><span>${n[1]}</span><b>${kw(n[2])}</b></div>`).join('');
+    }
+  };
+
+  // Health -------------------------------------------------------------------
+  PAGES.health = () => {
+    const ha = ok('home');
+    return ph('health', 'Health', 'Health') + `<div class="empty"><div><b>No health source connected</b></div><div class="muted" style="max-width:560px;font-size:13px">Health data stays on your devices for now. If your phone reports steps or heart rate to Home Assistant (companion app), those sensors will appear here in a future version. Until then, remove this page from the board in Settings → Board if you do not need it.</div>${ha ? '' : '<button class="btn" data-settings="layout">Arrange the board</button>'}</div>`;
+  };
+
+  // Inbox: what wants your attention, from every source -----------------------
+  PAGES.inbox = () => {
+    const h = ok('harness'), gh = ok('github'), ha = ok('home'), items = [];
+    for (const a of h?.approvals || []) items.push({ g: 'Needs a decision', who: 'Harness', src: a.risk + ' risk', title: a.kind === 'task_start' ? 'Task wants to start' : 'Permission: ' + a.permission, text: a.description, c: 'var(--warn)', acts: `<button class="btn pri" data-la="approve" data-id="${esc(a.id)}">Approve</button><button class="btn" data-la="reject" data-id="${esc(a.id)}">Reject</button>`, t: Date.parse(a.created) });
+    for (const p of (gh?.pulls || []).filter(p => !p.mine)) items.push({ g: 'Needs a reply', who: p.repo, src: 'github', title: p.title, text: `Pull request #${p.number}${p.draft ? ' (draft)' : ''}`, c: 'var(--s2)', url: p.url, t: Date.parse(p.updated) });
+    for (const n of (gh?.notifications || []).filter(n => n.unread)) items.push({ g: n.reason === 'review_requested' || n.reason === 'mention' ? 'Needs a reply' : 'FYI', who: n.repo, src: 'github · ' + n.reason.replace('_', ' '), title: n.title, text: n.type, c: 'var(--muted)', t: Date.parse(n.updated) });
+    for (const t of (h?.tasks || []).filter(t => t.status === 'failed' && Date.now() - Date.parse(t.completed || 0) < 3 * 864e5)) items.push({ g: 'FYI', who: 'Harness', src: 'task failed', title: t.title, text: t.error, c: 'var(--crit)', acts: `<button class="btn" data-la="rerun" data-id="${esc(t.id)}">Run again</button>`, t: Date.parse(t.completed) });
+    for (const n of ha?.notifications || []) items.push({ g: 'FYI', who: 'Home Assistant', src: 'problem', title: n, text: 'reported a problem', c: 'var(--accent)', t: Date.now() });
+    if (!h && !gh && !ha) return ph('inbox', 'Inbox', 'Inbox') + need(['harness', 'github', 'home-assistant'], 'Approvals, reviews and alerts from your sources collect here');
+    const groups = ['Needs a decision', 'Needs a reply', 'FYI'];
+    return ph('inbox', 'Inbox · approvals, GitHub and alerts', 'Inbox', stats([[items.filter(i => i.g !== 'FYI').length, 'need you'], [items.filter(i => i.g === 'FYI').length, 'for your information'], [gh?.notifications ? gh.notifications.filter(n => n.unread).length : '—', 'unread on GitHub']])) +
+      `<div class="grid" style="grid-template-columns:1.55fr 1fr"><div class="card"><h3>Triage <span class="go">newest first within each group</span></h3><div class="scroll">${groups.map(g => { const list = items.filter(i => i.g === g).sort((a, b) => b.t - a.t); return list.length ? `<div class="tg">${g} · ${list.length}</div>` + list.map(i => `<div class="msg" ${i.url ? `data-la="open" data-url="${esc(i.url)}"` : ''}><span class="av" style="background:${i.c}">${esc((i.who || '?')[0].toUpperCase())}</span><span class="who">${esc(i.title)}<span class="t2" style="font-weight:400"> · ${esc(i.who)}</span></span><span class="src">${esc(i.src)}</span><p>${esc(i.text || '')}</p>${i.acts ? `<div class="row" style="grid-column:2/-1;margin-top:6px">${i.acts}</div>` : ''}</div>`).join('') : ''; }).join('') || '<div class="empty"><div>Inbox zero. Nothing wants you.</div></div>'}</div></div>
+      <div class="col-stack"><div class="card insight"><h3>JARVIS can help</h3><p>Ask for a summary of everything waiting, or for a reply draft to a pull request.</p><div class="row" style="margin-top:12px"><button class="btn pri" data-la="ask" data-q="Go through what is waiting for me (approvals, pull requests, failures) and tell me what to do first, briefly.">What first?</button></div></div>
+      <div class="card fill"><h3>Sources</h3><div class="list">${[['harness', 'Agent approvals and failures'], ['github', 'Pull requests and notifications'], ['home-assistant', 'Home problems']].map(([t, d]) => `<div class="cron"><span>${esc(NAMES[t])}</span><span class="nx">${(t === 'home-assistant' ? ha : t === 'github' ? gh : h) ? '<span class="st good">connected</span>' : '<a class="lk" data-settings="connections">connect</a>'}</span><span></span><span class="w">${d}</span></div>`).join('')}</div><p class="muted" style="font-size:12px;margin-top:10px">Email and chat are not connected in this version.</p></div></div></div>`;
+  };
+
+  // Network ------------------------------------------------------------------
+  PAGES.network = () => {
+    const pr = ok('prometheus'), ts = ok('tailscale'), ag = ok('adguard'), cf = ok('cloudflare');
+    if (!pr && !ts && !ag && !cf) return ph('network', 'Network', 'Network') + need(['prometheus', 'tailscale', 'adguard', 'cloudflare'], 'Bandwidth, devices, DNS and what is exposed to the internet');
+    const last = a => a?.length ? a.at(-1)[1] : null, online = ts?.devices.filter(d => d.online).length;
+    return ph('network', 'Network · ' + [pr && 'Prometheus', ts && 'Tailscale', ag && 'AdGuard', cf && 'Cloudflare'].filter(Boolean).join(' · '), 'Network', stats([[ts ? `${online}/${ts.devices.length}` : '—', 'devices online'], [pr ? Math.round(last(pr.rx) ?? 0) : '—', 'Mbit/s down'], [pr ? Math.round(last(pr.tx) ?? 0) : '—', 'Mbit/s up'], [ag && ag.queries ? (ag.blocked / ag.queries * 100).toFixed(1) + '%' : '—', 'DNS queries blocked']])) +
+      `<div class="grid" style="grid-template-columns:1.6fr 1fr;grid-template-rows:1fr 1fr">
+      <div class="card"><h3>Bandwidth · 24 h <span class="go">download, Mbit/s · all interfaces</span></h3>${pr?.rx.length > 1 ? '<div class="chart" id="lv-net"></div>' : pr ? '<div class="empty"><div class="muted">No node_exporter network metrics.</div></div>' : need('prometheus', 'Throughput over the last day')}</div>
+      <div class="card"><h3>Exposed to the internet <span class="go">${cf ? 'via Cloudflare' : ''}</span></h3>${cf ? `<div class="list scroll">${cf.routes.map(r => `<div class="expo"><span class="st ${r.access ? 'good' : r.access === false ? 'warn' : 'idle'}">${r.access ? 'Access' : r.access === false ? 'public' : 'unknown'}</span><span><b>${esc(r.host)}</b><small>${esc(r.tunnel)} → ${esc(r.service)}${r.up ? '' : ' · tunnel down'}</small></span></div>`).join('') || '<div class="muted">No public hostnames on your tunnels.</div>'}</div>${cf.accessKnown ? '' : '<p class="muted" style="font-size:11.5px;margin-top:8px">Give the token Access read permission to see which hosts are protected.</p>'}` : broken('cloudflare', 'Cloudflare') || need('cloudflare', 'Your tunnels and whether Access protects each hostname')}</div>
+      <div class="card"><h3>Devices <span class="go">${ts ? 'tailnet' : ''}</span></h3>${ts ? `<div class="scroll"><table><thead><tr><th>Device</th><th>Address</th><th>OS</th><th class="n">Seen</th></tr></thead><tbody>${ts.devices.sort((a, b) => b.online - a.online).map(d => `<tr><td><span class="st ${d.online ? 'good' : 'idle'}" style="margin-right:6px"></span>${esc(d.name)}${d.update ? ' <span class="chip" style="font-size:9.5px">update</span>' : ''}</td><td><span class="mono">${esc(d.address)}</span></td><td class="t2">${esc(d.os)}</td><td class="n mono">${d.online ? 'now' : ago(d.seen)}</td></tr>`).join('')}</tbody></table></div>` : broken('tailscale', 'Tailscale') || need('tailscale', 'Every device on your tailnet')}</div>
+      <div class="card"><h3>DNS <span class="go">${ag ? 'top blocked · ' + ag.queries.toLocaleString('en-US') + ' queries' : ''}</span></h3>${ag ? `<div class="list scroll">${ag.top.map(d => `<div class="dns"><span>${esc(d.domain)}</span><span class="v">${d.count.toLocaleString('en-US')}</span><div class="bar"><b style="width:${d.count / Math.max(1, ag.top[0]?.count) * 100}%;background:var(--crit)"></b></div></div>`).join('') || '<div class="muted">Nothing blocked yet.</div>'}</div>` : broken('adguard', 'AdGuard Home') || need('adguard', 'What your DNS blocks')}</div>
+      </div>`;
+  };
+  charts.network = () => { const pr = ok('prometheus'), el = $('#lv-net'); if (pr && el && pr.rx.length > 1) lineChart(el, pr.rx.map(p => p[1]), { fmt: (v, s) => s ? v.toFixed(0) : v.toFixed(1) + ' Mbit/s', date: i => hm(new Date(pr.rx[i][0])), floor: 0 }); };
+
+  // Insights -----------------------------------------------------------------
+  PAGES.insights = () => {
+    const h = ok('harness');
+    if (!h) return ph('insights', 'Insights', 'Insights') + (broken('harness', 'The Harness') || need('harness', 'Statistics come from your agents\' usage'));
+    const tasks = h.tasks, done = tasks.filter(t => t.status === 'completed'), fin = tasks.filter(t => ['completed', 'failed'].includes(t.status));
+    const byRole = {}; for (const t of tasks) byRole[t.worker || 'other'] = (byRole[t.worker || 'other'] || 0) + (t.elapsed || 0);
+    const roleTotal = Object.values(byRole).reduce((a, b) => a + b, 0) || 1, roles = Object.entries(byRole).sort((a, b) => b[1] - a[1]).slice(0, 6);
+    const C = ['var(--s2)', 'var(--s1)', 'var(--s3)', 'var(--s4)', 'var(--muted)', 'var(--accent)'];
+    return ph('insights', 'Insights · from Harness usage', 'Insights', stats([[kfmt(h.usage.tokens), 'tokens'], [usd(h.usage.cost), 'AI spend'], [fin.length ? Math.round(done.filter(t => t.verified === 'passed').length / fin.length * 100) + '%' : '—', 'tasks verified'], [dur(roleTotal === 1 ? 0 : roleTotal), 'agent work time']])) +
+      `<div class="grid" style="grid-template-columns:1.6fr 1fr;grid-template-rows:1fr 1fr">
+      <div class="card"><h3><span>Tokens per day · by provider</span><span class="legend" id="lv-ileg"></span></h3><div class="chart" id="lv-usage"></div></div>
+      <div class="card"><h3>Models <span class="go">tokens · messages · cost</span></h3><div class="scroll"><table><thead><tr><th>Model</th><th class="n">Tokens</th><th class="n">Msgs</th><th class="n">Cost</th></tr></thead><tbody>${h.usage.byModel.slice().sort((a, b) => b.tokens - a.tokens).map(m => `<tr><td>${esc(m.model)}<div class="mono" style="font-size:11px;color:var(--muted)">${esc(m.provider)}</div></td><td class="n">${kfmt(m.tokens)}</td><td class="n">${m.messages}</td><td class="n">${usd(m.cost)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No usage yet.</td></tr>'}</tbody></table></div></div>
+      <div class="card"><h3>Activity · last 26 weeks <span class="go">tasks + todos done</span></h3><div class="heat" id="lv-heat"></div><div class="row muted" style="font-size:11.5px;margin-top:10px"><span>Less</span><span class="heatkey"><i style="--a:.08"></i><i style="--a:.3"></i><i style="--a:.55"></i><i style="--a:.8"></i><i style="--a:1"></i></span><span>More</span></div></div>
+      <div class="card"><h3>Where agent time went <span class="go">by worker</span></h3><div class="list">${roles.map(([r, ms], i) => `<div class="goal"><span>${esc(r)}</span><span class="v">${dur(ms)} · ${Math.round(ms / roleTotal * 100)}%</span><div class="bar"><b style="width:${ms / roles[0][1] * 100}%;background:${C[i % 6]}"></b></div></div>`).join('') || '<div class="muted">No tasks yet.</div>'}</div></div>
+      </div>`;
+  };
+  charts.insights = () => {
+    const h = ok('harness'); if (!h) return;
+    const heat = $('#lv-heat');
+    if (heat) {
+      const day = t => Math.floor((new Date(t).setHours(0, 0, 0, 0)) / 864e5), today = day(Date.now()), start = today - ((new Date().getDay() + 6) % 7) - 25 * 7, counts = {}; // 26 weeks, Monday-first, ending this week
+      for (const t of h.tasks) if (t.created) counts[day(t.created)] = (counts[day(t.created)] || 0) + 1;
+      for (const t of L().todos) if (t.doneAt) counts[day(t.doneAt)] = (counts[day(t.doneAt)] || 0) + 1;
+      const mx = Math.max(1, ...Object.values(counts));
+      heat.innerHTML = Array.from({ length: 26 * 7 }, (_, i) => { const n = counts[start + i] || 0; return `<i title="${n}" style="--a:${start + i > today ? 0 : n ? .25 + .75 * n / mx : .04}"></i>`; }).join('');
+    }
+    const el = $('#lv-usage'); if (!el) return;
+    const w = el.clientWidth, ht = el.clientHeight; if (w < 20 || ht < 20) return;
+    const days = 30, today = Math.floor(Date.now() / 864e5), provs = [...new Set(h.hourly.map(r => r.provider))].slice(0, 4), C = ['var(--s3)', 'var(--s2)', 'var(--s1)', 'var(--s4)'];
+    const data = Array.from({ length: days }, () => provs.map(() => 0));
+    for (const r of h.hourly) { const i = days - 1 - (today - Math.floor(Date.parse(r.hour) / 864e5)), k = provs.indexOf(r.provider); if (i >= 0 && k >= 0) data[i][k] += r.tokens; }
+    $('#lv-ileg').innerHTML = provs.map((p, k) => `<span><i style="background:${C[k]}"></i>${esc(p)}</span>`).join('');
+    if (!provs.length) { el.innerHTML = '<div class="empty"><div class="muted">No usage in the last 30 days.</div></div>'; return; }
+    const tot = data.map(d => d.reduce((a, b) => a + b, 0)), raw = Math.max(1, ...tot), step = Math.pow(10, Math.floor(Math.log10(raw))) * (raw / Math.pow(10, Math.floor(Math.log10(raw))) > 5 ? 2 : 1), mx = Math.ceil(raw / step) * step;
+    const pad = { r: 46, b: 22, t: 6 }, bw = (w - pad.r) / days, Y = v => (ht - pad.t - pad.b) * v / mx;
+    let g = '';
+    for (let k = 0; k <= mx / step; k++) { const y = ht - pad.b - Y(k * step); g += `<line x1="0" x2="${w - pad.r}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-dasharray="2 4"/>${axisText(w - pad.r + 10, y + 4, kfmt(k * step))}`; }
+    data.forEach((d, i) => { let y = ht - pad.b; d.forEach((v, k) => { const hh = Y(v); y -= hh; if (hh > .5) g += `<rect x="${(i * bw + 2).toFixed(1)}" y="${y.toFixed(1)}" width="${(bw - 4).toFixed(1)}" height="${Math.max(0, hh - 1).toFixed(1)}" rx="2" fill="${C[k]}"><title>${esc(provs[k])} ${kfmt(v)}</title></rect>`; }); });
+    [0, 15, 29].forEach((i, k) => g += axisText(i * bw + bw / 2, ht - 4, new Date((today - days + 1 + i) * 864e5).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }), ['start', 'middle', 'end'][k]));
+    el.innerHTML = svgEl(w, ht, g);
+  };
+
+  // ---------------------------------------------------------------- what JARVIS says on arrival, from live data
+  const lines = {
+    home: () => { const n = needsList().length; return n ? `${n} thing${n > 1 ? 's' : ''} need you. The top of the list is the most urgent.` : 'Nothing needs you right now.'; },
+    agents: () => { const h = ok('harness'); return h ? (h.approvals.length ? `An agent is waiting for your decision.` : h.active.length ? `${h.active.length} task${h.active.length > 1 ? 's are' : ' is'} running in the Harness.` : 'No agents running. Describe a task on the right and I will hand it over.') : 'Connect the Harness and I can show you what your agents do.'; },
+    schedule: () => { const n = todayItems().filter(x => x.t > Date.now() && !x.all).length; return n ? `${n} more thing${n > 1 ? 's' : ''} on today.` : 'The rest of today is free.'; },
+  };
+  return { get on() { return API.server; }, start, poll, charts: drawAll, rerender: () => { last = {}; render(); }, line: id => lines[id]?.(), data: () => S };
+})();
+
+// JARVIS can suggest actions at the end of an answer; they run only when you click them.
+function liveActions(text) {
+  const acts = [];
+  const body = text.replace(/^\s*ACTION\s+(todo|task|approve|reject|go):\s*(.+?)\s*$/gim, (_, k, v) => { acts.push([k.toLowerCase(), v.trim()]); return ''; }).trim();
+  return { body, acts: acts.slice(0, 4) };
+}
+async function runSuggested(kind, value) {
+  if (kind === 'go') { const id = order.find(o => byId[o].dataset.name.toLowerCase() === value.toLowerCase() || o === value.toLowerCase()); if (id) { toggleTerm(false); go(id); } return; }
+  const map = { idea: ['local', 'ideas/add', { text: value }], todo: ['local', 'todos/add', { text: value, from: 'from the terminal' }], task: ['harness', 'create', { objective: value }], approve: ['harness', 'decide', { id: value, decision: 'approve' }], reject: ['harness', 'decide', { id: value, decision: 'reject' }] };
+  const [k, a, b] = map[kind];
+  try { const r = await api(`live/${k}/${a}`, { method: 'POST', body: b }); out(`<span class="ok">✓ ${esc(kind)} · ${esc(r.id || value.slice(0, 60))}</span>\n`); LIVE.poll(true); }
+  catch (e) { out(`<span class="w">✗ ${esc(e.message)}</span>\n`); }
+}
+
 /* ======================================================== boot */
 function boot() {
   const start = applyLayout(CFG.layout);
@@ -3097,12 +3762,9 @@ function boot() {
 }
 async function start() {
   await loadSettings();
+  if (API.server) body.classList.add('server');
   if (API.server) {
-    $('#lab-source').textContent = 'Local AI · sample metrics';
     $('#deploybtn').hidden = true; $('#sshbtn').hidden = true;
-    renderHardware({ configured: false, machines: [] });
-    refreshHardware();
-    setInterval(refreshHardware, 30000);
   } else {
     $('#hardware-state').hidden = true;
     renderDemoMachines();
@@ -3123,6 +3785,7 @@ async function start() {
   else if (!API.conns.some(c => c.kind === 'ai')) setTimeout(() => say("Welcome. Shall we connect an AI first? A subscription, an API key or a local model all work.", { force: true, acts: [['Connect an AI', () => openSettings('ai')], ['Later']] }), 2600);
   setTimeout(ambient, 75000);
   checkStatus();
+  if (API.server) LIVE.start();
   document.fonts?.ready.then(() => { measureSlot(); placeOrb(); syncChrome(); fitGreet(); });
   let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { layout(); drawCharts(); cam = overview ? overviewCam() : paneCam(current); zoomF = 1; flight = { type: 'pan', tx: cam.fx, ty: cam.fy }; apply(); measureSlot(); placeOrb(); syncChrome(); fitGreet(); }, 80); });
 }

@@ -1,6 +1,6 @@
 // JARVIS dashboard server. Zero dependencies: Node 20.11+ only.
 //
-//   npm start                      build, then serve on http://127.0.0.1:8787
+//   npm start                      build, then serve on http://127.0.0.1:8790
 //   node server/index.mjs reset    forget the password (and sign everyone out); prints a new setup code
 //
 // Nothing personal is served before sign-in: unauthenticated visitors only ever get the neutral
@@ -11,11 +11,14 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { state, persist, flush } from "./store.mjs";
 import * as auth from "./auth.mjs";
-import { saveConnection, removeConnection, publicConn, draft, test, answer, entryOf } from "./connect.mjs";
+import { saveConnection, removeConnection, publicConn, draft, test, answer, entryOf, optedIn } from "./connect.mjs";
 import { hardwareMetrics, invalidateHardwareCache } from "./hardware.mjs";
+import * as live from "./live.mjs";
+import { homeAssistantAction, homeAssistantHistory } from "./sources.mjs";
+import { SourceError } from "./net.mjs";
 
 const dist = path.join(import.meta.dirname, "../dist");
-const PORT = Number(process.env.PORT || 8787), HOST = process.env.HOST || "127.0.0.1";
+const PORT = Number(process.env.PORT || 8790), HOST = process.env.HOST || "127.0.0.1";
 const VERSION = (() => { try { return fs.readFileSync(path.join(dist, "version.txt"), "utf8").trim(); } catch { return "dev"; } })();
 
 if (process.argv[2] === "reset") {
@@ -147,7 +150,7 @@ async function api(req, res, url, who) {
   if (p === "session" && m === "GET")
     return json(res, 200, {
       jarvis: true, version: VERSION, auth: auth.MODE === "access" ? `Cloudflare Access · ${who.user.email}` : "password",
-      settings: state.settings, connections: state.connections.map(publicConn),
+      settings: state.settings, connections: state.connections.map(publicConn), optIn: optedIn(),
       security: { mode: auth.MODE === "access" ? "Cloudflare Access" : auth.ACCESS ? "password + Cloudflare Access" : "password", https: auth.isHttps(req), proxy: auth.proxyName(req), access: auth.ACCESS, totp: !!state.owner?.totp, local: auth.isLocal(req) },
     });
   if (p === "settings" && m === "PUT") {
@@ -204,6 +207,34 @@ async function api(req, res, url, who) {
 
   if (p === "hardware" && m === "GET") return json(res, 200, await hardwareMetrics());
 
+  // ---- live data and the actions the board can take
+  if (p === "live" && m === "GET") return json(res, 200, await live.snapshot(url.searchParams.has("fresh")));
+  const lm = /^live\/(harness|home|local|ai)\/([a-z]+)(?:\/([a-z]+))?$/.exec(p);
+  if (lm && (m === "POST" || (m === "GET" && lm[2] === "history"))) {
+    const b = m === "POST" ? await readBody(req, 64 * 1024) : {};
+    try {
+      if (lm[1] === "harness") {
+        const c = live.pick("harness");
+        if (!c) return json(res, 409, { error: "Connect a Harness in Settings → Connections first." });
+        const r = await live.harnessAction(c, lm[2], b);
+        live.addLog(`Harness · ${lm[2]}${b.decision ? " " + b.decision : ""}${r.id ? " " + r.id : ""}`);
+        return json(res, 200, r);
+      }
+      if (lm[1] === "home") {
+        const c = live.pick("home-assistant");
+        if (!c) return json(res, 409, { error: "Connect Home Assistant in Settings → Connections first." });
+        if (lm[2] === "history") return json(res, 200, { series: await homeAssistantHistory(c, String(url.searchParams.get("ids") || "").split(",")) });
+        return json(res, 200, await homeAssistantAction(c, b));
+      }
+      if (lm[1] === "local") return json(res, 200, live.localAction(lm[2], lm[3], b));
+      if (lm[1] === "ai" && lm[2] === "brief") { const text = await live.complete("Write my brief for right now: what is on, what needs me, anything worth knowing. 4–7 short lines, most important first. No greeting line.", { name: state.settings?.profile?.name }); state.brief = { at: Date.now(), text }; persist(); return json(res, 200, { brief: state.brief }); }
+      if (lm[1] === "ai" && lm[2] === "review") { live.localAction("automations", "run", { id: (state.automations || []).find((a) => a.kind === "review" && a.scope === (b.scope === "weekly" ? "weekly" : "daily"))?.id }); return json(res, 202, { started: true }); }
+    } catch (e) {
+      return json(res, e instanceof SourceError ? 502 : 400, { error: e.message });
+    }
+    return json(res, 404, { error: "Not found." });
+  }
+
   if (p === "status" && m === "GET") {
     if (url.searchParams.has("fresh") || Date.now() - statusCache.at > 60e3) {
       const list = await Promise.all(state.connections.map(async (c) => ({ id: c.id, type: c.type, kind: c.kind, name: c.name, entry: entryOf(c), r: await test(c) })));
@@ -221,7 +252,8 @@ async function api(req, res, url, who) {
     res.on("close", () => ac.abort());
     const emit = (o) => res.write(`data: ${JSON.stringify(o)}\n\n`);
     try {
-      for await (const t of answer(c, Array.isArray(b.messages) ? b.messages : [], b.context, ac.signal)) emit({ t: "text", v: t });
+      const ctx = { ...(b.context && typeof b.context === "object" ? b.context : {}), live: await live.liveContext().catch(() => "") };
+      for await (const t of answer(c, Array.isArray(b.messages) ? b.messages : [], ctx, ac.signal)) emit({ t: "text", v: t });
       emit({ t: "done" });
     } catch (e) {
       if (!ac.signal.aborted) emit({ t: "error", v: e.message });
@@ -273,6 +305,8 @@ server.requestTimeout = 10 * 60e3;
 server.headersTimeout = 20e3;
 
 auth.initOwner();
+live.startScheduler();
+setInterval(() => live.watchHarness(), 60e3).unref();
 server.listen(PORT, HOST, () => {
   console.log(`JARVIS ${VERSION} · http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT} · sign-in: ${auth.MODE}${auth.ACCESS ? " + Cloudflare Access" : ""}`);
   if (HOST !== "127.0.0.1" && HOST !== "localhost" && HOST !== "::1" && !auth.ACCESS) console.log("Listening beyond localhost: put it behind HTTPS (for example a Cloudflare Tunnel) before exposing it.");

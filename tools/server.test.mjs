@@ -27,8 +27,8 @@ const fakePrometheus = http.createServer((req, res) => {
   else if (q.includes("node_filesystem_avail_bytes")) result = [{ metric, value: [1, "74"] }];
   else if (q.includes("node_boot_time_seconds")) result = [{ metric, value: [1, "90061"] }];
   else if (q.includes("DCGM_FI_DEV_GPU_UTIL")) result = [{ metric, value: [1, "71"] }];
-  else if (q.includes("DCGM_FI_DEV_FB_USED")) result = [{ metric, value: [1, "12800"] }];
   else if (q.includes("DCGM_FI_DEV_FB_TOTAL")) result = [{ metric, value: [1, "24576"] }];
+  else if (q.includes("DCGM_FI_DEV_FB_USED")) result = [{ metric, value: [1, "12800"] }];
   res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ status: "success", data: { resultType: "vector", result } }));
 });
 
@@ -54,7 +54,9 @@ const call = async (p, { method = "GET", body, headers = {}, raw } = {}) => {
 
 test("Claude subscription preset has no tool execution surface", () => {
   const args = CLI_PRESETS.claude("sonnet");
-  assert.ok(args.includes("--bare"));
+  // --bare would skip the subscription login, so it must not be there.
+  assert.ok(!args.includes("--bare"));
+  for (const flag of ["--safe-mode", "--strict-mcp-config", "--disable-slash-commands"]) assert.ok(args.includes(flag), flag);
   assert.ok(args.includes("--tools"));
   assert.equal(args[args.indexOf("--tools") + 1], "");
   assert.ok(args.includes("--disallowedTools"));
@@ -159,7 +161,7 @@ test("CLI connections use a fixed executable and unsafe subscription CLIs fail c
   await call(`/api/connections/${r.body.connection.id}`, { method: "DELETE" });
   const codex = await call("/api/connections", { method: "POST", body: { kind: "ai", type: "codex", values: { model: "tiny", command: "/tmp/codex" } } });
   assert.equal(codex.status, 409);
-  assert.match(codex.body.error, /built-in tools/i);
+  assert.match(codex.body.error, /JARVIS_ALLOW_TOOL_CLIS/);
   const gemini = await call("/api/connections/test", { method: "POST", body: { kind: "ai", type: "gemini-cli", values: { model: "tiny" } } });
   assert.equal(gemini.status, 409);
   assert.match(gemini.body.error, /tool access/i);
@@ -191,7 +193,7 @@ test("hardware endpoint reads authenticated Prometheus metrics and keeps tokens 
   assert.equal(response.status, 200);
   assert.equal(response.body.ok, true);
   assert.deepEqual(response.body.machines[0], {
-    instance: "rackintosh:9100", name: "rackintosh", cpu: 22.5, ram: 60, disk: 74,
+    instance: "rackintosh", name: "rackintosh", cpu: 22.5, ram: 60, disk: 74,
     uptime: "1 d 1 h", gpu: 71, gpuMemory: 52.1,
   });
   assert.equal(promAuth, "Bearer prom-secret-test");

@@ -34,7 +34,7 @@ secret, and nothing in it is personal.
 The recommended setup for access from anywhere:
 
 1. **Cloudflare Tunnel.** No port is opened on your router; `cloudflared` connects out and forwards
-   to `http://127.0.0.1:8787` (or the `jarvis` container). See `docker-compose.yml`.
+   to `http://127.0.0.1:8790` (or the `jarvis` container). See `docker-compose.yml`.
 2. **Cloudflare Access** in front of the hostname (Zero Trust → Access → Applications), allowing
    only your email. Then set `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD`: the server verifies
    Cloudflare's signed JWT on **every** request and answers `403` to anything without one, so
@@ -65,16 +65,29 @@ Back up `data/` as a whole. Without `secret.key` the stored secrets cannot be de
 ## AI subscriptions
 
 The Claude subscription is used through its official `claude` CLI, signed in by you on the server.
-JARVIS invokes the fixed `claude` executable in bare mode, disables its built-in tools, denies all
-tool names, and disables permission prompts in an empty working directory. Bare mode also skips
-discovery of MCP servers, hooks, plugins, skills and project instructions. The browser cannot
-select a different executable. API and local model requests are sent without tool definitions.
+JARVIS invokes the fixed `claude` executable with `--safe-mode --strict-mcp-config` (no CLAUDE.md,
+skills, plugins, hooks, MCP servers or settings files), offers it no tools, denies every tool name,
+disables slash commands and permission prompts, and runs it in an empty working directory. The
+browser cannot select a different executable. API and local model requests carry no tool definitions.
 
-Codex and Gemini CLI subscriptions are currently unavailable in the dashboard. Their current
-headless invocations do not provide JARVIS with a verified way to remove every tool, so the UI
-hides those options, the server rejects new connections, and any old saved connection cannot be
-used for chat. Remove old disabled connections in Settings → AI. They can be restored once a
-supported text-only invocation can be enforced.
+The ChatGPT subscription runs through Codex CLI, which cannot switch its shell tool off. It is
+therefore **off unless you start the server with `JARVIS_ALLOW_TOOL_CLIS=1`**. Then it runs with a
+read-only sandbox (no writes, no network for commands), web search, browser use, computer use and
+apps disabled, no approvals, no rules and no saved session, in an empty directory, and untrusted
+headlines are left out of its prompt. It can still read files the server user can read; run the
+server as a dedicated user (the NixOS module does by default) if that matters to you. Gemini CLI stays
+unavailable until it can be locked down the same way.
+
+## What JARVIS may do
+
+JARVIS sees a plain-text summary of your live data when you ask it something. It cannot act:
+suggested actions (a todo, a Harness task, an approval, opening a page) appear as buttons and run only
+when you click them. Headlines, calendar titles and other third-party text are marked untrusted in
+the prompt. Home Assistant actions are limited to toggling lights, switches, fans, covers and media
+players, activating scenes, locking or unlocking a lock with an explicit button, and setting a
+thermostat between 5 and 35 °C. Harness ids and decisions are validated before they are sent.
+Automations (brief, reviews, Harness tasks, AI prompts) run on the server at the times you set; agent
+work itself always runs in the Harness, under its own policy and approvals.
 
 ## Reporting a problem
 

@@ -34,11 +34,34 @@ It runs two ways:
 | What | One HTML file with sample data | The same app behind a sign-in |
 | Start | open `dist/index.html`, or GitHub Pages | `npm start`, or Docker |
 | Settings | saved in your browser | saved on your server |
-| AI and connections | — | Claude subscription, API keys, local models, Home Assistant, Proxmox, calendars… |
+| Data | sample data on every page | your own: Harness, calendars, Prometheus, Home Assistant, feeds, GitHub… |
+| AI and connections | — | Claude subscription, API keys, local models; ChatGPT subscription opt-in |
 | Who sees it | everyone (nothing personal in it) | only you; visitors get a blank login page |
 
+### What each page reads
+
+On the server every page renders from live data, refreshed every 15 seconds. A page whose source is not connected says which connection it needs, instead of showing anything made up.
+
+| Page | Live from | What you can do there |
+| --- | --- | --- |
+| **Home** | everything below | approve or reject agent requests, re-run failed tasks, see today, machines, headlines |
+| **Agents** | Harness | live routing graph, running tasks, approve / reject / cancel, start a new task |
+| **Schedule** | ICS calendars, JARVIS | week view, automations (brief, reviews, Harness tasks, AI prompts on a schedule), todos |
+| **Projects** | Harness, GitHub | kanban from agent tasks and pull requests, ideas you can hand to an agent |
+| **Infra** | Prometheus, Uptime Kuma | CPU / RAM / disk / GPU per machine, scrape targets and monitors, JARVIS' event log |
+| **Lab** | Prometheus, Harness, Ollama | GPU load, VRAM, temperature, local models loaded and on disk, GPU queue, workers |
+| **Rooms** · **Energy** | Home Assistant | rooms, lights, scenes, climate, locks · power flow, consumers, energy counters |
+| **World** | RSS / Atom feeds | headlines ranked by your topics, the coming week, a summary on request |
+| **Reviews** | JARVIS + your AI | daily and weekly reviews written from your real week, the morning brief |
+| **Markets** | Finnhub + your holdings | value, allocation against targets, drift suggestions (never trades) |
+| **Inbox** | Harness, GitHub, Home Assistant | approvals, pull requests, notifications and failures in one place |
+| **Network** | Prometheus, Tailscale, AdGuard, Cloudflare | bandwidth, devices, DNS blocking, which hostnames Access protects |
+| **Insights** | Harness | tokens per day by provider, model usage, activity, agent time by worker |
+| **Status** | every connection | health and latency of each connection, checked from the server |
+| **Health** | — | no source yet; remove it from the board if you do not need it |
+
 > [!NOTE]
-> Most pages still show **sample data**: they are designed and interactive, but not yet fed by live sources. Live server features include sign-in, settings, themes, board layout, AI answers in the terminal, connection health, and machine readings when Prometheus is configured. The Lab page and service/event panels still contain sample data.
+> JARVIS sees the same live summary when you ask it something, and can **suggest** actions (a todo, a Harness task, an approval). Nothing happens until you click the suggestion.
 
 ## Features
 
@@ -83,17 +106,17 @@ Pick how JARVIS thinks in **Settings → AI**. Any one of these is enough:
 
 | | Options | How |
 | --- | --- | --- |
-| **Subscription** | Claude Pro/Max | through the official `claude` CLI, signed in once on the server |
+| **Subscription** | Claude Pro/Max · ChatGPT Plus/Pro (opt-in) | through the official `claude` or `codex` CLI, signed in once on the server |
 | **API key** | Anthropic · OpenAI · Google Gemini · OpenRouter · Mistral · Groq · xAI · DeepSeek | pay per token |
 | **Local** | Ollama · LM Studio · llama.cpp · vLLM · any OpenAI-compatible server | nothing leaves your network |
 
-Every connection has a **Test** button that lists the available models. Answers stream into the terminal (<kbd>`</kbd>) and the Home prompt, with the route shown on every reply. Claude CLI runs in bare mode with all tools denied; API and local model requests do not include tool definitions. Codex and Gemini subscriptions remain hidden until JARVIS can enforce a verified text-only policy for them.
+Every connection has a **Test** button that lists the available models. Answers stream into the terminal (<kbd>`</kbd>) and the Home prompt, with the route shown on every reply. Claude Code runs text-only, with every tool disabled; API and local model requests carry no tool definitions. Codex CLI cannot switch its shell tool off, so the ChatGPT subscription is **opt-in** (`JARVIS_ALLOW_TOOL_CLIS=1`): it then runs in a read-only sandbox without network, web search, browser or apps, and untrusted headlines are left out of its prompt. Gemini CLI stays unavailable until it can be locked down the same way.
 
 ### Connections
 
-**Settings → Connections** stores what JARVIS reads from: jarvis-hermes, Home Assistant, weather (no key), Prometheus, Proxmox VE, Uptime Kuma, AdGuard Home, Tailscale, Cloudflare, GitHub, any ICS calendar, RSS feeds, Finnhub, Jellyfin, ntfy, or any HTTP endpoint. Each one is tested from the server and watched on the **Status** page. Secrets are encrypted on the server and never sent back to the browser.
+**Settings → Connections** stores what JARVIS reads from: the Harness, jarvis-hermes, Home Assistant, Ollama, weather (no key), Prometheus, Proxmox VE, Uptime Kuma, AdGuard Home, Tailscale, Cloudflare, GitHub, any ICS calendar, RSS feeds, Finnhub, Jellyfin, ntfy, or any HTTP endpoint. Each one is tested from the server and watched on the **Status** page. Secrets are encrypted on the server and never sent back to the browser.
 
-The **Infra** page and Home machine tiles can show live CPU, RAM, root filesystem use and uptime from Prometheus. Add a Prometheus connection in **Settings → Connections**; its server URL and optional bearer token stay on the dashboard server. Prometheus must scrape node_exporter for machine readings. NVIDIA GPU utilization and memory utilization appear when DCGM exporter metrics are available. Data refreshes every 30 seconds, and the dashboard clearly marks the panel when no live source is configured or reachable.
+The **Infra** page and Home machine tiles can show live CPU, RAM, root filesystem use and uptime from Prometheus. Add a Prometheus connection in **Settings → Connections**; its server URL and optional bearer token stay on the dashboard server. Prometheus must scrape node_exporter for machine readings. NVIDIA GPU utilisation, memory, temperature and power appear with either the DCGM exporter or nvidia_gpu_exporter; exporters on the same host are shown as one machine.
 
 <p align="center"><img src="docs/screenshots/settings-themes.png" alt="Settings, Appearance: twelve theme cards each previewed in its own colours, import and export buttons" width="100%"></p>
 
@@ -124,12 +147,12 @@ cd center-dashboard
 npm run preview        # static demo on http://127.0.0.1:8080
 ```
 
-The build is a single self-contained `dist/index.html` (about 510 KB, with the orb, font and themes inlined). It also works opened straight from disk. Settings in the demo are kept in your browser.
+The build is a single self-contained `dist/index.html` (about 620 KB, with the orb, font and themes inlined). It also works opened straight from disk. Settings in the demo are kept in your browser.
 
 ## Run it privately
 
 ```sh
-npm start              # build + server on http://127.0.0.1:8787
+npm start              # build + server on http://127.0.0.1:8790
 ```
 
 <img src="docs/screenshots/login.png" alt="The neutral first-run page asking for the setup code and a new password" width="420" align="right">
@@ -139,25 +162,47 @@ npm start              # build + server on http://127.0.0.1:8787
 3. Open **Settings** (<kbd>,</kbd> or the gear) → **AI** and connect a subscription, a key or a local model. To use Claude, install its CLI on the same machine and sign in once (`claude`).
 4. Press <kbd>`</kbd> and ask JARVIS something.
 
-Everything lives in `data/` (settings, encrypted secrets, sessions). Back it up as a whole. Forgot the password? `npm run reset-password`.
+Everything lives in `data/` (settings, encrypted secrets, sessions, todos, reviews). Back it up as a whole. Forgot the password? `npm run reset-password`.
+
+Automations run on the server: by default a morning brief (07:30), a daily wrap-up (weekdays 21:30) and a weekly review (Sunday 18:00), all editable on the Schedule page. Add an **ntfy** connection to get them, new approvals and failed tasks on your phone. Agent work itself always runs in the Harness; the dashboard only schedules and asks.
 
 <br clear="right">
+
+**On NixOS** (the repository is a flake):
+
+```nix
+# flake.nix
+inputs.center-dashboard.url = "github:schpeterzon/center-dashboard";
+
+# configuration
+imports = [ inputs.center-dashboard.nixosModules.default ];
+services.center-dashboard = {
+  enable = true;                       # http://127.0.0.1:8790, state in /var/lib/center-dashboard
+  environmentFile = "/etc/secrets/center-dashboard.env";   # optional: CF_ACCESS_*, JARVIS_AUTH, …
+  trustProxy = true;                   # behind a Cloudflare Tunnel
+  # user = "you"; cliPackages = [ pkgs.claude-code ];       # to use your Claude subscription
+};
+```
+
+Then `journalctl -u center-dashboard` shows the setup code. The service is sandboxed (no home access, read-only system, no capabilities) unless you run it as your own user for a subscription CLI.
 
 **With Docker:**
 
 ```sh
 docker build -t jarvis-dashboard .
-docker run -d --name jarvis -p 127.0.0.1:8787:8787 -v jarvis-data:/data jarvis-dashboard
+docker run -d --name jarvis -p 127.0.0.1:8790:8790 -v jarvis-data:/data jarvis-dashboard
 docker logs jarvis     # shows the setup code
 ```
 
-The image covers API keys and local models. Claude CLI is easiest with `npm start` on a machine where you are already signed in.
+The image covers API keys and local models. Subscription CLIs are easiest with `npm start` or the NixOS module running as a user who is already signed in.
+
+**Try the live board without your own services:** `npm run fixtures` starts stand-ins for a calendar, Home Assistant, Uptime Kuma and AdGuard on port 18800 (Home Assistant token `ha-token`, calendar at `/cal.ics`).
 
 ## Expose it with Cloudflare
 
 Reach it from anywhere without opening a port:
 
-1. **Tunnel.** In Cloudflare Zero Trust → Networks → Tunnels, create a tunnel and point a public hostname (for example `jarvis.example.com`) at `http://localhost:8787`, or use the included `docker-compose.yml` with `TUNNEL_TOKEN` in `.env`.
+1. **Tunnel.** In Cloudflare Zero Trust → Networks → Tunnels, create a tunnel and point a public hostname (for example `jarvis.example.com`) at `http://localhost:8790`, or use the included `docker-compose.yml` with `TUNNEL_TOKEN` in `.env`.
 2. **Access** (recommended). Add an Access application for the hostname that only allows your email. Then set `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD`: the server verifies Cloudflare's signed token on every request and refuses anything without it.
 3. Set `JARVIS_TRUST_PROXY=cloudflare`. Keep the password as a second factor, or set `JARVIS_AUTH=access` to sign in through Access alone (Google, GitHub, one-time PIN…).
 
@@ -172,7 +217,7 @@ All options are in [`.env.example`](.env.example); the threat model is in [SECUR
 | Pan freely | Drag empty board space, or hold <kbd>Space</kbd> and drag |
 | Overview | <kbd>Esc</kbd>, or pinch in on a trackpad |
 | Settings | <kbd>,</kbd> or the gear |
-| Terminal | <kbd>`</kbd> (`help`, `go energy`, `theme nord`, `settings`, or ask anything) |
+| Terminal | <kbd>`</kbd> (`help`, `go energy`, `theme nord`, `settings`, `task …`, `todo …`, `approve …`, or ask anything) |
 | Talk to JARVIS | Click the orb |
 | Move the orb | Drag it to any corner |
 
@@ -186,22 +231,25 @@ flowchart LR
   O[vendor/jarvis-orb] --> B
   B --> D[dist/index.html + login.html]
   D --> P[GitHub Pages<br/><sub>static demo</sub>]
-  D --> S(server/index.mjs<br/><sub>sign-in · settings · AI · checks</sub>)
+  D --> S(server/index.mjs<br/><sub>sign-in · settings · AI · scheduler</sub>)
   C --> S
   S --> X[(data/<br/><sub>encrypted</sub>)]
+  S <--> H[Harness<br/><sub>tasks · approvals · usage</sub>]
+  S <--> Q[Prometheus · Home Assistant · calendars · feeds · GitHub · Ollama …]
 ```
 
 - **No framework, no dependencies**, front end or server. Plain HTML, CSS and JavaScript, and Node's standard library.
 - **One catalog** (`src/catalog.mjs`) describes every AI provider and integration: its fields, which are secret, and how to test it. The browser renders forms from it; the server validates, stores and probes with it. Adding an integration is one entry.
 - **The orb is vendored** from jarvis-hermes (commit in `vendor/jarvis-orb/SOURCE`) and bundled into a classic script, so it works from `file://`.
-- **Checks guard every build**: `npm test` builds, runs static checks on the page (every script parses, every looked-up element exists, no remote code, size budget, themes and catalog present, login page free of app content) and runs end-to-end server tests (sign-in, secrets at rest, request guards, AI streaming).
+- **Checks guard every build**: `npm test` builds, runs static checks on the page (every script parses, every looked-up element exists, no remote code, size budget, themes and catalog present, login page free of app content) and runs end-to-end tests (sign-in, secrets at rest, request guards, AI streaming, every live source against a fake Harness and fixtures, approvals, Home Assistant action limits, the ICS and feed parsers).
 
 ```text
 src/index.html          the app: markup, styles and script
 src/themes.css          built-in themes
 src/catalog.mjs         AI providers and integrations
 src/login.html          the neutral sign-in page
-server/                 zero-dependency Node server
+server/                 zero-dependency Node server: auth, live sources, Harness, scheduler
+nix/                    Nix package and NixOS module (flake.nix)
 tools/                  build, checks, tests, static preview
 vendor/                 the JARVIS orb and Space Grotesk
 docs/                   themes guide and screenshots
@@ -209,8 +257,9 @@ docs/                   themes guide and screenshots
 
 ## Roadmap
 
-- Feed the sample pages from their connections (Home Assistant → Rooms and Energy, calendars → Schedule, feeds → World, jarvis-hermes → Agents and Lab)
-- Let JARVIS act through tools, with approvals, instead of only answering
+- A health source (Home Assistant companion sensors, or a fitness service)
+- Email and chat in the Inbox
+- Live updates over the Harness WebSocket instead of polling
 - Per-task routing (for example: money and health questions only to local models)
 - More themes and integrations from the community
 

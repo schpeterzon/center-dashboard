@@ -59,7 +59,8 @@ const valueOf = (row) => {
   const n = Number(row?.value?.[1]);
   return Number.isFinite(n) ? n : null;
 };
-const instanceOf = (row) => String(row?.metric?.instance || row?.metric?.nodename || row?.metric?.hostname || "unknown").slice(0, 180);
+// node_exporter and a GPU exporter on one machine use different ports; group them by host.
+const instanceOf = (row) => String(row?.metric?.instance || row?.metric?.nodename || row?.metric?.hostname || "unknown").replace(/:\d+$/, "").slice(0, 180);
 const round = (n) => n == null ? null : Math.round(Math.max(0, Math.min(100, n)) * 10) / 10;
 
 function byInstance(rows, transform = (n) => n) {
@@ -99,9 +100,10 @@ async function readHardware(connection) {
     disk: 'max by (instance) (100 * (1 - node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay|squashfs"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay|squashfs"}))',
     uptime: 'max by (instance) (time() - node_boot_time_seconds)',
     name: 'node_uname_info',
-    gpu: 'max by (instance) (DCGM_FI_DEV_GPU_UTIL)',
-    gpuUsed: 'sum by (instance) (DCGM_FI_DEV_FB_USED)',
-    gpuTotal: 'sum by (instance) (DCGM_FI_DEV_FB_TOTAL)',
+    // NVIDIA DCGM exporter, or the nvidia_smi based nvidia_gpu_exporter.
+    gpu: 'max by (instance) (DCGM_FI_DEV_GPU_UTIL) or max by (instance) (100 * nvidia_smi_utilization_gpu_ratio)',
+    gpuUsed: 'sum by (instance) (DCGM_FI_DEV_FB_USED) or sum by (instance) (nvidia_smi_memory_used_bytes)',
+    gpuTotal: 'sum by (instance) (DCGM_FI_DEV_FB_TOTAL) or sum by (instance) (DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE) or sum by (instance) (nvidia_smi_memory_total_bytes)',
   };
 
   try {
