@@ -78,7 +78,7 @@ export const INTEGRATIONS = [
     fields: [{ k: "url", label: "URL", placeholder: "http://jarvis.lan:8787" }, { k: "token", label: "API token", secret: true }],
     probe: { url: "{url}/api/system", headers: { authorization: "Bearer {token}" }, expect: "json" } },
   { id: "home-assistant", group: "core", name: "Home Assistant", icon: "⌂", blurb: "Rooms, lights, climate, energy and presence.",
-    fields: [{ k: "url", label: "URL", placeholder: "http://homeassistant.local:8123" }, { k: "token", label: "Long-lived token", secret: true }],
+    fields: [{ k: "url", label: "URL", placeholder: "http://192.168.1.50:8123 (an IP or Tailscale address)" }, { k: "token", label: "Long-lived token", secret: true }],
     probe: { url: "{url}/api/", headers: { authorization: "Bearer {token}" }, expect: "json" } },
   { id: "weather", group: "core", name: "Weather", icon: "☁", blurb: "Open-Meteo forecast for your location. No key needed.",
     fields: [{ k: "location", label: "Place", placeholder: "Vienna" }],

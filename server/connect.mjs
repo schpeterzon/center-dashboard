@@ -92,8 +92,17 @@ export async function test(c) {
     const r = c.kind === "ai" ? await testAi(c) : await probe(c);
     return { ok: true, ms: Date.now() - t0, ...r };
   } catch (error) {
-    return { ok: false, ms: Date.now() - t0, error: error.name === "TimeoutError" ? "timed out after 8 s" : error.message };
+    return { ok: false, ms: Date.now() - t0, error: error.name === "TimeoutError" ? "timed out after 8 s" : reason(error) };
   }
+}
+// Node's fetch only says "fetch failed"; the cause says why.
+function reason(error) {
+  const code = error.cause?.code, host = error.cause?.hostname || "";
+  if (code === "ENOTFOUND" || code === "EAI_AGAIN") return /\.local$/i.test(host) ? `the server cannot resolve ${host} (.local names only work on your own network, not inside Docker): use the IP or Tailscale address` : `the server cannot find ${host || "that host"}: check the address`;
+  if (code === "ECONNREFUSED") return "nothing is listening at that address and port";
+  if (code === "UND_ERR_CONNECT_TIMEOUT" || code === "ETIMEDOUT" || code === "EHOSTUNREACH" || code === "ENETUNREACH") return "the server cannot reach that address from its network: try the Tailscale address";
+  if (/certificate|self.signed/i.test(error.cause?.message || "")) return "the HTTPS certificate is not trusted: use http:// or a trusted certificate";
+  return error.message === "fetch failed" && error.cause?.message ? error.cause.message : error.message;
 }
 async function probe(c) {
   const e = entryOf(c), v = all(c), p = e.probe;
