@@ -196,7 +196,7 @@ export async function markets(c, fresh) {
   const key = secret(c, "apiKey"), holdings = parseHoldings(c.values?.holdings);
   if (!holdings.length) throw new SourceError("add your holdings (one per line: SYMBOL quantity target%)");
   return caches.markets(c.id, async () => {
-    const quotes = await Promise.all(holdings.map((h) => request(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(h.symbol)}&token=${encodeURIComponent(key)}`).then((q) => ({ ...h, price: num(q?.c), prev: num(q?.pc), change: num(q?.dp) })).catch(() => ({ ...h, price: null }))));
+    const quotes = await Promise.all(holdings.map((h) => request(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(h.symbol)}&token=${encodeURIComponent(key)}`).then((q) => ({ ...h, price: num(q?.c), prev: num(q?.pc), change: num(q?.dp) })).catch((e) => ({ ...h, price: null, error: /HTTP 403/.test(e.message) ? "not on your Finnhub plan" : "no quote" }))));
     const priced = quotes.filter((q) => q.price);
     const total = priced.reduce((s, q) => s + q.price * q.qty, 0), prevTotal = priced.reduce((s, q) => s + (q.prev || q.price) * q.qty, 0);
     // Keep one value per day, so the chart grows from the day you connect.

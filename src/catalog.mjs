@@ -121,7 +121,7 @@ export const INTEGRATIONS = [
     fields: [{ k: "feeds", label: "Feeds, one per line", area: true, placeholder: "https://example.com/feed.xml" }, { k: "topics", label: "Topics that matter to you", opt: true, placeholder: "nixos, local llm, security advisory, energy prices" }],
     probe: { url: "{feeds}", expect: "text:<" } },
   { id: "finnhub", group: "life", name: "Finnhub", icon: "€", blurb: "Market quotes for your holdings.",
-    fields: [{ k: "apiKey", label: "API key", secret: true }, { k: "holdings", label: "Holdings, one per line", area: true, opt: true, placeholder: "VWCE.DE 120 60%  FTSE All-World\nAAPL 10 15%" }],
+    fields: [{ k: "apiKey", label: "API key", secret: true }, { k: "holdings", label: "Holdings, one per line", area: true, opt: true, placeholder: "VT 50 60%  Vanguard Total World\nAAPL 10 15%\nBINANCE:BTCUSDT 0.1 5%\n# free Finnhub key: US stocks, ETFs and crypto only" }],
     probe: { url: "https://finnhub.io/api/v1/quote?symbol=SPY&token={apiKey}", expect: "json" } },
   { id: "jellyfin", group: "life", name: "Jellyfin", icon: "▶", blurb: "Now playing and recently added.",
     fields: [{ k: "url", label: "URL", placeholder: "http://jellyfin.lan:8096" }, { k: "apiKey", label: "API key", secret: true, placeholder: "Dashboard → API keys" }],
