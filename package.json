@@ -1,6 +1,6 @@
 {
   "name": "center-dashboard",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "description": "JARVIS home & infrastructure dashboard: a board of pages with a live AI companion. Bring your own AI: a Claude subscription, API keys or local models.",
   "type": "module",
   "engines": {

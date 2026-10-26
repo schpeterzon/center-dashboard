@@ -232,7 +232,8 @@ body.overview .edge,body.moving .edge{opacity:0;pointer-events:none}
 .sugg{display:flex;gap:8px;flex-wrap:wrap}
 .sugg button{font-size:12.5px;padding:5px 11px;border-radius:99px;border:1px solid var(--line);color:var(--text-2);transition:all .2s}
 .sugg button:hover{border-color:var(--line-2);color:var(--text);transform:translateY(-1px)}
-.needs{grid-column:span 5}
+.needs{grid-column:span 5;contain:size}
+.needs .list{flex:1}
 .need{display:flex;gap:12px;padding:11px 0;align-items:flex-start;transition:opacity .5s}
 .need:first-child{padding-top:0}
 .need.done{opacity:.35}
