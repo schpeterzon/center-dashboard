@@ -144,7 +144,10 @@ export class JarvisOrb extends OrbController {
   }
   resize() {
     if (this.destroyed) return;
-    const rect = this.stage.getBoundingClientRect();
+    // Layout size, not getBoundingClientRect: a CSS scale while the stage moves must not
+    // change the canvas resolution.
+    const box = this.stage.getBoundingClientRect();
+    const rect = { width: this.stage.offsetWidth || box.width, height: this.stage.offsetHeight || box.height };
     this.width = rect.width;
     this.height = rect.height;
     this.quality = this.selectQuality();
@@ -158,6 +161,15 @@ export class JarvisOrb extends OrbController {
     this.stage.dataset.particles = String(
       this.stage.dataset.renderer === "webgl2" ? QUALITY[this.quality].count : 1000,
     );
+    // Setting the canvas size clears it. ResizeObserver runs before paint, so drawing now
+    // means no blank frame ever reaches the screen.
+    if (this.frameId !== null) {
+      try {
+        this.renderer.draw(this);
+      } catch {
+        /* the next frame draws */
+      }
+    }
   }
   setMotionPaused(paused) {
     this.motionPaused = Boolean(paused);

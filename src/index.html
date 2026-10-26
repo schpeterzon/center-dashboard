@@ -114,16 +114,14 @@ body.overview .edge,body.moving .edge{opacity:0;pointer-events:none}
 #termwrap{position:fixed;left:calc(22px*var(--z));bottom:calc(13px*var(--z));z-index:15}
 
 /* ---------- Jarvis: orb, caption, bubble ---------- */
-#jarvis{position:fixed;left:0;top:0;width:150px;height:150px;z-index:31;padding:0;border-radius:50%;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;outline:none}
+#jarvis{position:fixed;left:0;top:0;width:150px;height:150px;z-index:31;will-change:transform;padding:0;border-radius:50%;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;outline:none}
 #jarvis:focus-visible canvas{filter:brightness(1.22) saturate(1.12)}
-#jarvis.ready{transition:transform 1s cubic-bezier(.55,0,.2,1.12),width 1s cubic-bezier(.55,0,.2,1.12),height 1s cubic-bezier(.55,0,.2,1.12)}
-#jarvis.dodge{transition-duration:.75s}
 #jarvis.held{cursor:grabbing}
 #jarvis canvas{display:block;width:100%;height:100%;pointer-events:none}
 #jcap[data-mode=dock] .zz{background:var(--bg)}
 #jarvis.css-orb::after{content:"";position:absolute;inset:30%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,color-mix(in srgb,var(--accent) 40%,#fff) 12%,var(--accent) 35%,color-mix(in srgb,var(--accent) 45%,#000) 75%,color-mix(in srgb,var(--accent) 15%,#000));box-shadow:0 0 40px color-mix(in srgb,var(--accent) 50%,transparent)}
 #jcap{position:fixed;left:0;top:0;z-index:24;pointer-events:none;opacity:0;white-space:nowrap}
-#jcap.ready{transition:left 1s cubic-bezier(.55,0,.2,1.12),top 1s cubic-bezier(.55,0,.2,1.12),opacity .35s}
+#jcap.ready{transition:left .82s cubic-bezier(.45,0,.2,1),top .82s cubic-bezier(.45,0,.2,1),opacity .35s}
 #jcap[data-align=center]{transform:translateX(-50%)}
 #jcap[data-align=right]{transform:translateX(-100%)}
 #jcap .zz{font:500 10px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);padding:4px 8px;border-radius:99px;background:color-mix(in srgb,var(--bg) 82%,transparent);border:1px solid var(--line)}
@@ -1937,11 +1935,29 @@ function measureSlot() {
   slot = { x: (s.left - p.left) / k, y: (s.top - p.top) / k, w: s.width / k };
 }
 const orbMode = () => termOpen ? 'term' : (!overview && current === 'home') ? 'home' : 'dock';
-function setOrb(cx, cy, size) {
+// Moves are animated with a transform only. Animating width and height would resize the WebGL
+// canvas on every frame, which clears it (the orb blinks out) and stalls the GPU. So the box
+// takes its final size at once and a scale animation carries it there from where it is now,
+// even when a new move interrupts one that is still running.
+let orbAnim = null;
+const orbT = (cx, cy, size, k = 1) => `translate(${cx - size / 2}px,${cy - size / 2}px) scale(${k})`;
+function setOrb(cx, cy, size, animate = jEl.classList.contains('ready')) {
+  const prev = orbPos;
+  if (animate && Math.abs(prev.cx - cx) < .5 && Math.abs(prev.cy - cy) < .5 && Math.abs(prev.size - size) < .5) return;
+  let from = null;
+  if (animate) { const r = jEl.getBoundingClientRect(); if (r.width > 1) from = { cx: r.left + r.width / 2, cy: r.top + r.height / 2, size: r.width }; }
+  orbAnim?.cancel(); orbAnim = null;
   orbPos = { cx, cy, size };
   jEl.dataset.mode = orbMode();
-  jEl.style.width = jEl.style.height = size + 'px';
-  jEl.style.transform = `translate(${cx - size / 2}px,${cy - size / 2}px)`;
+  const sizeTo = px => { if (Math.abs(parseFloat(jEl.style.width) - px) > .5 || !jEl.style.width) jEl.style.width = jEl.style.height = px + 'px'; };
+  if (!from || reduce) { sizeTo(size); jEl.style.transform = orbT(cx, cy, size); return; }
+  // Growing takes the new size first; shrinking keeps the larger canvas until it arrives, so
+  // the particles are never scaled up and blurred.
+  const box = Math.max(size, from.size);
+  sizeTo(box); jEl.style.transform = orbT(cx, cy, box, size / box);
+  const anim = orbAnim = jEl.animate([{ transform: orbT(from.cx, from.cy, box, from.size / box) }, { transform: orbT(cx, cy, box, size / box) }],
+    { duration: 820, easing: 'cubic-bezier(.45,0,.2,1)' });
+  anim.onfinish = () => { if (orbAnim !== anim) return; orbAnim = null; sizeTo(size); jEl.style.transform = orbT(cx, cy, size); };
 }
 function placeOrb() {
   if (held?.on) return;
@@ -1971,35 +1987,15 @@ function placeBubble() {
   });
 }
 
-// Gaze follows the pointer anywhere on the page, then drifts back to scanning. In its dock
-// the orb is shy: touch it and it hops to the farthest corner, until you catch it.
-let gazeT, held = null, caughtUntil = 0, dodges = [], suppressClick = false, toldDodge = false;
+// Gaze follows the pointer anywhere on the page, then drifts back to scanning. The orb only
+// moves when you drag it: hopping away from the pointer read as the orb blinking out.
+let gazeT, held = null, suppressClick = false;
 addEventListener('pointermove', e => {
   if (held) return holdMove(e);
-  const { cx, cy, size } = orbPos;
+  const { cx, cy } = orbPos;
   orb.setAttention({ x: clamp((e.clientX - cx) / (560 * z), -1, 1), y: clamp((cy - e.clientY) / (560 * z), -1, 1), active: true });
   clearTimeout(gazeT); gazeT = setTimeout(() => orb.setAttention({ active: false }), 2600);
-  if (orbMode() === 'dock' && !e.buttons && performance.now() > caughtUntil && !(sp && sp.where === 'bubble' && sp.acts)
-      && Math.hypot(e.clientX - cx, e.clientY - cy) < size * .3) dodge(e.clientX, e.clientY);
 }, { passive: true });
-function dodge(px, py) {
-  const now = performance.now();
-  dodges = dodges.filter(t => now - t < 6000); dodges.push(now);
-  if (dodges.length >= 3) {
-    caughtUntil = now + 10000; dodges = [];
-    orb.poke(.6);
-    say("Okay, okay — you caught me. Click to talk, or drag me wherever you like.", { force: true, ttl: 6000 });
-    return;
-  }
-  const far = Object.keys(DOCK).filter(c => c !== corner)
-    .map(c => [c, Math.hypot(dockAt(c)[0] - px, dockAt(c)[1] - py)]).sort((a, b) => b[1] - a[1]);
-  // Prefer a corner on the same side as the screen centre when it is almost as far away.
-  corner = far[0][0];
-  jEl.classList.add('dodge'); setTimeout(() => jEl.classList.remove('dodge'), 800);
-  hush(); placeOrb(); saveCorner();
-  orb.poke(.45); orb.ripple(0, 0, .45);
-  if (!toldDodge) { toldDodge = true; setTimeout(() => say("Oops — getting out of your way.", { force: true, ttl: 3500 }), 700); }
-}
 function saveCorner() { try { localStorage.setItem('jarvis-corner', corner); } catch {} }
 jEl.addEventListener('pointerdown', e => {
   if (e.button !== 0 || orbMode() === 'term') return;
@@ -2022,7 +2018,7 @@ addEventListener('pointerup', e => {
   jEl.classList.add('ready'); jEl.classList.remove('held');
   if (orbMode() === 'dock') {
     corner = Object.keys(DOCK).map(c => [c, Math.hypot(dockAt(c)[0] - e.clientX, dockAt(c)[1] - e.clientY)]).sort((a, b) => a[1] - b[1])[0][0];
-    saveCorner(); caughtUntil = performance.now() + 4000;
+    saveCorner();
   }
   placeOrb(); orb.ripple(0, 0, .5);
   if (orbMode() === 'home') say("I'll stay here on Home — I'm the welcome committee.", { force: true });
@@ -2133,7 +2129,6 @@ jEl.addEventListener('click', e => {
   if (suppressClick) return;
   if (charged) { charged = false; return; }
   if (sp) { hush(); return; }
-  caughtUntil = Math.max(caughtUntil, performance.now() + 6000);
   orb.pulseAt(e.clientX, e.clientY);
   const l = API.server ? (LIVE.line(current) ? { text: LIVE.line(current) } : null) : LINES[current]?.();
   say(Math.random() < .5 && l ? l.text : pick(QUIPS), { force: true, acts: l?.acts || [] });
