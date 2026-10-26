@@ -20,7 +20,8 @@ image `center-dashboard:local` from `deploy/rackintosh-docker.yml`, and runs con
 ## Updating
 
 Push to `main`, then in Portainer open the stack and choose **Pull and redeploy** with
-"Re-pull image and redeploy" on, so the image is rebuilt. Afterwards check that
+"Re-pull image" off: the image is built from the checkout, so there is nothing to pull, and
+turning it on makes the redeploy fail. Afterwards check that
 `/healthz` returns 200 and that Settings → Connections shows both connections as working.
 
 ## Verified at deployment
