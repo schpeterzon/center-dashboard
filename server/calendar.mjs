@@ -1,7 +1,7 @@
 // Private ICS links (Google, iCloud, Outlook, Nextcloud…) → events for the next weeks.
 // Handles all-day and timed events, TZID time zones, and the common RRULE forms
 // (DAILY / WEEKLY / MONTHLY / YEARLY with INTERVAL, COUNT, UNTIL, BYDAY), plus EXDATE.
-import { request, cached, str } from "./net.mjs";
+import { request, cached, str, SourceError } from "./net.mjs";
 import { open } from "./store.mjs";
 
 const cache = cached(5 * 60e3);
@@ -121,7 +121,13 @@ export async function calendarEvents(c, fresh) {
   let url;
   try { url = open(c.secrets.url); } catch { throw new Error("the saved calendar link could not be opened"); }
   return cache(c.id, async () => {
-    const text = await request(url.replace(/^webcal:/i, "https:"), { expect: "text", timeout: 12000 });
+    const link = url.trim().replace(/^webcal:/i, "https:");
+    if (!/^https?:\/\//i.test(link)) throw new SourceError("paste the full link, starting with https:// or webcal://");
+    const text = await request(link, { expect: "text", timeout: 12000 }).catch((e) => {
+      // iCloud answers 404 for a link that is not (or no longer) shared publicly.
+      if (/^HTTP (404|410)\b/.test(e.message)) throw new SourceError("the calendar server says this link does not exist: check the calendar is still shared publicly, then copy its link again");
+      throw e;
+    });
     if (!text.includes("BEGIN:VCALENDAR")) throw new Error("that link did not return a calendar");
     const now = new Date(), from = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 7), to = from + 35 * 864e5;
     return { name: c.name, events: parseIcs(text, from, to) };

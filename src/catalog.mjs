@@ -111,8 +111,8 @@ export const INTEGRATIONS = [
     probe: { url: "https://api.github.com/user", headers: { authorization: "Bearer {token}", "user-agent": "jarvis-dashboard" }, expect: "json" } },
 
   { id: "calendar", group: "life", name: "Calendar (ICS)", icon: "◷", blurb: "Any calendar with a private iCal link: Google, iCloud, Outlook, Nextcloud.",
-    fields: [{ k: "url", label: "Private ICS link", secret: true, placeholder: "https://…/basic.ics" }],
-    probe: { url: "{url}", expect: "text:BEGIN:VCALENDAR" } },
+    fields: [{ k: "url", label: "Private ICS link", secret: true, placeholder: "https://…/basic.ics or webcal://…" }],
+    probe: { live: "calendar" } },
   { id: "email", group: "life", name: "Email (IMAP)", icon: "@", blurb: "Unread mail in the Inbox. Read-only: nothing is marked as read, moved or sent. Gmail and iCloud need an app password.",
     fields: [{ k: "host", label: "IMAP server", placeholder: "imap.gmail.com" }, { k: "user", label: "Username", placeholder: "you@example.com" }, { k: "password", label: "Password or app password", secret: true },
       { k: "port", label: "Port", def: "993", adv: true }, { k: "folder", label: "Folder", def: "INBOX", adv: true }, { k: "webmail", label: "Webmail link", opt: true, adv: true, placeholder: "https://mail.google.com" }],

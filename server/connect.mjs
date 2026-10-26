@@ -12,10 +12,13 @@ import { state, persist, seal, open, dataDir } from "./store.mjs";
 import { httpError } from "./auth.mjs";
 import { proxmox } from "./sources.mjs";
 import { mail } from "./mail.mjs";
+import { calendarEvents } from "./calendar.mjs";
 
 // Connections that are not a single HTTP request are tested by reading them for real.
 const LIVE_PROBES = {
   email: async (c) => { const m = await mail(c, true); return `${m.unseen} unread of ${m.total} in ${m.folder}`; },
+  // The same fetch the board uses: webcal:// links and iCloud's partition redirects both work.
+  calendar: async (c) => { const r = await calendarEvents(c, true); return `${r.events.length} event${r.events.length === 1 ? "" : "s"} from a week ago to four weeks ahead`; },
   proxmox: async (c) => { const p = await proxmox(c, true); return `${p.nodes.length} node${p.nodes.length === 1 ? "" : "s"} · ${p.guests.length} guests`; },
 };
 
