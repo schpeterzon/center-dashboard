@@ -39,7 +39,11 @@ export class CanvasOrbFallback {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.font = "9px monospace";
-    const angle = state.reducedMotion ? 0 : state.phase * 0.15 + state.yaw;
+    // Like the WebGL view, shaped forms face the viewer; only the plain sphere drifts round.
+    // The check must never turn far enough to read mirrored.
+    const spin = state.reducedMotion ? 0 : Math.atan2(Math.sin(state.phase * 0.15), Math.cos(state.phase * 0.15));
+    const drift = spin * (1 - Math.min(1, state.forms.check || 0));
+    const angle = drift + state.yaw;
     const c = Math.cos(angle),
       s = Math.sin(angle);
     const breath = 1 + Math.sin(time * 0.8) * 0.018 * state.motion;
@@ -73,7 +77,8 @@ export class CanvasOrbFallback {
       ctx.fillText(
         ".:+*#"[Math.min(4, Math.floor(point.seed * 5))],
         this.width / 2 + (x + flow + state.yaw) * radius * perspective * (breath + ripple),
-        this.height / 2 + (my + state.pitch) * radius * perspective * (breath + ripple),
+        // Canvas y grows downwards; the orb space has y up.
+        this.height / 2 - (my + state.pitch) * radius * perspective * (breath + ripple),
       );
     }
     ctx.globalAlpha = 1;

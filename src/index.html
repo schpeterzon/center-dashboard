@@ -120,6 +120,10 @@ body.overview .edge,body.moving .edge{opacity:0;pointer-events:none}
 #jarvis.dodge{transition-duration:.75s}
 #jarvis.held{cursor:grabbing}
 #jarvis canvas{display:block;width:100%;height:100%;pointer-events:none}
+/* Docked over a page, the orb sits on a soft disc of background so the text under it fades out. */
+#jarvis::before{content:"";position:absolute;inset:4%;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--bg) 92%,transparent) 48%,transparent 70%);opacity:0;transition:opacity .5s;pointer-events:none}
+#jarvis[data-mode=dock]::before,#jarvis[data-mode=term]::before{opacity:1}
+#jcap[data-mode=dock] .zz{background:var(--bg)}
 #jarvis.css-orb::after{content:"";position:absolute;inset:30%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,color-mix(in srgb,var(--accent) 40%,#fff) 12%,var(--accent) 35%,color-mix(in srgb,var(--accent) 45%,#000) 75%,color-mix(in srgb,var(--accent) 15%,#000));box-shadow:0 0 40px color-mix(in srgb,var(--accent) 50%,transparent)}
 #jcap{position:fixed;left:0;top:0;z-index:24;pointer-events:none;opacity:0;white-space:nowrap}
 #jcap.ready{transition:left 1s cubic-bezier(.55,0,.2,1.12),top 1s cubic-bezier(.55,0,.2,1.12),opacity .35s}
@@ -473,6 +477,9 @@ td .mono{font-size:12px;color:var(--text-2)}
 /* ---------- terminal (scaled through font-size so it stays one fixed box) ---------- */
 #term{position:fixed;left:50%;bottom:calc(18px*var(--z));width:min(calc(1000px*var(--z)),92vw);height:min(54vh,calc(520px*var(--z)));z-index:30;transform:translate(-50%,calc(100% + 60px));transition:transform .6s cubic-bezier(.7,0,.2,1);background:var(--term);border:1px solid var(--line-2);border-radius:calc(18px*var(--z));box-shadow:0 30px 80px -10px color-mix(in srgb,var(--shadow) 80%,transparent),0 0 0 1px color-mix(in srgb,var(--accent) 5%,transparent);display:flex;flex-direction:column;font:calc(13px*var(--z))/1.6 var(--mono);overflow:hidden}
 body.term #term{transform:translate(-50%,0)}
+/* The open terminal dims the board, so half-covered cards never read as text running into it. */
+body::after{content:"";position:fixed;inset:0;z-index:29;background:color-mix(in srgb,var(--bg) 78%,transparent);opacity:0;pointer-events:none;transition:opacity .45s}
+body.term::after{opacity:1}
 #term header{display:flex;align-items:center;gap:.8em;padding:.8em 1.1em;border-bottom:1px solid var(--line);font-size:.92em;color:var(--muted)}
 #term header .chip,#term header kbd{font-size:.88em}
 #term header .dots{display:flex;gap:.5em} #term header .dots i{width:.8em;height:.8em;border-radius:50%;background:color-mix(in srgb,var(--ink) 12%,transparent)}
@@ -1619,7 +1626,7 @@ function formHtml() {
     ${form.res ? `<div class="res ${form.res.ok ? 'ok' : 'bad'}">${esc(form.res.text)}</div>` : ''}${form.models?.length ? `<div class="sugg">${form.models.slice(0, 24).map(m => `<button data-a="pickmodel" data-m="${esc(m)}">${esc(m)}</button>`).join('')}</div>` : ''}</div>`;
 }
 function readForm() { $$('[data-f]', sbody).forEach(el => { if (el.dataset.f === '__name') form.name = el.value; else form.values[el.dataset.f] = el.value; }); }
-async function refreshConns() { try { API.conns = (await api('connections')).connections; } catch (e) { toast(e.message); } }
+async function refreshConns() { try { API.conns = (await api('connections')).connections; syncIntro(); } catch (e) { toast(e.message); } }
 
 // ---- one delegated handler for the whole panel
 sbody.addEventListener('click', async e => {
@@ -1668,7 +1675,7 @@ sbody.addEventListener('click', async e => {
     if (a.dataset.sure !== '1') { a.dataset.sure = '1'; a.textContent = 'Click to confirm'; a.style.borderColor = 'var(--crit)'; return; }
     try { await api('connections/' + c.id, { method: 'DELETE' }); await refreshConns(); if (CFG.ai.chat === c.id) { CFG.ai.chat = ''; save(); } toast(c.name + ' removed'); rerender(); checkStatus(); } catch (err) { toast(err.message); }
   }
-  else if (act === 'default') { CFG.ai.chat = a.dataset.id; save(); rerender(); checkStatus(); }
+  else if (act === 'default') { CFG.ai.chat = a.dataset.id; save(); syncIntro(); rerender(); checkStatus(); }
   else if (act === 'password') {
     const [p0, p1, p2] = ['#pw0', '#pw1', '#pw2'].map(s => $(s).value);
     if (p1 !== p2) return $('#pwres').textContent = 'The new passwords differ.';
@@ -1933,6 +1940,7 @@ function measureSlot() {
 const orbMode = () => termOpen ? 'term' : (!overview && current === 'home') ? 'home' : 'dock';
 function setOrb(cx, cy, size) {
   orbPos = { cx, cy, size };
+  jEl.dataset.mode = orbMode();
   jEl.style.width = jEl.style.height = size + 'px';
   jEl.style.transform = `translate(${cx - size / 2}px,${cy - size / 2}px)`;
 }
@@ -2979,7 +2987,10 @@ $('#termbtn').onclick = () => toggleTerm();
 tout.addEventListener('click', e => { const b = e.target.closest('.sug'); if (!b || b.disabled) return; b.disabled = true; runSuggested(b.dataset.sk, b.dataset.sv); });
 $('#term-close').onclick = () => toggleTerm(false);
 const out = html => { tout.insertAdjacentHTML('beforeend', html + '\n'); tout.scrollTop = tout.scrollHeight; };
-const termIntro = () => API.server ? out(`<span class="m">JARVIS terminal · type "help" · ${chatConn() ? 'answers come from ' + esc(chatConn().name) : 'connect an AI in Settings → AI'}</span>\n`) : out(`<span class="m">JARVIS terminal · local-first routing · type "help"</span>
+const introText = () => `JARVIS terminal · type "help" · ${chatConn() ? 'answers come from ' + esc(chatConn().name) : 'connect an AI in Settings → AI'}`;
+// The first line follows the AI connection, so it never tells you to connect one you already have.
+const syncIntro = () => { const el = $('#tintro'); if (el) el.innerHTML = introText(); };
+const termIntro = () => API.server ? out(`<span class="m" id="tintro">${introText()}</span>\n`) : out(`<span class="m">JARVIS terminal · local-first routing · type "help"</span>
 <span class="p">jarvis ›</span> <span class="u">why did the backup fail last night?</span>
 <span class="rt">◆ route</span>  <span class="m">auto → local · qwen3-32b @ harness/forge (41 tok/s) · €0.00</span>
 <span class="m">◇ tool </span>  ssh forge journalctl -u restic-backup --since yesterday
@@ -3804,13 +3815,14 @@ const LIVE = (() => {
   // ---------------------------------------------------------------- what JARVIS says on arrival, from live data
   const lines = {
     home: () => { const n = needsList().length; return n ? `${n} thing${n > 1 ? 's' : ''} need you. The top of the list is the most urgent.` : 'Nothing needs you right now.'; },
-    agents: () => { const h = ok('harness'); return h ? (h.approvals.length ? `An agent is waiting for your decision.` : h.active.length ? `${h.active.length} task${h.active.length > 1 ? 's are' : ' is'} running in the Harness.` : 'No agents running. Describe a task on the right and I will hand it over.') : 'Connect the Harness and I can show you what your agents do.'; },
+    agents: () => { const h = ok('harness'); return h ? (h.approvals.length ? `An agent is waiting for your decision.` : h.active.length ? `${h.active.length} task${h.active.length > 1 ? 's are' : ' is'} running in the Harness.` : 'No agents running. Describe a task on the right and I will hand it over.') : src('harness') ? 'The Harness is not answering. Settings → Connections shows why.' : 'Connect the Harness and I can show you what your agents do.'; },
     schedule: () => { const n = todayItems().filter(x => x.t > Date.now() && !x.all).length; return n ? `${n} more thing${n > 1 ? 's' : ''} on today.` : 'The rest of today is free.'; },
     inbox: () => { const m = ok('mail'); return m ? (m.unseen ? `${m.unseen} unread message${m.unseen > 1 ? 's' : ''}. The newest are at the top.` : 'No unread mail.') : null; },
     health: () => { const st = ok('home')?.health?.find(x => x.kind === 'steps'); return st ? `${Math.round(st.value).toLocaleString('en-US')} steps so far today.` : null; },
     infra: () => { const pve = ok('proxmox'); if (!pve) return null; const off = pve.nodes.filter(n => !n.online).length; return off ? `${off} Proxmox node${off > 1 ? 's are' : ' is'} offline.` : `${pve.guests.filter(g => g.status === 'running').length} guests running on Proxmox.`; },
   };
-  return { get on() { return API.server; }, start, poll, charts: drawAll, rerender: () => { last = {}; render(); }, line: id => lines[id]?.(), data: () => S };
+  return { get on() { return API.server; }, start, poll, charts: drawAll, rerender: () => { last = {}; render(); }, // Before the first live data arrives every source looks unconnected, so say nothing yet.
+  line: id => S ? lines[id]?.() : null, data: () => S };
 })();
 
 // JARVIS can suggest actions at the end of an answer; they run only when you click them.

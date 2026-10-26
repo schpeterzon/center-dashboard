@@ -10,6 +10,8 @@ image `center-dashboard:local` from `deploy/rackintosh-docker.yml`, and runs con
 - It joins `hermes-agent_default`, so it reaches the local Harness at
   `http://local-ai-harness:8797` and JARVIS at `http://hermes:8770` by name. Both
   connections are saved in Settings, with their tokens encrypted in the data volume.
+- Proxmox is read through the API token `root@pam!center-dashboard` on rackintosh, which has only
+  the `PVEAuditor` role on `/`. Revoke it with `pveum user token remove root@pam center-dashboard`.
 - The named volume `center-dashboard_data` holds the password, sessions, connections and
   the encryption key. Do not remove it.
 - The owner password was generated at setup and is in the root-only file
