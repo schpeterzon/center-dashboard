@@ -1,0 +1,23 @@
+# Portainer stack "center-dashboard" on rackintosh-docker (Git-backed, builds this repository).
+# It joins hermes-agent_default to reach the local Harness (local-ai-harness:8797) and
+# JARVIS (hermes:8770) by name, and publishes only on the LAN and tailnet addresses.
+# Connections and their tokens are entered in Settings and kept encrypted in the volume.
+services:
+  dashboard:
+    build: ..
+    image: center-dashboard:local
+    restart: unless-stopped
+    ports:
+      - "192.168.1.18:8790:8790"
+      - "100.101.246.117:8790:8790"
+    volumes:
+      - data:/data
+    networks: [hermes]
+
+volumes:
+  data:
+
+networks:
+  hermes:
+    name: hermes-agent_default
+    external: true
