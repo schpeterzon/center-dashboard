@@ -47,7 +47,7 @@ b{font-weight:600;color:var(--text)}
 #space2{background-image:radial-gradient(color-mix(in srgb,var(--accent) 10%,transparent) 1.2px,transparent 1.6px);background-size:140px 140px;opacity:.7}
 #board{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
 /* Each region carries its own light, so travelling across the board shifts the colour. */
-.pane{position:absolute;transition:opacity .7s ease;cursor:grab;will-change:opacity;
+.pane{position:absolute;transition:opacity .7s ease;cursor:grab;
   background:radial-gradient(55% 48% at 26% 18%,rgba(var(--t),.075),transparent 70%),radial-gradient(48% 42% at 80% 86%,rgba(var(--t),.05),transparent 70%)}
 .pane:not(.active){opacity:.32}
 body.overview .pane{opacity:1}
@@ -1504,6 +1504,9 @@ function showSection(id) {
 }
 const rerender = () => { const y = sbody.scrollTop; showSection(setSec); sbody.scrollTop = y; };
 const fld = (label, inner, hint) => `<label class="fld"><span>${label}${hint ? `<small>${hint}</small>` : ''}</span>${inner}</label>`;
+// Which orb this device draws: 3D (WebGL) or the light 2D one. Per device, so one weak GPU does not
+// decide for the others.
+const orbPref = () => { try { return localStorage.getItem('jarvis-orb-renderer') === '2d' ? '2d' : 'auto'; } catch { return 'auto'; } };
 const seg = (k, opts) => `<div class="seg">${opts.map(([v, l]) => `<button type="button" data-k="${k}" data-v="${v}" class="${String(getPath(k)) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
 const demoNote = what => API.server ? '' : `<div class="note"><i>◆</i><div><b>This is the static demo.</b> ${what} Start the server (<span class="mono">npm start</span>) on your machine to use it — keys and passwords are never stored in a browser. See the README for a one-line Docker setup.</div></div>`;
 
@@ -1532,6 +1535,7 @@ const RENDER = {
       ${fld('Accent colour', `<div class="row"><input type="color" data-k="appearance.accent" value="${/^#[0-9a-f]{6}$/i.test(CFG.appearance.accent) ? CFG.appearance.accent : rgbOf(getComputedStyle(document.documentElement).getPropertyValue('--accent')).map(v => v.toString(16).padStart(2, '0')).reduce((a, b) => a + b, '#')}" style="width:44px;height:30px;border:0;background:none;padding:0">${CFG.appearance.accent ? '<button class="btn" data-a="noaccent">Use the theme\'s</button>' : '<span class="hint">from the theme</span>'}</div>`, 'Overrides the theme')}
       ${fld('Font', seg('appearance.font', [['grotesk', 'Space Grotesk'], ['system', 'System'], ['mono', 'Mono']]))}
       ${fld('Motion', seg('appearance.motion', [['full', 'Full'], ['reduced', 'Reduced']]), 'Camera moves stay; effects calm down')}
+      ${fld('Orb on this device', `<div class="seg">${[['auto', '3D'], ['2d', 'Light (2D)']].map(([v, l]) => `<button type="button" data-a="orbr" data-v="${v}" class="${orbPref() === v ? 'on' : ''}">${l}</button>`).join('')}</div>`, 'Light draws without 3D graphics. Use it if this page makes the computer struggle; applies after a reload')}
     </div>
     <div class="grp"><h4>Custom CSS <span class="sp"></span><button class="btn" data-a="css">Apply</button></h4>
       <textarea class="inp" id="cssin" spellcheck="false" placeholder=":root { --accent: #ff9e64; --r: 10px; }&#10;.card { backdrop-filter: blur(8px); }">${esc(CFG.appearance.css)}</textarea>
@@ -1632,6 +1636,7 @@ sbody.addEventListener('click', async e => {
   if (act === 'theme') { CFG.appearance.theme = a.dataset.id; changed('appearance'); rerender(); }
   else if (act === 'export') download(`${CFG.appearance.theme}.css`, currentThemeCss(CFG.appearance.theme + '-custom', (themeList().find(t => t.id === CFG.appearance.theme)?.name || 'My') + ' (custom)'), 'text/css');
   else if (act === 'rmtheme') { CFG.appearance.themes = CFG.appearance.themes.filter(t => t.id !== CFG.appearance.theme); CFG.appearance.theme = 'jarvis'; changed('appearance'); rerender(); }
+  else if (act === 'orbr') { try { localStorage.setItem('jarvis-orb-renderer', a.dataset.v); localStorage.removeItem('jarvis-orb-guard'); } catch {} toast('Reload the page to switch the orb'); rerender(); }
   else if (act === 'noaccent') { CFG.appearance.accent = ''; changed('appearance'); rerender(); }
   else if (act === 'css') { CFG.appearance.css = $('#cssin').value; changed('appearance'); toast('Custom CSS applied'); }
   else if (act === 'size') {
@@ -1900,10 +1905,22 @@ function syncChrome() {
 /* ======================================================== Jarvis: the orb */
 const jEl = $('#jarvis'), jCap = $('#jcap'), bubble = $('#bubble');
 let orb, orbIssue = '';
+// Crash guard. A visit that ends without the page closing normally (the browser or the graphics
+// driver went down) leaves this mark behind, and the next visit starts with the light 2D orb.
+// A GPU reset during a visit switches this device to 2D for good. Settings → Appearance undoes it.
+const ORB_GUARD = 'jarvis-orb-guard', store = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} };
+let orbSafe = orbPref() === '2d' || /[?&]safe\b/.test(location.search), orbGuardTripped = false;
+try { if (!orbSafe && localStorage.getItem(ORB_GUARD)) { orbSafe = orbGuardTripped = true; store('jarvis-orb-renderer', '2d'); } } catch {}
+if (!orbSafe) {
+  store(ORB_GUARD, String(Date.now()));
+  addEventListener('pagehide', () => store(ORB_GUARD, null));
+  document.addEventListener('visibilitychange', () => store(ORB_GUARD, document.hidden ? null : String(Date.now())));
+}
+jEl.addEventListener('webglcontextlost', () => { store('jarvis-orb-renderer', '2d'); store(ORB_GUARD, null); }, true);
 try {
-  orb = new window.JarvisOrbModule.JarvisOrb($('#jarvis canvas'), jEl);
+  orb = new window.JarvisOrbModule.JarvisOrb($('#jarvis canvas'), jEl, { renderer: orbSafe ? 'canvas2d' : 'auto' });
   orb.atmosphere = 'glacier';
-  if (jEl.dataset.renderer !== 'webgl2') orbIssue = 'WebGL2 unavailable, using the 2D fallback';
+  if (jEl.dataset.renderer !== 'webgl2' && !orbSafe) orbIssue = 'WebGL2 unavailable, using the 2D fallback';
 } catch (error) {
   orbIssue = 'orb failed to start: ' + error.message;
   jEl.classList.add('css-orb');
@@ -3866,6 +3883,7 @@ async function start() {
   // The scripted story belongs to the sample board; a real install stays quiet about it.
   if (!API.server) { setTimeout(codexDone, 15000); setTimeout(stormNudge, 50000); }
   else if (!API.conns.some(c => c.kind === 'ai')) setTimeout(() => say("Welcome. Shall we connect an AI first? A subscription, an API key or a local model all work.", { force: true, acts: [['Connect an AI', () => openSettings('ai')], ['Later']] }), 2600);
+  if (orbGuardTripped) setTimeout(() => say("The last visit did not close normally, so I am drawing myself in light 2D mode on this device. Settings → Appearance switches 3D back on.", { force: true, ttl: 10000, acts: [['Open Appearance', () => openSettings('appearance')], ['OK']] }), 1800);
   setTimeout(ambient, 75000);
   checkStatus();
   if (API.server) LIVE.start();

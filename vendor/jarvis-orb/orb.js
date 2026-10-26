@@ -8,8 +8,10 @@ export { createOrbPoints } from "./orb/math.js";
 export { OrbController } from "./orb/controller.js";
 
 export class JarvisOrb extends OrbController {
-  constructor(canvas, stage) {
+  // options.renderer: "canvas2d" skips WebGL entirely (the board's light mode and crash guard).
+  constructor(canvas, stage, options = {}) {
     super();
+    this.options = options;
     this.canvas = canvas;
     this.stage = stage;
     this.listeners = [];
@@ -94,8 +96,14 @@ export class JarvisOrb extends OrbController {
   }
   initRenderer() {
     const canvas = this.canvas;
+    if (this.options.renderer === "canvas2d") {
+      this.fallback("2D chosen");
+      return;
+    }
     try {
       const gl = canvas.getContext("webgl2", {
+        // A GPU the browser itself distrusts (blocklisted driver, software rendering) gets the 2D orb.
+        failIfMajorPerformanceCaveat: true,
         alpha: true,
         antialias: false,
         premultipliedAlpha: true,
