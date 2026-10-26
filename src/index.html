@@ -3289,6 +3289,7 @@ const LIVE = (() => {
       return;
     }
     if (a === 'idea2task') { const r = await act('harness', 'create', { objective: d.text }, 'Sent to an agent'); if (r) await act('local', 'ideas/remove', { id: d.id }); return; }
+    if (a === 'dismiss') return act('local', 'dismissed/add', { id: d.id });
     if (a === 'todo') return act('local', 'todos/toggle', { id: d.id });
     if (a === 'todo-rm') return act('local', 'todos/remove', { id: d.id });
     if (a === 'idea-rm') return act('local', 'ideas/remove', { id: d.id });
@@ -3340,7 +3341,7 @@ const LIVE = (() => {
   function needsList() {
     const h = ok('harness'), items = [];
     for (const a of h?.approvals || []) items.push(`<div class="need"><div class="ic" style="color:var(--${a.risk === 'critical' || a.risk === 'high' ? 'crit' : 'warn'})">⌥</div><div class="sp"><div class="tt">${esc(a.kind === 'task_start' ? 'A task wants to start' : 'An agent asks permission')}</div><p>${esc(a.description)}${a.categories.length ? ` <span class="mono">· ${esc(a.categories.join(', '))}</span>` : ''}</p><div class="acts"><button class="btn pri" data-la="approve" data-id="${esc(a.id)}">Approve</button><button class="btn" data-la="reject" data-id="${esc(a.id)}">Reject</button><button class="btn" data-la="task" data-id="${esc(a.task)}">Details</button></div></div></div>`);
-    for (const t of (h?.tasks || []).filter(t => t.status === 'failed' && t.completed && Date.now() - Date.parse(t.completed) < 2 * 864e5).slice(0, 3)) items.push(`<div class="need"><div class="ic" style="color:var(--crit)">!</div><div class="sp"><div class="tt">${esc(t.title)} failed</div><p>${esc(t.error || 'see the task for details')}</p><div class="acts"><button class="btn pri" data-la="rerun" data-id="${esc(t.id)}">Run again</button><button class="btn" data-la="task" data-id="${esc(t.id)}">Details</button></div></div></div>`);
+    for (const t of (h?.tasks || []).filter(t => t.status === 'failed' && t.completed && Date.now() - Date.parse(t.completed) < 2 * 864e5 && !(L().dismissed || []).includes('task:' + t.id)).slice(0, 3)) items.push(`<div class="need"><div class="ic" style="color:var(--crit)">!</div><div class="sp"><div class="tt">${esc(t.title)} failed</div><p>${esc(t.error || 'see the task for details')}</p><div class="acts"><button class="btn pri" data-la="rerun" data-id="${esc(t.id)}">Run again</button><button class="btn" data-la="task" data-id="${esc(t.id)}">Details</button><button class="btn" data-la="dismiss" data-id="task:${esc(t.id)}">Dismiss</button></div></div></div>`);
     const today = new Date().toISOString().slice(0, 10);
     for (const t of L().todos.filter(t => !t.done && t.due && t.due <= today).slice(0, 3)) items.push(`<div class="need"><div class="ic" style="color:var(--warn)">◷</div><div class="sp"><div class="tt">${esc(t.text)}</div><p>${t.due < today ? 'overdue since ' + esc(t.due) : 'due today'}</p><div class="acts"><button class="btn" data-la="todo" data-id="${esc(t.id)}">Mark done</button></div></div></div>`);
     for (const [k, v] of Object.entries(S.sources)) if (!v.ok && !v.pending) items.push(`<div class="need"><div class="ic" style="color:var(--warn)">▲</div><div class="sp"><div class="tt">${esc(SRCNAME[k] || k)} is not answering</div><p class="mono">${esc(v.error)}</p><div class="acts"><button class="btn" data-settings="connections">Check the connection</button></div></div></div>`);
@@ -3358,10 +3359,10 @@ const LIVE = (() => {
   }
   PAGES.home = () => {
     const h = ok('harness'), w = ok('weather'), cal = ok('calendar'), mk = ok('markets'), hw = ok('prometheus')?.hardware, feeds = ok('feeds');
-    const needs = needsList(), today = todayItems(), now = Date.now();
+    const needs = needsList(), today = todayItems(), now = Date.now(), mlist = machineList();
     const brief = L().brief && Date.now() - L().brief.at < 18 * 3600e3 ? esc(L().brief.text.split('\n').filter(Boolean).slice(0, 2).join(' ')) :
       [h ? `${h.active.length ? `<b>${h.active.length} agent${h.active.length > 1 ? 's' : ''}</b> working` : 'No agents running'}` : '', needs.length ? `<b>${needs.length} thing${needs.length > 1 ? 's' : ''} need${needs.length > 1 ? '' : 's'} you</b>` : 'nothing needs you',
-        cal ? `${today.filter(x => x.t > now && !x.all).length || 'no'} more event${today.filter(x => x.t > now && !x.all).length === 1 ? '' : 's'} today` : '', hw?.ok ? `${hw.machines.length} machine${hw.machines.length === 1 ? '' : 's'} reporting` : ''].filter(Boolean).join(', ') + '.';
+        cal ? `${today.filter(x => x.t > now && !x.all).length || 'no'} more event${today.filter(x => x.t > now && !x.all).length === 1 ? '' : 's'} today` : '', mlist.length ? `${mlist.length} machine${mlist.length === 1 ? '' : 's'} reporting` : ''].filter(Boolean).join(', ') + '.';
     const next = today.find(x => x.t > now && !x.all);
     const glance = [
       w ? `<span class="g"><i>${esc(w.now.icon)}</i>${Math.round(w.now.temp)}${esc(w.unit)} · ${esc(w.nextRain ? 'rain ' + w.nextRain : w.now.text.toLowerCase())}</span>` : '',
@@ -3374,14 +3375,14 @@ const LIVE = (() => {
     if (today.length) tl.splice(nowIdx < 0 ? tl.length : nowIdx, 0, `<div class="now">NOW <span class="mono">${esc(hm())}</span></div>`);
     const agents = h ? (h.active.length ? h.active : h.tasks.slice(0, 3)).slice(0, 3).map(t => `<div class="mini-agent"><div class="row"><span class="sp">${esc(t.title)}</span><span class="chip"><i class="${t.status === 'running' ? 'live' : ''}" style="background:var(--${stCls(t.status) === 'crit' ? 'crit' : stCls(t.status) === 'warn' ? 'warn' : 'good'})"></i>${esc(stLabel(t))}</span></div><div class="muted mono" style="font-size:11px;margin-top:3px">${esc(t.worker)}${t.action ? ' · ' + esc(t.action.slice(0, 60)) : t.completed ? ' · ' + ago(t.completed) : ''}</div></div>`).join('') : null;
     // One or two machines get meters; more get compact tiles.
-    const few = (hw?.machines?.length || 0) <= 2;
-    const machines = hw?.ok ? hw.machines.slice(0, 4).map(m => `<div class="mach"><div class="row"><span class="n sp">${esc(m.name)}</span><span class="st ${Math.max(m.cpu || 0, m.ram || 0, m.disk || 0) >= 90 ? 'warn' : 'good'}">${Math.max(m.cpu || 0, m.ram || 0, m.disk || 0) >= 90 ? 'busy' : 'ok'}</span></div>${few ? `<div style="display:flex;flex-direction:column;gap:5px;margin-top:6px">${hardwareMeter('cpu', m.cpu)}${hardwareMeter('ram', m.ram)}${m.gpu != null ? hardwareMeter('GPU', m.gpu) : hardwareMeter('disk', m.disk)}</div>` : `<div class="r">cpu ${m.cpu ?? '—'}% · ram ${m.ram ?? '—'}%${m.gpu != null ? ` · gpu ${m.gpu}%` : ''}</div>`}</div>`).join('') : null;
+    const few = mlist.length <= 2;
+    const machines = mlist.length ? mlist.slice(0, 4).map(m => `<div class="mach"><div class="row"><span class="n sp">${esc(m.name)}</span><span class="st ${m.offline ? 'crit' : Math.max(m.cpu || 0, m.ram || 0, m.disk || 0) >= 90 ? 'warn' : 'good'}">${m.offline ? 'offline' : Math.max(m.cpu || 0, m.ram || 0, m.disk || 0) >= 90 ? 'busy' : 'ok'}</span></div>${few ? `<div style="display:flex;flex-direction:column;gap:5px;margin-top:6px">${hardwareMeter('cpu', m.cpu)}${hardwareMeter('ram', m.ram)}${m.gpu != null ? hardwareMeter('GPU', m.gpu) : hardwareMeter('disk', m.disk)}</div>` : `<div class="r">cpu ${m.cpu ?? '—'}% · ram ${m.ram ?? '—'}%${m.gpu != null ? ` · gpu ${m.gpu}%` : ''}</div>`}</div>`).join('') : null;
     return `<div data-brief>${brief}</div><div data-glance>${glance}</div><div data-cards>
       <div class="card needs"><h3>Needs you <span class="go">${needs.length}</span></h3><div class="list scroll">${needs.join('') || `<div class="empty" style="padding:10px"><div>Nothing needs you right now.</div></div>`}</div></div>
       <div class="card today"><h3>Today <span class="go" data-go="schedule">Schedule →</span></h3>${tl.length ? `<div class="tl scroll">${tl.join('')}</div>` : cal ? '<div class="empty"><div>Nothing on the calendar today.</div></div>' : need('calendar', 'Your day shows up here')}</div>
       <div class="card span4"><h3>Agents <span class="go" data-go="agents">${h ? h.active.length + ' running →' : 'Agents →'}</span></h3>${agents != null ? `<div class="list scroll">${agents || '<div class="muted">No tasks yet. Ask JARVIS to start one.</div>'}</div>` : broken('harness', 'The Harness') || need('harness', 'Your agents show up here')}</div>
       <div class="card span4"><h3>Portfolio <span class="go" data-go="markets">Markets →</span></h3>${mk ? `<div class="row" style="align-items:baseline"><span class="big" style="font-size:32px">${money(mk.total)}</span><span class="delta" style="color:var(--${(mk.dayPct || 0) >= 0 ? 'good' : 'crit'})">${mk.dayPct != null ? ((mk.dayPct >= 0 ? '▲ ' : '▼ ') + Math.abs(mk.dayPct).toFixed(2) + '%') : ''}</span></div><div class="chart" id="lv-hspark" style="margin-top:10px"></div>` : broken('markets', 'Finnhub') || need('finnhub', 'Your portfolio shows up here')}</div>
-      <div class="card span4"><h3>Machines <span class="go" data-go="infra">Infra →</span></h3>${machines != null ? `<div class="machines" style="grid-template-columns:${(hw?.machines?.length || 0) === 1 ? '1fr' : '1fr 1fr'};flex:1;min-height:0;gap:8px;grid-auto-rows:minmax(0,1fr)">${machines}</div>` : broken('prometheus', 'Prometheus') || need('prometheus', 'Your machines show up here')}</div>
+      <div class="card span4"><h3>Machines <span class="go" data-go="infra">Infra →</span></h3>${machines != null ? `<div class="machines" style="grid-template-columns:${mlist.length === 1 ? '1fr' : '1fr 1fr'};flex:1;min-height:0;gap:8px;grid-auto-rows:minmax(0,1fr)">${machines}</div>` : broken('prometheus', 'Prometheus') || broken('proxmox', 'Proxmox') || need(['prometheus', 'proxmox'], 'Your machines show up here')}</div>
       <div class="card span4"><h3>World <span class="go" data-go="world">Briefing →</span></h3>${feeds ? `<div class="list scroll">${feeds.items.slice(0, 4).map(i => `<div class="hl"><span class="lv ${i.topics.length > 1 ? 'hi' : i.topics.length ? 'md' : 'lo'}">${i.topics.length > 1 ? 'HIGH' : i.topics.length ? 'MED' : 'NEWS'}</span><span class="h">${esc(i.title)}</span></div>`).join('')}</div>` : broken('feeds', 'Your feeds') || need('rss', 'Headlines that matter to you')}</div>
     </div>`;
   };
@@ -3528,17 +3529,30 @@ const LIVE = (() => {
   };
 
   // Infra --------------------------------------------------------------------
+  // Machines from every source; a host Prometheus already reports is not shown twice.
+  function machineList() {
+    const hw = ok('prometheus')?.hardware, pve = ok('proxmox'), jv = ok('jarvis');
+    const upt = s => !s ? '' : s >= 172800 ? Math.floor(s / 86400) + ' days' : dur(s * 1000);
+    const ms = [...(hw?.ok ? hw.machines.map(m => ({ ...m, from: m.instance })) : [])];
+    const seen = n => ms.some(m => m.name.toLowerCase() === String(n).toLowerCase());
+    for (const n of pve?.nodes || []) if (!seen(n.name)) ms.push({ name: n.name, instance: 'pve:' + n.name, from: 'proxmox', cpu: n.cpu, ram: n.ram, disk: n.disk, uptime: upt(n.uptime), offline: !n.online });
+    if (jv) {
+      // Inside Docker the host name is the container ID; name it after the Proxmox guest it runs in (matched by uptime) instead.
+      let name = jv.host.name, from = 'jarvis';
+      if (/^[0-9a-f]{12,64}$/.test(name)) {
+        const g = jv.host.uptime && (pve?.guests || []).filter(g => g.status === 'running' && g.uptime && Math.abs(g.uptime - jv.host.uptime) < 900).sort((a, b) => Math.abs(a.uptime - jv.host.uptime) - Math.abs(b.uptime - jv.host.uptime))[0];
+        name = g ? g.name : 'JARVIS server'; from = g ? `${g.node} ${g.kind} · runs JARVIS` : 'runs JARVIS';
+      }
+      if (!seen(name)) ms.push({ ...jv.host, name, instance: 'jarvis:' + jv.host.name, from, uptime: upt(jv.host.uptime) });
+    }
+    return ms;
+  }
   PAGES.infra = () => {
     const pr = ok('prometheus'), hw = pr?.hardware, up = ok('uptime'), pve = ok('proxmox'), jv = ok('jarvis'), hc = ok('http');
     const services = [...(pr?.targets || []).map(t => ({ name: t.job, host: t.instance, ok: t.up, label: t.up ? 'up' : 'down', extra: 'prometheus' })), ...(up?.monitors || []).map(m => ({ name: m.name, host: m.host, ok: m.state === 'up', warn: m.state === 'pending' || m.state === 'maintenance', label: m.state, extra: m.ms != null ? m.ms + ' ms' : 'uptime kuma' })),
       ...(jv?.services || []).filter(s => s.state !== 'not_configured').map(s => ({ name: s.name, host: s.detail || jv.host.name, ok: s.state === 'up', warn: s.state === 'degraded' || s.state === 'unknown', label: s.state, extra: s.ms != null ? s.ms + ' ms' : 'jarvis' })),
       ...(hc?.checks || []).map(c => ({ name: c.name, host: c.up ? c.values.slice(0, 2).map(([k, v]) => k + ' ' + v).join(' · ') : c.error, ok: c.up, label: c.up ? 'up' : 'down', extra: c.up ? c.ms + ' ms' : 'http' }))];
-    const upt = s => !s ? '' : s >= 172800 ? Math.floor(s / 86400) + ' days' : dur(s * 1000);
-    // Machines from every source; a host Prometheus already reports is not shown twice.
-    const ms = [...(hw?.ok ? hw.machines.map(m => ({ ...m, from: m.instance })) : [])];
-    const seen = n => ms.some(m => m.name.toLowerCase() === String(n).toLowerCase());
-    for (const n of pve?.nodes || []) if (!seen(n.name)) ms.push({ name: n.name, instance: 'pve:' + n.name, from: 'proxmox', cpu: n.cpu, ram: n.ram, disk: n.disk, uptime: upt(n.uptime), offline: !n.online });
-    if (jv && !seen(jv.host.name)) ms.push({ ...jv.host, instance: 'jarvis:' + jv.host.name, from: 'jarvis', uptime: upt(jv.host.uptime) });
+    const ms = machineList();
     const bad = services.filter(s => !s.ok && !s.warn).length + ms.filter(m => m.offline || Math.max(m.cpu || 0, m.ram || 0, m.disk || 0) >= 90).length;
     const any = pr || up || pve || jv || hc;
     const machines = ms.length ? ms.map(m => {

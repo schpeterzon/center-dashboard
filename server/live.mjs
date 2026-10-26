@@ -63,7 +63,7 @@ function localData() {
   return {
     todos: (state.todos || []).slice(-200), ideas: (state.ideas || []).slice(-50),
     automations: (state.automations ||= defaultAutomations()).map((a) => ({ ...a, next: nextRun(a) })),
-    reviews: (state.reviews || []).slice(-30).reverse(), brief: state.brief || null, log: (state.log || []).slice(-40).reverse(),
+    reviews: (state.reviews || []).slice(-30).reverse(), brief: state.brief || null, log: (state.log || []).slice(-40).reverse(), dismissed: (state.dismissed || []).slice(-100),
   };
 }
 function defaultAutomations() {
@@ -100,7 +100,8 @@ export function localAction(kind, action, b = {}) {
       a.nextAt = null;
       if (!list.includes(a)) list.push(a);
     } else { const a = list.find((x) => x.id === b.id); if (!a) throw new Error("No such automation."); if (action === "toggle") { a.enabled = !a.enabled; a.nextAt = null; } else if (action === "remove") list.splice(list.indexOf(a), 1); else if (action === "run") { runAutomation(a, true); } }
-  } else if (kind === "reviews" && action === "remove") state.reviews = (state.reviews || []).filter((r) => r.id !== b.id);
+  } else if (kind === "dismissed" && action === "add") { const k = str(b.id, 120); if (!k) throw new Error("Nothing to dismiss."); state.dismissed = [...(state.dismissed || []).filter((x) => x !== k), k].slice(-100); }
+  else if (kind === "reviews" && action === "remove") state.reviews = (state.reviews || []).filter((r) => r.id !== b.id);
   else throw new Error("Unknown action.");
   persist();
   return localData();
