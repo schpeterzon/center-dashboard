@@ -191,6 +191,8 @@ export class WebGLOrbRenderer {
     const gl = this.gl;
     this.quality = QUALITY[quality];
     this.dpr = Math.min(deviceDpr, this.quality.dpr);
+    // Point sizes are tuned for an orb about 180 CSS pixels wide; smaller orbs scale them down.
+    this.fit = Math.min(1, Math.max(0.3, Math.min(width, height) / 180));
     const w = Math.max(1, Math.round(width * this.dpr)),
       h = Math.max(1, Math.round(height * this.dpr));
     if (w === this.width && h === this.height && this.bloomEnabled === this.quality.bloom) return;
@@ -220,6 +222,7 @@ export class WebGLOrbRenderer {
     gl.uniform1f(u.uTime, state.reducedMotion ? 0 : state.time);
     gl.uniform1f(u.uPhase, state.phase);
     gl.uniform1f(u.uDpr, this.dpr);
+    gl.uniform1f(u.uFit, this.fit ?? 1);
     gl.uniform1f(u.uDensity, Math.sqrt(3200 / this.quality.count));
     gl.uniform1f(u.uMotion, state.motion);
     gl.uniform1f(u.uPosture, state.posture);

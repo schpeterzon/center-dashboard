@@ -152,7 +152,7 @@ layout(location=0) in vec3 aPosition;
 layout(location=1) in vec4 aTraits; // seed, layer, weight, flow group
 layout(location=2) in vec3 aNeighbor;
 uniform mat4 uModel, uView, uProjection;
-uniform float uTime, uPhase, uDpr, uDensity, uMotion, uEnergy;
+uniform float uTime, uPhase, uDpr, uFit, uDensity, uMotion, uEnergy;
 uniform float uTurbulence, uSwirl, uWave, uFlow, uFocus, uPulse, uCluster, uFragment, uBurst, uScan;
 uniform vec4 uAttention;
 uniform float uPosture;
@@ -235,7 +235,8 @@ void main() {
   vec4 eye=uView*uModel*vec4(p,1.0);
   gl_Position=uProjection*eye;
   float depth=clamp((4.65+eye.z)/2.15,0.0,1.0);
-  gl_PointSize=clamp((6.5+depth*3.0)*uDpr*3.6/-eye.z,5.,20.);
+  // A small orb (docked in a corner) gets smaller points, so they stay dots instead of merging.
+  gl_PointSize=clamp((6.5+depth*3.0)*uDpr*uFit*3.6/-eye.z,max(1.5,5.*uFit),20.);
   vGlyph=int(floor(aTraits.x*5.0));
   float core=1.0-smoothstep(.12,.65,aTraits.y);
   float current=pow(.5+.5*sin(dot(p,vec3(7.,-5.,3.))+uPhase*1.5+1.8*sin(p.y*4.+p.z*3.-uPhase*.5)),8.0);
@@ -246,6 +247,7 @@ void main() {
   vAlpha*=mix(.45,1.0,smoothstep(.3,.8,max(aTraits.y,length(p))));
   // Spine tips, ring orbits and lattice edges carry a little more ink.
   vAlpha*=(1.0+glow*.6)*fade;
+  vAlpha*=mix(1.5,1.0,uFit);
   vSharpness=mix(3.2,6.5,depth);
   for(int i=0;i<8;i++) {
     float age=uTime-uOrigins[i].w;
