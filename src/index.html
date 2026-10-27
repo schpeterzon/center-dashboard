@@ -709,7 +709,7 @@ body.calm *,body.calm *::before,body.calm *::after{animation-duration:.001s!impo
 .homeprev .hero i{width:34px;height:34px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--accent) 60%,transparent),transparent 70%);flex:none}
 .hp{position:relative;grid-column:span 4;border:1px solid var(--line-2);border-radius:9px;background:var(--card);padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;text-align:left;transition:border-color .2s,transform .2s}
 .hp:hover{border-color:color-mix(in srgb,var(--accent) 45%,transparent);transform:translateY(-1px)}
-.hp.on{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)}
+.hp.on{z-index:10;transform:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)}
 .hp.none{border-style:dashed;background:transparent}
 .hp b{font-size:13px;font-weight:600} .hp small{font:500 9.5px var(--mono);color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
 .hp0{grid-column:span 5} .hp1{grid-row:span 2}
