@@ -57,7 +57,10 @@ body.booted #board{animation:bootin .6s ease both}
 #space,#space2{position:fixed;inset:-40%;pointer-events:none;will-change:transform}
 #space{background-image:radial-gradient(color-mix(in srgb,var(--ink) 7%,transparent) 1px,transparent 1.2px);background-size:30px 30px}
 #space2{background-image:radial-gradient(color-mix(in srgb,var(--accent) 10%,transparent) 1.2px,transparent 1.6px);background-size:140px 140px;opacity:.7}
-#board{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
+/* will-change only while flying: a resting board is re-rastered at its real scale, so the
+   zoomed-out overview isn't painted at full size (that runs out of GPU tile memory and tears). */
+#board{position:absolute;left:0;top:0;transform-origin:0 0}
+body.moving #board{will-change:transform}
 /* Each region carries its own light, so travelling across the board shifts the colour. */
 .pane{position:absolute;transition:opacity .7s ease;cursor:grab;
   background:radial-gradient(55% 48% at 26% 18%,rgba(var(--t),.075),transparent 70%),radial-gradient(48% 42% at 80% 86%,rgba(var(--t),.05),transparent 70%)}
