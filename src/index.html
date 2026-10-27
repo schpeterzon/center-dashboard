@@ -232,15 +232,16 @@ body.overview .edge,body.moving .edge{opacity:0;pointer-events:none}
 .sugg{display:flex;gap:8px;flex-wrap:wrap}
 .sugg button{font-size:12.5px;padding:5px 11px;border-radius:99px;border:1px solid var(--line);color:var(--text-2);transition:all .2s}
 .sugg button:hover{border-color:var(--line-2);color:var(--text);transform:translateY(-1px)}
-.needs{grid-column:span 5;contain:size}
-.needs .list{flex:1}
+.needs,.hs0{grid-column:span 5;contain:size}
+.needs .list,.w-needs .list{flex:1}
+.hs2,.hs3,.hs4,.hs5{grid-column:span 4;contain:size}
 .need{display:flex;gap:12px;padding:11px 0;align-items:flex-start;transition:opacity .5s}
 .need:first-child{padding-top:0}
 .need.done{opacity:.35}
 .need .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:none;font-size:13px;background:color-mix(in srgb,var(--ink) 5%,transparent)}
 .need .tt{font-weight:600} .need p{font-size:12.5px;color:var(--text-2);margin-top:2px}
 .need .acts{display:flex;gap:6px;margin-top:8px}
-.today{grid-column:span 4;grid-row:span 2}
+.today,.hs1{grid-column:span 4;grid-row:span 2}
 .tl{position:relative;padding-left:18px}
 .tl::before{content:"";position:absolute;left:5px;top:6px;bottom:6px;width:1px;background:var(--line-2)}
 .ti{position:relative;padding:6px 0 8px}
@@ -703,6 +704,8 @@ body.calm *,body.calm *::before,body.calm *::after{animation-duration:.001s!impo
 .todo .x{margin-left:auto;color:var(--muted);font-size:15px;opacity:0;transition:opacity .2s;padding:0 4px}
 .todo:hover .x{opacity:1}
 .todo .x:hover{color:var(--crit)}
+.homepick{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.homepick label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text-2)}
 #tout .sug{font:500 .92em var(--mono);padding:.3em .8em;margin:.2em .3em .2em 0}
 .pane.live .empty{flex:1;min-height:0;overflow:hidden;padding:10px 8px;gap:8px}
 .pane.live .card.span4 .empty .muted{font-size:11.5px}
@@ -1320,7 +1323,11 @@ const panes = $$('.pane');
 const byId = Object.fromEntries(panes.map(p => [p.dataset.id, p]));
 panes.forEach(p => p.style.setProperty('--t', p.dataset.tint));
 // The board is a grid of slots the user arranges in Settings; panes left out stay hidden.
-const DEFAULT_LAYOUT = { cols: 3, rows: 3, start: 'home', slots: ['world', 'schedule', 'projects', 'markets', 'home', 'agents', 'reviews', 'infra', 'lab'] };
+const DEFAULT_LAYOUT = { cols: 3, rows: 3, start: 'home', slots: ['world', 'schedule', 'projects', 'markets', 'home', 'agents', 'reviews', 'infra', 'lab'], home: ['needs', 'today', 'agents', 'portfolio', 'machines', 'world'] };
+// Widgets the live Home page can show, and the six places it has for them.
+const HOME_WIDGETS = { needs: 'Needs you', today: 'Today', agents: 'Agents', portfolio: 'Portfolio', machines: 'Machines', world: 'World', todo: 'Todo', weather: 'Weather', health: 'Health', none: 'Empty' };
+const HOME_SLOTS = ['Top right', 'Tall, left', 'Middle', 'Middle right', 'Bottom', 'Bottom right'];
+const homeSlots = () => DEFAULT_LAYOUT.home.map((d, i) => HOME_WIDGETS[CFG.layout.home?.[i]] ? CFG.layout.home[i] : d);
 let COLS = 3, ROWS = 3, at = {}, order = [];
 const placed = id => !!byId[id] && !byId[id].hidden;
 const coordOf = id => { const p = byId[id]; return String.fromCharCode(65 + +p.dataset.c) + (+p.dataset.r + 1); };
@@ -1555,7 +1562,11 @@ const RENDER = {
     <div class="grp"><h4>Pages</h4>
       <div class="lib">${panes.map(p => p.dataset.id).map(id => `<div class="slot full ${used.has(id) ? 'used' : ''}" draggable="${!used.has(id)}" data-lib="${id}" style="--t:${byId[id].dataset.tint}"><span class="nm">${byId[id].dataset.name}</span><span class="ds">${byId[id].dataset.desc}</span>${used.has(id) ? '<span class="home" style="color:var(--muted)">ON BOARD</span>' : ''}</div>`).join('')}</div>
       <p class="hint">Click a page to add it to the first free slot, or drag it onto any slot.</p>
-    </div>`;
+    </div>${API.server ? `
+    <div class="grp"><h4>Home widgets <span class="sp"></span><button class="btn" data-a="resethome">Reset</button></h4>
+      <div class="homepick">${homeSlots().map((id, i) => `<label><span>${HOME_SLOTS[i]}</span><select class="inp sel" data-a="homew" data-i="${i}">${Object.entries(HOME_WIDGETS).map(([k, n]) => `<option value="${k}" ${k === id ? 'selected' : ''}>${n}</option>`).join('')}</select></label>`).join('')}</div>
+      <p class="hint">Pick what each place on the Home page shows. Picking a widget that is already shown swaps the two.</p>
+    </div>` : ''}`;
   },
   ai: () => connSection('ai'),
   connections: () => connSection('data'),
@@ -1650,6 +1661,7 @@ sbody.addEventListener('click', async e => {
     const i = +a.dataset.i; if (L.slots.filter(Boolean).length < 2) return toast('The board needs at least one page');
     L.slots[i] = null; if (!L.slots.includes(L.start)) L.start = L.slots.find(Boolean); changed('layout'); rerender();
   }
+  else if (act === 'resethome') { L.home = [...DEFAULT_LAYOUT.home]; changed('layout'); rerender(); }
   else if (act === 'resetlayout') { CFG.layout = structuredClone(DEFAULT_LAYOUT); changed('layout'); rerender(); }
   else if (act === 'add') { form = { kind: setSec === 'ai' ? 'ai' : 'data', type: a.dataset.type, name: '', values: {}, adv: false }; const e2 = (form.kind === 'ai' ? AI_BY : DATA_BY)[form.type]; e2.fields.forEach(f => { if (f.def) form.values[f.k] = f.def; }); rerender(); sbody.scrollTop = 0; }
   else if (act === 'edit') { const c = API.conns.find(x => x.id === a.dataset.id); form = { id: c.id, kind: c.kind, type: c.type, name: c.name, values: { ...c.values }, secrets: c.secrets, adv: false }; rerender(); sbody.scrollTop = 0; }
@@ -1706,6 +1718,11 @@ sbody.addEventListener('click', e => {
 sbody.addEventListener('change', async e => {
   const t = e.target;
   if (t.dataset.k) { setPath(t.dataset.k, t.value); changed(t.dataset.k); if (t.tagName === 'SELECT' || t.type === 'color') rerender(); return; }
+  if (t.dataset.a === 'homew') {
+    const h = homeSlots(), i = +t.dataset.i, j = h.indexOf(t.value);
+    if (j >= 0 && j !== i && t.value !== 'none') h[j] = h[i];
+    h[i] = t.value; CFG.layout.home = h; changed('layout'); rerender(); return;
+  }
   if (t.dataset.a === 'import' && t.files[0]) { try { toast(importTheme(await t.files[0].text(), t.files[0].name)); changed('appearance'); rerender(); } catch (err) { toast('Import failed · ' + err.message); } }
   if (t.dataset.a === 'importcfg' && t.files[0]) { try { const j = JSON.parse(await t.files[0].text()); CFG = mergeDeep(structuredClone(DEFAULTS), j); changed('all'); toast('Settings imported'); rerender(); } catch (err) { toast('Import failed · ' + err.message); } }
 });
@@ -3381,14 +3398,21 @@ const LIVE = (() => {
     // One or two machines get meters; more get compact tiles.
     const few = mlist.length <= 2;
     const machines = mlist.length ? mlist.slice(0, 4).map(m => `<div class="mach"><div class="row"><span class="n sp">${esc(m.name)}</span><span class="st ${m.offline ? 'crit' : Math.max(m.cpu || 0, m.ram || 0, m.disk || 0) >= 90 ? 'warn' : 'good'}">${m.offline ? 'offline' : Math.max(m.cpu || 0, m.ram || 0, m.disk || 0) >= 90 ? 'busy' : 'ok'}</span></div>${few ? `<div style="display:flex;flex-direction:column;gap:5px;margin-top:6px">${hardwareMeter('cpu', m.cpu)}${hardwareMeter('ram', m.ram)}${m.gpu != null ? hardwareMeter('GPU', m.gpu) : hardwareMeter('disk', m.disk)}</div>` : `<div class="r">cpu ${m.cpu ?? '—'}% · ram ${m.ram ?? '—'}%${m.gpu != null ? ` · gpu ${m.gpu}%` : ''}</div>`}</div>`).join('') : null;
-    return `<div data-brief>${brief}</div><div data-glance>${glance}</div><div data-cards>
-      <div class="card needs"><h3>Needs you <span class="go">${needs.length}</span></h3><div class="list scroll">${needs.join('') || `<div class="empty" style="padding:10px"><div>Nothing needs you right now.</div></div>`}</div></div>
-      <div class="card today"><h3>Today <span class="go" data-go="schedule">Schedule →</span></h3>${tl.length ? `<div class="tl scroll">${tl.join('')}</div>` : cal ? '<div class="empty"><div>Nothing on the calendar today.</div></div>' : need('calendar', 'Your day shows up here')}</div>
-      <div class="card span4"><h3>Agents <span class="go" data-go="agents">${h ? h.active.length + ' running →' : 'Agents →'}</span></h3>${agents != null ? `<div class="list scroll">${agents || '<div class="muted">No tasks yet. Ask JARVIS to start one.</div>'}</div>` : broken('harness', 'The Harness') || need('harness', 'Your agents show up here')}</div>
-      <div class="card span4"><h3>Portfolio <span class="go" data-go="markets">Markets →</span></h3>${mk ? `<div class="row" style="align-items:baseline"><span class="big" style="font-size:32px">${money(mk.total)}</span><span class="delta" style="color:var(--${(mk.dayPct || 0) >= 0 ? 'good' : 'crit'})">${mk.dayPct != null ? ((mk.dayPct >= 0 ? '▲ ' : '▼ ') + Math.abs(mk.dayPct).toFixed(2) + '%') : ''}</span></div><div class="chart" id="lv-hspark" style="margin-top:10px"></div>` : broken('markets', 'Finnhub') || need('finnhub', 'Your portfolio shows up here')}</div>
-      <div class="card span4"><h3>Machines <span class="go" data-go="infra">Infra →</span></h3>${machines != null ? `<div class="machines" style="grid-template-columns:${mlist.length === 1 ? '1fr' : '1fr 1fr'};flex:1;min-height:0;gap:8px;grid-auto-rows:minmax(0,1fr)">${machines}</div>` : broken('prometheus', 'Prometheus') || broken('proxmox', 'Proxmox') || need(['prometheus', 'proxmox'], 'Your machines show up here')}</div>
-      <div class="card span4"><h3>World <span class="go" data-go="world">Briefing →</span></h3>${feeds ? `<div class="list scroll">${feeds.items.slice(0, 4).map(i => `<div class="hl"><span class="lv ${i.topics.length > 1 ? 'hi' : i.topics.length ? 'md' : 'lo'}">${i.topics.length > 1 ? 'HIGH' : i.topics.length ? 'MED' : 'NEWS'}</span><span class="h">${esc(i.title)}</span></div>`).join('')}</div>` : broken('feeds', 'Your feeds') || need('rss', 'Headlines that matter to you')}</div>
-    </div>`;
+    const ha = ok('home'), hs = ha?.health || [], todos = L().todos.filter(t => !t.done).sort((a, b) => (a.due || '9').localeCompare(b.due || '9') || b.created - a.created);
+    const hv = x => x.value >= 1000 && x.unit !== 'kg' ? Math.round(x.value).toLocaleString('en-US') : +x.value.toFixed(1);
+    const widgets = {
+      needs: () => `<h3>Needs you <span class="go">${needs.length}</span></h3><div class="list scroll">${needs.join('') || `<div class="empty" style="padding:10px"><div>Nothing needs you right now.</div></div>`}</div>`,
+      today: () => `<h3>Today <span class="go" data-go="schedule">Schedule →</span></h3>${tl.length ? `<div class="tl scroll">${tl.join('')}</div>` : cal ? '<div class="empty"><div>Nothing on the calendar today.</div></div>' : need('calendar', 'Your day shows up here')}`,
+      agents: () => `<h3>Agents <span class="go" data-go="agents">${h ? h.active.length + ' running →' : 'Agents →'}</span></h3>${agents != null ? `<div class="list scroll">${agents || '<div class="muted">No tasks yet. Ask JARVIS to start one.</div>'}</div>` : broken('harness', 'The Harness') || need('harness', 'Your agents show up here')}`,
+      portfolio: () => `<h3>Portfolio <span class="go" data-go="markets">Markets →</span></h3>${mk ? `<div class="row" style="align-items:baseline"><span class="big" style="font-size:32px">${money(mk.total)}</span><span class="delta" style="color:var(--${(mk.dayPct || 0) >= 0 ? 'good' : 'crit'})">${mk.dayPct != null ? ((mk.dayPct >= 0 ? '▲ ' : '▼ ') + Math.abs(mk.dayPct).toFixed(2) + '%') : ''}</span></div><div class="chart" id="lv-hspark" style="margin-top:10px"></div>` : broken('markets', 'Finnhub') || need('finnhub', 'Your portfolio shows up here')}`,
+      machines: () => `<h3>Machines <span class="go" data-go="infra">Infra →</span></h3>${machines != null ? `<div class="machines" style="grid-template-columns:${mlist.length === 1 ? '1fr' : '1fr 1fr'};flex:1;min-height:0;gap:8px;grid-auto-rows:minmax(0,1fr)">${machines}</div>` : broken('prometheus', 'Prometheus') || broken('proxmox', 'Proxmox') || need(['prometheus', 'proxmox'], 'Your machines show up here')}`,
+      world: () => `<h3>World <span class="go" data-go="world">Briefing →</span></h3>${feeds ? `<div class="list scroll">${feeds.items.slice(0, 4).map(i => `<div class="hl"><span class="lv ${i.topics.length > 1 ? 'hi' : i.topics.length ? 'md' : 'lo'}">${i.topics.length > 1 ? 'HIGH' : i.topics.length ? 'MED' : 'NEWS'}</span><span class="h">${esc(i.title)}</span></div>`).join('')}</div>` : broken('feeds', 'Your feeds') || need('rss', 'Headlines that matter to you')}`,
+      todo: () => `<h3>Todo <span class="go" data-go="schedule">${todos.length} open →</span></h3><div class="list scroll">${todos.slice(0, 20).map(t => `<div class="todo" data-la="todo" data-id="${esc(t.id)}"><span class="bx"></span><span class="tx">${esc(t.text)}${t.due ? `<span class="by">due ${esc(t.due)}</span>` : ''}</span><button class="x" data-la="todo-rm" data-id="${esc(t.id)}" title="Remove">×</button></div>`).join('') || '<div class="muted">Nothing to do.</div>'}</div><label class="addrow"><span>+</span><input data-add="todos" placeholder="Add a todo and press Enter"></label>`,
+      weather: () => `<h3>Weather <span class="go">${w ? esc(w.place) : ''}</span></h3>${w ? `<div class="row" style="align-items:baseline;gap:10px"><span class="big" style="font-size:32px">${esc(w.now.icon)} ${Math.round(w.now.temp)}${esc(w.unit)}</span><span class="muted">${esc(w.now.text)}${w.nextRain ? ' · rain ' + esc(w.nextRain) : ''}</span></div><div class="list scroll" style="margin-top:8px">${w.days.slice(1, 5).map(d => `<div class="cons"><span>${DAYN[new Date(d.date + 'T12:00').getDay()]} ${esc(d.icon)} <span class="muted" style="font-size:11.5px">${esc(d.text)}</span></span><span class="v">${Math.round(d.min)}–${Math.round(d.max)}${esc(w.unit)}${d.rain ? ' · ' + d.rain + '%' : ''}</span></div>`).join('')}</div>` : broken('weather', 'The weather') || need('weather', 'The forecast shows up here')}`,
+      health: () => `<h3>Health <span class="go" data-go="health">Health →</span></h3>${hs.length ? `<div class="list scroll">${hs.slice(0, 8).map(x => `<div class="cons"><span>${esc(x.label)}</span><span class="v">${hv(x)} ${esc(x.unit)}</span></div>`).join('')}</div>` : ha ? '<div class="empty"><div class="muted">No health sensors in Home Assistant yet.</div></div>' : broken('home', 'Home Assistant') || need('home-assistant', 'Steps, sleep and heart rate show up here')}`,
+    };
+    const seen = new Set(), cards = homeSlots().map((id, i) => { if (!widgets[id] || seen.has(id)) return `<div class="hs${i}"></div>`; seen.add(id); return `<div class="card hs${i} w-${id}">${widgets[id]()}</div>`; });
+    return `<div data-brief>${brief}</div><div data-glance>${glance}</div><div data-cards>${cards.join('')}</div>`;
   };
   charts.home = () => { const mk = ok('markets'); if (mk && mk.history.length > 1 && $('#lv-hspark')) lineChart($('#lv-hspark'), mk.history.slice(-60).map(x => x.v), { fmt: money, date: i => mk.history.slice(-60)[i].d, axis: false }); };
 
