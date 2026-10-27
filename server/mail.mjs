@@ -87,7 +87,9 @@ export function mailTarget(c) {
   const secure = !(LOOPBACK.test(host) && port !== 993);
   let password = "";
   try { password = c.secrets?.password ? open(c.secrets.password) : ""; } catch { throw new SourceError("a saved secret could not be opened"); }
-  return { host, port, secure, user: str(c.values?.user, 200), password, folder: str(c.values?.folder || "INBOX", 100), webmail: /^https:\/\//.test(c.values?.webmail || "") ? str(c.values.webmail, 300) : "" };
+  // Gmail's INBOX over IMAP holds every tab (Updates, Promotions, Social); by default show Primary, as the Gmail app does.
+  const tabs = String(c.values?.gmailTabs || "primary").trim().toLowerCase(), gmailTab = /gmail|googlemail/i.test(host) && /^(primary|updates|promotions|social|forums)$/.test(tabs) ? tabs : null;
+  return { host, port, secure, gmailTab, user: str(c.values?.user, 200), password, folder: str(c.values?.folder || "INBOX", 100), webmail: /^https:\/\//.test(c.values?.webmail || "") ? str(c.values.webmail, 300) : "" };
 }
 
 export async function readMailbox(t, count = 25) {
@@ -95,10 +97,21 @@ export async function readMailbox(t, count = 25) {
   try {
     await s.cmd(`LOGIN ${q(t.user)} ${q(t.password)}`);
     const ex = await s.cmd(`EXAMINE ${q(t.folder)}`), total = Number(/^\* (\d+) EXISTS/im.exec(ex)?.[1] || 0);
-    const unseen = total ? (/^\* SEARCH([\d ]*)/im.exec(await s.cmd("SEARCH UNSEEN"))?.[1] || "").trim().split(/\s+/).filter(Boolean).length : 0;
-    const messages = total ? parseFetch(await s.cmd(`FETCH ${Math.max(1, total - count + 1)}:${total} (UID FLAGS INTERNALDATE BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])`)).sort((a, b) => b.seq - a.seq) : [];
+    const search = async (q) => (/^\* SEARCH([\d ]*)/im.exec(await s.cmd("SEARCH " + q))?.[1] || "").trim().split(/\s+/).filter(Boolean).map(Number);
+    const fields = "(UID FLAGS INTERNALDATE BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])";
+    let unseen = 0, messages = [], shown = total;
+    if (total && t.gmailTab) {
+      const all = await search(`X-GM-RAW ${q("category:" + t.gmailTab)}`), unread = await search(`X-GM-RAW ${q("category:" + t.gmailTab + " is:unread")}`);
+      shown = all.length; unseen = unread.length;
+      // The newest unread first, then the newest read ones to fill the list.
+      const pick = [...new Set([...unread.slice(-count), ...all.slice(-count)])].sort((a, b) => b - a).slice(0, count);
+      if (pick.length) messages = parseFetch(await s.cmd(`FETCH ${pick.join(",")} ${fields}`)).sort((a, b) => b.seq - a.seq);
+    } else if (total) {
+      unseen = (await search("UNSEEN")).length;
+      messages = parseFetch(await s.cmd(`FETCH ${Math.max(1, total - count + 1)}:${total} ${fields}`)).sort((a, b) => b.seq - a.seq);
+    }
     await s.cmd("LOGOUT").catch(() => {});
-    return { folder: t.folder, total, unseen, messages };
+    return { folder: t.gmailTab ? t.gmailTab[0].toUpperCase() + t.gmailTab.slice(1) : t.folder, total: shown, unseen, messages };
   } finally { s.close(); }
 }
 

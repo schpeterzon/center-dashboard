@@ -115,7 +115,7 @@ export const INTEGRATIONS = [
     probe: { live: "calendar" } },
   { id: "email", group: "life", name: "Email (IMAP)", icon: "@", blurb: "Unread mail in the Inbox. Read-only: nothing is marked as read, moved or sent. Gmail and iCloud need an app password.",
     fields: [{ k: "host", label: "IMAP server", placeholder: "imap.gmail.com" }, { k: "user", label: "Username", placeholder: "you@example.com" }, { k: "password", label: "Password or app password", secret: true },
-      { k: "port", label: "Port", def: "993", adv: true }, { k: "folder", label: "Folder", def: "INBOX", adv: true }, { k: "webmail", label: "Webmail link", opt: true, adv: true, placeholder: "https://mail.google.com" }],
+      { k: "port", label: "Port", def: "993", adv: true }, { k: "folder", label: "Folder", def: "INBOX", adv: true }, { k: "webmail", label: "Webmail link", opt: true, adv: true, placeholder: "https://mail.google.com" }, { k: "gmailTabs", label: "Gmail tab to show (primary, updates, promotions, social, or all)", opt: true, adv: true, placeholder: "primary" }],
     probe: { live: "email" } },
   { id: "rss", group: "life", name: "News feeds", icon: "≋", blurb: "RSS or Atom feeds for the World briefing.",
     fields: [{ k: "feeds", label: "Feeds, one per line", area: true, placeholder: "https://example.com/feed.xml" }, { k: "topics", label: "Topics that matter to you", opt: true, placeholder: "nixos, local llm, security advisory, energy prices" }],
