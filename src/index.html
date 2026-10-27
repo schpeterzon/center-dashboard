@@ -41,6 +41,10 @@ b{font-weight:600;color:var(--text)}
 .num{font-variant-numeric:tabular-nums}
 .zz{zoom:var(--z)}
 
+/* ---------- boot: the board stays hidden until it is laid out and the server has answered ---------- */
+body:not(.booted)>*:not(#bootnote){visibility:hidden}
+#bootnote{position:fixed;inset:0;display:grid;place-items:center;font:500 12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);pointer-events:none;transition:opacity .3s}
+body.booted #bootnote{opacity:0}
 /* ---------- space + board ---------- */
 #space,#space2{position:fixed;inset:-40%;pointer-events:none;will-change:transform}
 #space{background-image:radial-gradient(color-mix(in srgb,var(--ink) 7%,transparent) 1px,transparent 1.2px);background-size:30px 30px}
@@ -55,7 +59,7 @@ body.grabbing,body.grabbing *{cursor:grabbing!important;user-select:none}
 .pane .card,.pane .mcard,.pane .pc,.pane .hero,.pane .ph>*{cursor:auto}
 .pane::before{content:"";position:absolute;inset:calc(22px*var(--z));border-radius:calc(44px*var(--z));border:1px solid var(--line-2);background:color-mix(in srgb,var(--ink) 1.2%,transparent);opacity:0;transition:opacity .4s,border-color .3s,box-shadow .3s;pointer-events:none}
 body.moving .pane::before,body.overview .pane::before{opacity:1}
-.pane-inner{zoom:var(--z);width:var(--dw);height:var(--dh);padding:90px var(--px) 60px;display:flex;flex-direction:column;gap:18px;min-height:0}
+.pane-inner{content-visibility:auto;contain-intrinsic-size:auto var(--dw) auto var(--dh);zoom:var(--z);width:var(--dw);height:var(--dh);padding:90px var(--px) 60px;display:flex;flex-direction:column;gap:18px;min-height:0}
 .ov{position:absolute;inset:calc(22px*var(--z));border-radius:calc(44px*var(--z));display:grid;place-content:center;text-align:center;background:color-mix(in srgb,var(--bg) 72%,transparent);opacity:0;pointer-events:none;transition:opacity .45s}
 .ov span{font-size:calc(150px*var(--z));font-weight:600;letter-spacing:-.03em;line-height:1}
 .ov small{display:block;font:500 calc(44px*var(--z)) var(--mono);color:var(--accent);letter-spacing:.1em;margin-bottom:calc(10px*var(--z))}
@@ -733,6 +737,7 @@ body.server .pane:not(.lv-ready) .pane-inner{visibility:hidden}
 </style>
 </head>
 <body>
+<div id="bootnote">JARVIS · starting</div>
 <noscript><p style="padding:40px;font:16px system-ui;color:#eceef1">JARVIS needs JavaScript to run.</p></noscript>
 <div id="space"></div><div id="space2"></div>
 
@@ -1389,7 +1394,7 @@ async function loadSettings() {
   const served = !!document.querySelector('meta[name="jarvis-server"]');
   for (let wait = 1000; /^https?:$/.test(location.protocol); wait = Math.min(wait * 2, 10000)) {
     try {
-      const r = await fetch('/api/session', { credentials: 'same-origin', headers: { 'x-jarvis': '1' } });
+      const r = await fetch('/api/session', { credentials: 'same-origin', headers: { 'x-jarvis': '1' }, signal: AbortSignal.timeout(8000) });
       if (r.status === 401) { location.replace('/login'); await new Promise(() => {}); }
       if (r.ok && (r.headers.get('content-type') || '').includes('json')) {
         const d = await r.json();
@@ -1398,6 +1403,7 @@ async function loadSettings() {
     } catch {}
     if (!served) break;
     const t = $('#toast'); if (t) { $('.zz', t).textContent = 'Waiting for the JARVIS server…'; t.classList.add('show'); }
+    const bn = $('#bootnote'); if (bn) bn.textContent = 'JARVIS · waiting for the server';
     await new Promise(r => setTimeout(r, wait));
   }
   try { mergeDeep(CFG, JSON.parse(localStorage.getItem('jarvis-settings') || '{}')); } catch {}
@@ -3241,13 +3247,18 @@ const LIVE = (() => {
   }
   // The server pushes "change" when the Harness reports an event; the 15 s poll stays as the fallback.
   let soon = 0;
+  // A hidden tab closes its stream: over plain HTTP a browser allows only six connections per
+  // server, and a few background tabs holding streams would stall every new request.
+  let es = null;
   function listen() {
-    if (typeof EventSource !== 'function') return;
-    const es = new EventSource('/api/stream');
-    es.addEventListener('change', () => { clearTimeout(soon); soon = setTimeout(() => { if (!document.hidden) poll(); }, 300); });
+    if (typeof EventSource !== 'function' || es || document.hidden) return;
+    const s = es = new EventSource('/api/stream');
+    s.addEventListener('change', () => { clearTimeout(soon); soon = setTimeout(() => { if (!document.hidden) poll(); }, 300); });
     // Browsers stop retrying after some failures (a server restart, a sign-in redirect); start over.
-    es.onerror = () => { if (es.readyState === EventSource.CLOSED) setTimeout(listen, 10000); };
+    s.onerror = () => { if (s.readyState === EventSource.CLOSED) { if (es === s) es = null; setTimeout(listen, 10000); } };
   }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { es?.close(); es = null; } else listen(); });
+  addEventListener('pagehide', () => { es?.close(); es = null; });
   function start() {
     HX.stop();
     $$('.pane').forEach(p => { p.classList.add('live'); if (!PAGES[p.dataset.id]) p.classList.add('lv-ready'); });
@@ -3972,6 +3983,7 @@ async function start() {
   $('#home-machines').style.visibility = 'visible';
   applyAppearance(); applyProfile(); termIntro();
   const first = boot();
+  body.classList.add('booted');
   const intro = !placed(location.hash.slice(1)) && !reduce;
   if (intro) { overview = true; body.classList.add('overview'); cam = overviewCam(); flight = null; apply(); syncChrome(); }
   placeOrb(); paintCap();
