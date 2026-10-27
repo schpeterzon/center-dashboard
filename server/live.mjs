@@ -101,6 +101,14 @@ export function localAction(kind, action, b = {}) {
       if (!list.includes(a)) list.push(a);
     } else { const a = list.find((x) => x.id === b.id); if (!a) throw new Error("No such automation."); if (action === "toggle") { a.enabled = !a.enabled; a.nextAt = null; } else if (action === "remove") list.splice(list.indexOf(a), 1); else if (action === "run") { runAutomation(a, true); } }
   } else if (kind === "dismissed" && action === "add") { const k = str(b.id, 120); if (!k) throw new Error("Nothing to dismiss."); state.dismissed = [...(state.dismissed || []).filter((x) => x !== k), k].slice(-100); }
+  else if (kind === "holdings" && action === "set") {
+    // The Markets page edits the same holdings text as Settings → Connections → Finnhub.
+    const c = first("finnhub"); if (!c) throw new Error("Connect Finnhub first.");
+    const list = (Array.isArray(b.holdings) ? b.holdings : []).slice(0, 40).map((h) => ({ symbol: str(h.symbol, 20).trim().toUpperCase(), qty: num(h.qty) ?? 0, target: num(h.target), cost: num(h.cost), name: str(h.name, 60).replace(/\s+/g, " ").trim() }));
+    const bad = list.find((h) => !/^[A-Z0-9.:-]+$/.test(h.symbol)); if (bad) throw new Error(`"${bad.symbol || "(empty)"}" is not a ticker symbol.`);
+    if (list.some((h) => h.qty < 0 || (h.cost != null && h.cost < 0))) throw new Error("Shares and prices cannot be negative.");
+    c.values = { ...c.values, holdings: src.formatHoldings(list) };
+  }
   else if (kind === "reviews" && action === "remove") state.reviews = (state.reviews || []).filter((r) => r.id !== b.id);
   else throw new Error("Unknown action.");
   persist();
@@ -252,7 +260,7 @@ export async function liveContext() {
   if (src2.uptime?.ok) { const d = src2.uptime.data.monitors.filter((m) => m.state === "down"); if (d.length) L.push(`Monitors down: ${d.map((m) => m.name).join(", ")}.`); }
   if (src2.weather?.ok) { const w = src2.weather.data; L.push(`Weather in ${w.place}: ${w.now.temp}${w.unit} ${w.now.text}${w.nextRain ? `, rain likely from ${w.nextRain}` : ""}; today ${w.days[0]?.min}–${w.days[0]?.max}${w.unit}.`); }
   if (src2.home?.ok) { const ha = src2.home.data; L.push(`Home: ${ha.lightsOn} light(s) on${ha.security.length ? "; " + ha.security.slice(0, 6).map((e) => `${e.name} ${e.state}`).join(", ") : ""}.`); }
-  if (src2.markets?.ok) { const m = src2.markets.data; L.push(`Portfolio ${m.total.toFixed(0)} (${m.dayPct != null ? (m.dayPct >= 0 ? "+" : "") + m.dayPct.toFixed(2) + "% today" : "no change data"}).`); }
+  if (src2.markets?.ok) { const m = src2.markets.data; L.push(`Portfolio in US dollars ${m.total.toFixed(0)} (${m.dayPct != null ? (m.dayPct >= 0 ? "+" : "") + m.dayPct.toFixed(2) + "% today" : "no change data"}${m.invested != null ? `; ${m.invested.toFixed(0)} invested, ${m.gain >= 0 ? "+" : ""}${m.gain.toFixed(0)} (${m.gainPct.toFixed(1)}%) overall` : ""}): ${m.holdings.map((h) => `${h.symbol} ${h.qty}${h.cost ? " @" + h.cost : ""}${h.price ? " now " + h.price : ""}`).join(", ")}.`); }
   if (src2.github?.ok) { const g = src2.github.data; L.push(`GitHub: ${g.pulls.length} open PR(s) involving you${g.pulls.length ? ": " + g.pulls.slice(0, 6).map((p) => `${p.repo}#${p.number} ${p.title}`).join("; ") : ""}.`); }
   if (src2.proxmox?.ok) { const p = src2.proxmox.data, off = p.guests.filter((g) => g.status !== "running"); L.push(`Proxmox: ${p.nodes.map((n) => `${n.name} ${n.online ? `cpu ${n.cpu}% ram ${n.ram}%` : "OFFLINE"}`).join("; ")}; ${p.guests.length - off.length}/${p.guests.length} guests running${off.length ? " (stopped: " + off.slice(0, 10).map((g) => g.name).join(", ") + ")" : ""}.`); }
   if (src2.jarvis?.ok) { const j = src2.jarvis.data, bad = j.services.filter((s) => s.state === "down" || s.state === "degraded"); L.push(`JARVIS server ${j.host.name}: cpu ${j.host.cpu ?? "?"}% ram ${j.host.ram ?? "?"}%${bad.length ? "; problems: " + bad.map((s) => `${s.name} ${s.state}`).join(", ") : "; its services are fine"}.`); }

@@ -186,16 +186,19 @@ export async function github(c, fresh) {
 }
 
 // ---------------------------------------------------------------- markets (Finnhub quotes + your holdings)
+// One holding per line: SYMBOL quantity [target% or -] [@ average price paid] [name].
 export function parseHoldings(text) {
   return String(text || "").split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#")).slice(0, 40).map((l) => {
-    const [sym, qty, target, ...rest] = l.split(/\s+/);
-    return { symbol: str(sym, 20).toUpperCase(), qty: num(qty) ?? 0, target: num(String(target || "").replace("%", "")), name: str(rest.join(" "), 60) };
+    const [sym, qty, target, ...rest] = l.replace(/@\s+/, "@").split(/\s+/);
+    const at = rest[0]?.startsWith("@") ? num(rest.shift().slice(1)) : null;
+    return { symbol: str(sym, 20).toUpperCase(), qty: num(qty) ?? 0, target: num(String(target || "").replace("%", "")), name: str(rest.join(" "), 60), ...(at > 0 ? { cost: at } : {}) };
   }).filter((h) => /^[A-Z0-9.:-]+$/.test(h.symbol));
 }
+export const formatHoldings = (list) => list.map((h) => [h.symbol, h.qty, h.target != null ? h.target + "%" : "-", h.cost > 0 ? "@" + h.cost : "", h.name].filter((x) => x !== "" && x != null).join(" ")).join("\n");
 export async function markets(c, fresh) {
   const key = secret(c, "apiKey"), holdings = parseHoldings(c.values?.holdings);
-  if (!holdings.length) throw new SourceError("add your holdings (one per line: SYMBOL quantity target%)");
-  return caches.markets(c.id, async () => {
+  if (!holdings.length) return { total: 0, day: 0, dayPct: null, invested: null, gain: null, gainPct: null, holdings: [], history: (state.marketHistory || []).slice(-365), missing: 0 };
+  return caches.markets(`${c.id}|${c.values?.holdings}`, async () => {
     const quotes = await Promise.all(holdings.map((h) => request(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(h.symbol)}&token=${encodeURIComponent(key)}`).then((q) => ({ ...h, price: num(q?.c), prev: num(q?.pc), change: num(q?.dp) })).catch((e) => ({ ...h, price: null, error: /HTTP 403/.test(e.message) ? "not on your Finnhub plan" : "no quote" }))));
     const priced = quotes.filter((q) => q.price);
     const total = priced.reduce((s, q) => s + q.price * q.qty, 0), prevTotal = priced.reduce((s, q) => s + (q.prev || q.price) * q.qty, 0);
@@ -206,7 +209,9 @@ export async function markets(c, fresh) {
       if (hist.length > 800) hist.splice(0, hist.length - 800);
       persist();
     }
-    return { total, day: total - prevTotal, dayPct: prevTotal ? (total / prevTotal - 1) * 100 : null, holdings: quotes.map((q) => ({ ...q, value: q.price ? q.price * q.qty : null, weight: q.price && total ? q.price * q.qty / total * 100 : null })), history: (state.marketHistory || []).slice(-365), missing: quotes.length - priced.length };
+    // Gain covers the holdings with both a price and what you paid, so a missing quote never reads as a loss.
+    const known = priced.filter((q) => q.cost > 0), invested = known.length ? known.reduce((s, q) => s + q.cost * q.qty, 0) : null, gain = known.length ? known.reduce((s, q) => s + (q.price - q.cost) * q.qty, 0) : null;
+    return { total, day: total - prevTotal, dayPct: prevTotal ? (total / prevTotal - 1) * 100 : null, invested, gain, gainPct: invested ? gain / invested * 100 : null, holdings: quotes.map((q) => ({ ...q, value: q.price ? q.price * q.qty : null, weight: q.price && total ? q.price * q.qty / total * 100 : null, invested: q.cost > 0 ? q.cost * q.qty : null, gain: q.cost > 0 && q.price ? (q.price - q.cost) * q.qty : null, gainPct: q.cost > 0 && q.price ? (q.price / q.cost - 1) * 100 : null })), history: (state.marketHistory || []).slice(-365), missing: quotes.length - priced.length };
   }, fresh);
 }
 

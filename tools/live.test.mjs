@@ -10,7 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import { startFixtures } from "./fixtures.mjs";
 import { parseIcs } from "../server/calendar.mjs";
-import { parseFeed, parseHoldings } from "../server/sources.mjs";
+import { parseFeed, parseHoldings, formatHoldings } from "../server/sources.mjs";
 import { decodeWords } from "../server/mail.mjs";
 
 const root = path.join(import.meta.dirname, "..");
@@ -204,6 +204,8 @@ test("feeds: RSS and Atom, entities and CDATA", () => {
   const atom = parseFeed('<feed><title>A</title><entry><title>Atom post</title><link href="https://x.test/b"/><updated>2026-10-19T10:00:00Z</updated></entry></feed>', "x");
   assert.equal(atom[0].link, "https://x.test/b");
   assert.deepEqual(parseHoldings("VWCE.DE 120 60% FTSE All-World\n# comment\nbad;sym 3"), [{ symbol: "VWCE.DE", qty: 120, target: 60, name: "FTSE All-World" }]);
+  assert.deepEqual(parseHoldings("NVDA 12 - @ 118.40 NVIDIA\nAAPL 5 - @201.5"), [{ symbol: "NVDA", qty: 12, target: null, name: "NVIDIA", cost: 118.4 }, { symbol: "AAPL", qty: 5, target: null, name: "", cost: 201.5 }]);
+  assert.equal(formatHoldings(parseHoldings("NVDA 12 - @118.4 NVIDIA\nVT 3 60% Total World")), "NVDA 12 - @118.4 NVIDIA\nVT 3 60% Total World");
 });
 
 test("Harness events reach open boards at once", async () => {

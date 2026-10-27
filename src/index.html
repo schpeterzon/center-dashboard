@@ -704,6 +704,12 @@ body.calm *,body.calm *::before,body.calm *::after{animation-duration:.001s!impo
 .todo .x{margin-left:auto;color:var(--muted);font-size:15px;opacity:0;transition:opacity .2s;padding:0 4px}
 .todo:hover .x{opacity:1}
 .todo .x:hover{color:var(--crit)}
+.hedit{display:flex;flex-direction:column;min-height:0;flex:1}
+.hedit .hrows{display:flex;flex-direction:column;gap:6px;min-height:0}
+.hrow{display:grid;grid-template-columns:1.1fr .8fr 1fr .8fr 1.6fr 22px;gap:6px;align-items:center}
+.hrow .inp{padding:6px 8px;font-size:12.5px;min-width:0}
+.hrow.hh{font:500 10px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.hrow .x{color:var(--muted);font-size:15px} .hrow .x:hover{color:var(--crit)}
 .homeprev{display:grid;grid-template-columns:repeat(12,1fr);grid-template-rows:repeat(3,74px);gap:7px;padding:10px;border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--ink) 2%,transparent)}
 .homeprev .hero{grid-column:span 7;display:flex;align-items:center;gap:10px;padding:0 8px;font:600 11px var(--mono);letter-spacing:.12em;color:var(--muted)}
 .homeprev .hero i{width:34px;height:34px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--accent) 60%,transparent),transparent 70%);flex:none}
@@ -3329,6 +3335,19 @@ const LIVE = (() => {
     }
     if (a === 'idea2task') { const r = await act('harness', 'create', { objective: d.text }, 'Sent to an agent'); if (r) await act('local', 'ideas/remove', { id: d.id }); return; }
     if (a === 'dismiss') return act('local', 'dismissed/add', { id: d.id });
+    if (a === 'hold-edit') { holdEdit = true; last.markets = null; return render(); }
+    if (a === 'hold-cancel') return holdFormDone();
+    if (a === 'hold-add') { $('.hedit .hrows').insertAdjacentHTML('beforeend', hrow()); $('.hedit .hrows .hrow:last-child input').focus(); return; }
+    if (a === 'hold-rm') { const r = b.closest('.hrow'), rows = r.parentElement; r.remove(); if (!rows.children.length) rows.insertAdjacentHTML('beforeend', hrow()); return; }
+    if (a === 'hold-save') {
+      const holdings = $$('.hedit .hrows .hrow').map(r => { const v = n => $(`[name=${n}]`, r).value.trim(); return { symbol: v('symbol').toUpperCase(), qty: hnum(v('qty')), cost: hnum(v('cost')), target: hnum(v('target').replace('%', '')), name: v('name') }; }).filter(h => h.symbol || h.qty != null);
+      if (holdings.some(h => !h.symbol)) return toast('Every holding needs a symbol');
+      if (holdings.some(h => h.qty == null)) return toast('Every holding needs a number of shares');
+      b.disabled = true; b.textContent = 'Saving…';
+      const r = await act('local', 'holdings/set', { holdings }, 'Holdings saved');
+      if (r) holdFormDone(); else { b.disabled = false; b.textContent = 'Save'; }
+      return;
+    }
     if (a === 'todo') return act('local', 'todos/toggle', { id: d.id });
     if (a === 'todo-rm') return act('local', 'todos/remove', { id: d.id });
     if (a === 'idea-rm') return act('local', 'ideas/remove', { id: d.id });
@@ -3422,7 +3441,7 @@ const LIVE = (() => {
       needs: () => `<h3>Needs you <span class="go">${needs.length}</span></h3><div class="list scroll">${needs.join('') || `<div class="empty" style="padding:10px"><div>Nothing needs you right now.</div></div>`}</div>`,
       today: () => `<h3>Today <span class="go" data-go="schedule">Schedule →</span></h3>${tl.length ? `<div class="tl scroll">${tl.join('')}</div>` : cal ? '<div class="empty"><div>Nothing on the calendar today.</div></div>' : need('calendar', 'Your day shows up here')}`,
       agents: () => `<h3>Agents <span class="go" data-go="agents">${h ? h.active.length + ' running →' : 'Agents →'}</span></h3>${agents != null ? `<div class="list scroll">${agents || '<div class="muted">No tasks yet. Ask JARVIS to start one.</div>'}</div>` : broken('harness', 'The Harness') || need('harness', 'Your agents show up here')}`,
-      portfolio: () => `<h3>Portfolio <span class="go" data-go="markets">Markets →</span></h3>${mk ? `<div class="row" style="align-items:baseline"><span class="big" style="font-size:32px">${money(mk.total)}</span><span class="delta" style="color:var(--${(mk.dayPct || 0) >= 0 ? 'good' : 'crit'})">${mk.dayPct != null ? ((mk.dayPct >= 0 ? '▲ ' : '▼ ') + Math.abs(mk.dayPct).toFixed(2) + '%') : ''}</span></div><div class="chart" id="lv-hspark" style="margin-top:10px"></div>` : broken('markets', 'Finnhub') || need('finnhub', 'Your portfolio shows up here')}`,
+      portfolio: () => `<h3>Portfolio <span class="go" data-go="markets">Markets →</span></h3>${mk && !mk.holdings.length ? '<div class="empty"><div>No holdings yet.</div><button class="btn pri" data-go="markets">Add them on Markets</button></div>' : mk ? `<div class="row" style="align-items:baseline"><span class="big" style="font-size:32px">${usd(mk.total)}</span><span class="delta" style="color:var(--${(mk.dayPct || 0) >= 0 ? 'good' : 'crit'})">${mk.dayPct != null ? ((mk.dayPct >= 0 ? '▲ ' : '▼ ') + Math.abs(mk.dayPct).toFixed(2) + '%') : ''}</span></div>${mk.gain != null ? `<div class="muted mono" style="font-size:11.5px;margin-top:2px">${mk.gain >= 0 ? '+' : '−'}${usd(Math.abs(mk.gain))} (${mk.gainPct >= 0 ? '+' : '−'}${Math.abs(mk.gainPct).toFixed(1)}%) on ${usd(mk.invested)} invested</div>` : ''}<div class="chart" id="lv-hspark" style="margin-top:10px"></div>` : broken('markets', 'Finnhub') || need('finnhub', 'Your portfolio shows up here')}`,
       machines: () => `<h3>Machines <span class="go" data-go="infra">Infra →</span></h3>${machines != null ? `<div class="machines" style="grid-template-columns:${mlist.length === 1 ? '1fr' : '1fr 1fr'};flex:1;min-height:0;gap:8px;grid-auto-rows:minmax(0,1fr)">${machines}</div>` : broken('prometheus', 'Prometheus') || broken('proxmox', 'Proxmox') || need(['prometheus', 'proxmox'], 'Your machines show up here')}`,
       world: () => `<h3>World <span class="go" data-go="world">Briefing →</span></h3>${feeds ? `<div class="list scroll">${feeds.items.slice(0, 4).map(i => `<div class="hl"><span class="lv ${i.topics.length > 1 ? 'hi' : i.topics.length ? 'md' : 'lo'}">${i.topics.length > 1 ? 'HIGH' : i.topics.length ? 'MED' : 'NEWS'}</span><span class="h">${esc(i.title)}</span></div>`).join('')}</div>` : broken('feeds', 'Your feeds') || need('rss', 'Headlines that matter to you')}`,
       todo: () => `<h3>Todo <span class="go" data-go="schedule">${todos.length} open →</span></h3><div class="list scroll">${todos.slice(0, 20).map(t => `<div class="todo" data-la="todo" data-id="${esc(t.id)}"><span class="bx"></span><span class="tx">${esc(t.text)}${t.due ? `<span class="by">due ${esc(t.due)}</span>` : ''}</span><button class="x" data-la="todo-rm" data-id="${esc(t.id)}" title="Remove">×</button></div>`).join('') || '<div class="muted">Nothing to do.</div>'}</div><label class="addrow"><span>+</span><input data-add="todos" placeholder="Add a todo and press Enter"></label>`,
@@ -3432,7 +3451,7 @@ const LIVE = (() => {
     const seen = new Set(), cards = homeSlots().map((id, i) => { if (!widgets[id] || seen.has(id)) return `<div class="hs${i}"></div>`; seen.add(id); return `<div class="card hs${i} w-${id}">${widgets[id]()}</div>`; });
     return `<div data-brief>${brief}</div><div data-glance>${glance}</div><div data-cards>${cards.join('')}</div>`;
   };
-  charts.home = () => { const mk = ok('markets'); if (mk && mk.history.length > 1 && $('#lv-hspark')) lineChart($('#lv-hspark'), mk.history.slice(-60).map(x => x.v), { fmt: money, date: i => mk.history.slice(-60)[i].d, axis: false }); };
+  charts.home = () => { const mk = ok('markets'); if (mk && mk.history.length > 1 && $('#lv-hspark')) lineChart($('#lv-hspark'), mk.history.slice(-60).map(x => x.v), { fmt: usd, date: i => mk.history.slice(-60)[i].d, axis: false }); };
 
   // Agents -------------------------------------------------------------------
   PAGES.agents = () => {
@@ -3645,23 +3664,37 @@ const LIVE = (() => {
   };
 
   // Markets ------------------------------------------------------------------
+  // Holdings are edited right here; they are saved into the Finnhub connection.
+  let holdEdit = false;
+  const hnum = v => { const n = parseFloat(String(v).replace(/\s/g, '').replace(',', '.')); return Number.isFinite(n) ? n : null; };
+  const pct = v => v == null ? '—' : (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2) + '%';
+  const signed = v => v == null ? '—' : (v >= 0 ? '+' : '−') + usd(Math.abs(v));
+  const hrow = (h = {}) => `<div class="hrow"><input class="inp" name="symbol" value="${esc(h.symbol || '')}" placeholder="NVDA" autocapitalize="characters" spellcheck="false"><input class="inp" name="qty" inputmode="decimal" value="${h.qty ?? ''}" placeholder="12"><input class="inp" name="cost" inputmode="decimal" value="${h.cost ?? ''}" placeholder="118.40"><input class="inp" name="target" inputmode="decimal" value="${h.target ?? ''}" placeholder="—"><input class="inp" name="name" value="${esc(h.name || '')}" placeholder="NVIDIA"><button class="x" data-la="hold-rm" title="Remove">×</button></div>`;
+  function holdFormDone() { holdEdit = false; $('.hedit')?.remove(); last.markets = null; render(); }
   PAGES.markets = () => {
     const m = ok('markets');
-    if (!m) return ph('markets', 'Portfolio', 'Markets') + (broken('markets', 'Finnhub') || need('finnhub', 'Add a Finnhub key and your holdings to track your portfolio'));
+    if (!m) return ph('markets', 'Portfolio', 'Markets') + (broken('markets', 'Finnhub') || need('finnhub', 'Add a Finnhub key to track your portfolio'));
+    const editing = holdEdit || !m.holdings.length;
     const withT = m.holdings.filter(x => x.target != null && x.weight != null), drift = withT.map(x => ({ ...x, d: x.weight - x.target })).sort((a, b) => Math.abs(b.d) - Math.abs(a.d));
     const COLORS = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--accent)', 'var(--warm)'];
     let acc = 0;
-    return ph('markets', `Portfolio · ${m.holdings.length} holdings · Finnhub`, 'Markets', stats([[money(m.total), 'total value'], [(m.day >= 0 ? '+' : '−') + money(Math.abs(m.day)).replace('-', ''), 'today', m.day >= 0 ? 'up' : 'dn'], [m.dayPct != null ? (m.dayPct >= 0 ? '+' : '') + m.dayPct.toFixed(2) + '%' : '—', 'day change'], [m.missing ? m.missing + ' missing' : 'all priced', 'quotes']])) +
-      `<div class="grid" style="grid-template-columns:1.7fr 1fr;grid-template-rows:1.35fr 1fr">
-      <div class="card"><div class="row" style="align-items:flex-end;margin-bottom:12px"><div><div class="eyebrow" style="margin-bottom:9px">Total value · since you connected</div><div class="big">${money(m.total)}</div></div></div>${m.history.length > 1 ? '<div class="chart" id="lv-port"></div>' : '<div class="empty"><div>The chart fills in as JARVIS records one value per day.</div></div>'}</div>
+    const noCost = m.holdings.filter(x => !x.cost).length;
+    const form = `<div class="hedit"><div class="hrow hh"><span>Symbol</span><span>Shares</span><span>Avg price $</span><span>Target %</span><span>Name</span><span></span></div><div class="hrows scroll">${(m.holdings.length ? m.holdings : [{}]).map(hrow).join('')}</div>
+      <div class="row" style="margin-top:10px;gap:8px"><button class="btn" data-la="hold-add">+ Add holding</button><span class="sp"></span>${m.holdings.length ? '<button class="btn" data-la="hold-cancel">Cancel</button>' : ''}<button class="btn pri" data-la="hold-save">Save</button></div>
+      <p class="muted" style="font-size:11.5px;margin-top:8px">Avg price is what you paid per share, as Revolut shows it on each stock ("Average price"). After buying or selling, update shares and avg price. Free Finnhub keys price US tickers only.</p></div>`;
+    const table = `<div class="scroll"><table><thead><tr><th>Name</th><th class="n">Value</th><th class="n">Gain</th><th class="n">Day</th><th class="n">Weight</th></tr></thead><tbody>${m.holdings.map(x => `<tr><td>${esc(x.name || x.symbol)}<div class="mono" style="font-size:11px;color:var(--muted)">${esc(x.symbol)} · ${x.qty} sh${x.cost ? ` · paid $${x.cost.toFixed(2)}` : ''}${x.price != null ? ` · now $${x.price.toFixed(2)}` : ''}${x.error ? ` · <span style="color:var(--warn)">${esc(x.error)}</span>` : ''}</div></td><td class="n">${x.value != null ? usd(x.value) : '—'}${x.invested != null ? `<div class="mono muted" style="font-size:11px">in ${usd(x.invested)}</div>` : ''}</td><td class="n ${x.gain > 0 ? 'up' : x.gain < 0 ? 'dn' : 'muted'}">${x.gain != null ? signed(x.gain) + `<div class="mono" style="font-size:11px">${pct(x.gainPct)}</div>` : '<span class="muted" style="font-size:11.5px">add avg price</span>'}</td><td class="n ${x.change > 0 ? 'up' : x.change < 0 ? 'dn' : 'muted'}">${x.change != null ? pct(x.change) : '—'}</td><td class="n mono">${x.weight != null ? x.weight.toFixed(0) + '%' : '—'}</td></tr>`).join('')}</tbody></table></div>`;
+    return ph('markets', `Portfolio · ${m.holdings.length} holdings · Finnhub · US dollars${m.missing ? ` · ${m.missing} without a quote` : ''}`, 'Markets', stats([[usd(m.total), 'total value'], [m.invested != null ? usd(m.invested) : '—', noCost && m.invested != null ? `invested · ${noCost} without avg price` : 'invested'], [signed(m.gain), m.gainPct != null ? 'gain · ' + pct(m.gainPct) : 'gain · add avg prices', m.gain == null ? '' : m.gain >= 0 ? 'up' : 'dn'], [signed(m.day), 'today · ' + pct(m.dayPct), m.day >= 0 ? 'up' : 'dn']])) +
+      `<div class="grid" style="grid-template-columns:1.7fr 1fr;grid-template-rows:${editing ? '1fr 1.35fr' : '1.35fr 1fr'}">
+      <div class="card"><div class="row" style="align-items:flex-end;margin-bottom:12px"><div><div class="eyebrow" style="margin-bottom:9px">Total value · since you connected</div><div class="big">${usd(m.total)}</div></div></div>${m.history.length > 1 ? '<div class="chart" id="lv-port"></div>' : '<div class="empty"><div>The chart fills in as JARVIS records one value per day.</div></div>'}</div>
       <div class="card"><h3>Allocation <span class="go">${withT.length ? '│ = target' : 'add target % to compare'}</span></h3><div class="stackwrap"><div class="stack">${m.holdings.filter(x => x.weight).map((x, i) => `<div style="flex:${x.weight};background:${COLORS[i % 6]}" title="${esc(x.symbol)} ${x.weight.toFixed(1)}%"></div>`).join('')}</div>${withT.length === m.holdings.length ? m.holdings.slice(0, -1).map(x => `<span class="tgt" style="left:calc(${(acc += x.target)}% - 1px)"></span>`).join('') : ''}</div>
         <div class="alloc">${m.holdings.map((x, i) => `<i style="background:${COLORS[i % 6]}"></i><span>${esc(x.name || x.symbol)}</span><span class="n">${x.weight != null ? x.weight.toFixed(1) + '%' : '—'}</span><span class="n muted mono" style="font-size:11.5px">${x.target != null && x.weight != null ? (x.weight - x.target > 0 ? '+' : '') + (x.weight - x.target).toFixed(1) + ' vs target' : ''}</span>`).join('')}</div></div>
-      <div class="card"><h3>Holdings</h3><div class="scroll"><table><thead><tr><th>Name</th><th class="n">Weight</th><th class="n">Value</th><th class="n">Price</th><th class="n">Day</th></tr></thead><tbody>${m.holdings.map(x => `<tr><td>${esc(x.name || x.symbol)}<div class="mono" style="font-size:11px;color:var(--muted)">${esc(x.symbol)} · ${x.qty}${x.error ? ` · <span style="color:var(--warn)">${esc(x.error)}</span>` : ''}</div></td><td class="n mono">${x.weight != null ? x.weight.toFixed(0) + '%' : '—'}</td><td class="n">${x.value != null ? money(x.value) : '—'}</td><td class="n mono">${x.price ?? '—'}</td><td class="n ${x.change > 0 ? 'up' : x.change < 0 ? 'dn' : 'muted'}">${x.change != null ? (x.change > 0 ? '+' : '') + x.change.toFixed(2) + '%' : '—'}</td></tr>`).join('')}</tbody></table></div></div>
-      <div class="card insight"><h3>JARVIS suggests</h3><p>${drift.length && Math.abs(drift[0].d) >= 2 ? `<b>${esc(drift[0].name || drift[0].symbol)}</b> is ${Math.abs(drift[0].d).toFixed(1)} points ${drift[0].d > 0 ? 'over' : 'under'} its target of ${drift[0].target}%. Directing new contributions ${drift[0].d > 0 ? 'elsewhere' : 'to it'} rebalances without selling.` : withT.length ? 'Your allocation is within 2 points of every target. Nothing to do.' : 'Add a target percentage to each holding (third column) and I will watch the drift for you.'}</p>
-        <p class="muted" style="font-size:12px;margin-top:8px">Suggestions only. JARVIS never trades.</p><div class="row" style="margin-top:auto;padding-top:12px"><button class="btn pri" data-la="ask" data-q="Look at my portfolio and allocation and tell me, briefly, whether I should change anything and why.">Ask JARVIS</button><button class="btn" data-settings="connections">Edit holdings</button></div></div>
+      <div class="card"><h3>Holdings ${editing ? '<span class="go">editing</span>' : '<span class="go" data-la="hold-edit" style="cursor:pointer">Edit →</span>'}</h3>${editing ? form : table}</div>
+      <div class="card insight"><h3>JARVIS suggests</h3><p>${drift.length && Math.abs(drift[0].d) >= 2 ? `<b>${esc(drift[0].name || drift[0].symbol)}</b> is ${Math.abs(drift[0].d).toFixed(1)} points ${drift[0].d > 0 ? 'over' : 'under'} its target of ${drift[0].target}%. Directing new contributions ${drift[0].d > 0 ? 'elsewhere' : 'to it'} rebalances without selling.` : withT.length ? 'Your allocation is within 2 points of every target. Nothing to do.' : 'Add a target percentage to each holding and I will watch the drift for you.'}</p>
+        <p class="muted" style="font-size:12px;margin-top:8px">Suggestions only. JARVIS never trades.</p><div class="row" style="margin-top:auto;padding-top:12px"><button class="btn pri" data-la="ask" data-q="Look at my portfolio, what I paid and my allocation, and tell me, briefly, whether I should change anything and why.">Ask JARVIS</button>${editing ? '' : '<button class="btn" data-la="hold-edit">Edit holdings</button>'}</div></div>
       </div>`;
   };
-  charts.markets = () => { const m = ok('markets'), el = $('#lv-port'); if (m && el && m.history.length > 1) lineChart(el, m.history.map(x => x.v), { fmt: (v, s) => s ? (CUR[CFG.profile.currency] || '€') + (v / 1000).toFixed(1) + 'k' : money(v), date: i => m.history[i].d }); };
+
+  charts.markets = () => { const m = ok('markets'), el = $('#lv-port'); if (m && el && m.history.length > 1) lineChart(el, m.history.map(x => x.v), { fmt: (v, s) => s ? '$' + (v / 1000).toFixed(1) + 'k' : usd(v), date: i => m.history[i].d }); };
 
   // World --------------------------------------------------------------------
   PAGES.world = () => {
