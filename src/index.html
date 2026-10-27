@@ -704,8 +704,20 @@ body.calm *,body.calm *::before,body.calm *::after{animation-duration:.001s!impo
 .todo .x{margin-left:auto;color:var(--muted);font-size:15px;opacity:0;transition:opacity .2s;padding:0 4px}
 .todo:hover .x{opacity:1}
 .todo .x:hover{color:var(--crit)}
-.homepick{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.homepick label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text-2)}
+.homeprev{display:grid;grid-template-columns:repeat(12,1fr);grid-template-rows:repeat(3,74px);gap:7px;padding:10px;border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--ink) 2%,transparent)}
+.homeprev .hero{grid-column:span 7;display:flex;align-items:center;gap:10px;padding:0 8px;font:600 11px var(--mono);letter-spacing:.12em;color:var(--muted)}
+.homeprev .hero i{width:34px;height:34px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--accent) 60%,transparent),transparent 70%);flex:none}
+.hp{position:relative;grid-column:span 4;border:1px solid var(--line-2);border-radius:9px;background:var(--card);padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;text-align:left;transition:border-color .2s,transform .2s}
+.hp:hover{border-color:color-mix(in srgb,var(--accent) 45%,transparent);transform:translateY(-1px)}
+.hp.on{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)}
+.hp.none{border-style:dashed;background:transparent}
+.hp b{font-size:13px;font-weight:600} .hp small{font:500 9.5px var(--mono);color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.hp0{grid-column:span 5} .hp1{grid-row:span 2}
+.hp .menu{position:absolute;left:-1px;top:calc(100% + 6px);z-index:20;width:max(100%,190px);padding:5px;border:1px solid var(--line-2);border-radius:10px;background:var(--bg);box-shadow:0 14px 40px rgba(0,0,0,.45);display:flex;flex-direction:column;cursor:default}
+.hp1 .menu,.hp4 .menu,.hp5 .menu{top:auto;bottom:calc(100% + 6px)}
+.hp .menu button{display:flex;justify-content:space-between;gap:10px;padding:6px 9px;border-radius:6px;font-size:12.5px;text-align:left}
+.hp .menu button:hover{background:color-mix(in srgb,var(--ink) 6%,transparent)}
+.hp .menu button.cur{color:var(--accent)} .hp .menu button em{font:500 10px var(--mono);font-style:normal;color:var(--muted)}
 #tout .sug{font:500 .92em var(--mono);padding:.3em .8em;margin:.2em .3em .2em 0}
 .pane.live .empty{flex:1;min-height:0;overflow:hidden;padding:10px 8px;gap:8px}
 .pane.live .card.span4 .empty .muted{font-size:11.5px}
@@ -1327,6 +1339,7 @@ const DEFAULT_LAYOUT = { cols: 3, rows: 3, start: 'home', slots: ['world', 'sche
 // Widgets the live Home page can show, and the six places it has for them.
 const HOME_WIDGETS = { needs: 'Needs you', today: 'Today', agents: 'Agents', portfolio: 'Portfolio', machines: 'Machines', world: 'World', todo: 'Todo', weather: 'Weather', health: 'Health', none: 'Empty' };
 const HOME_SLOTS = ['Top right', 'Tall, left', 'Middle', 'Middle right', 'Bottom', 'Bottom right'];
+let homeOpen = null; // the Home widget place whose menu is open in Settings → Board
 const homeSlots = () => DEFAULT_LAYOUT.home.map((d, i) => HOME_WIDGETS[CFG.layout.home?.[i]] ? CFG.layout.home[i] : d);
 let COLS = 3, ROWS = 3, at = {}, order = [];
 const placed = id => !!byId[id] && !byId[id].hidden;
@@ -1564,8 +1577,8 @@ const RENDER = {
       <p class="hint">Click a page to add it to the first free slot, or drag it onto any slot.</p>
     </div>${API.server ? `
     <div class="grp"><h4>Home widgets <span class="sp"></span><button class="btn" data-a="resethome">Reset</button></h4>
-      <div class="homepick">${homeSlots().map((id, i) => `<label><span>${HOME_SLOTS[i]}</span><select class="inp sel" data-a="homew" data-i="${i}">${Object.entries(HOME_WIDGETS).map(([k, n]) => `<option value="${k}" ${k === id ? 'selected' : ''}>${n}</option>`).join('')}</select></label>`).join('')}</div>
-      <p class="hint">Pick what each place on the Home page shows. Picking a widget that is already shown swaps the two.</p>
+      <div class="homeprev"><div class="hero"><i></i>JARVIS · greeting</div>${(h => h.map((id, i) => `<div class="hp hp${i} ${id === 'none' ? 'none' : ''} ${homeOpen === i ? 'on' : ''}" role="button" tabindex="0" data-a="homeslot" data-i="${i}"><b>${HOME_WIDGETS[id]}</b><small>${HOME_SLOTS[i]}</small>${homeOpen === i ? `<div class="menu">${Object.entries(HOME_WIDGETS).map(([k, n]) => `<button type="button" class="${k === id ? 'cur' : ''}" data-a="homew" data-i="${i}" data-v="${k}">${n}<em>${k === id ? '✓' : k !== 'none' && h.includes(k) ? 'swap · ' + HOME_SLOTS[h.indexOf(k)].toLowerCase() : ''}</em></button>`).join('')}</div>` : ''}</div>`).join(''))(homeSlots())}</div>
+      <p class="hint">This is your Home page in miniature. Click a widget to choose what shows there; picking one that is already shown swaps the two.</p>
     </div>` : ''}`;
   },
   ai: () => connSection('ai'),
@@ -1641,6 +1654,7 @@ async function refreshConns() { try { API.conns = (await api('connections')).con
 
 // ---- one delegated handler for the whole panel
 sbody.addEventListener('click', async e => {
+  if (homeOpen != null && !e.target.closest('.hp')) { homeOpen = null; rerender(); }
   const k = e.target.closest('button[data-k]');
   if (k) { setPath(k.dataset.k, k.dataset.v === 'true' ? true : k.dataset.v === 'false' ? false : k.dataset.v); changed(k.dataset.k); rerender(); return; }
   const a = e.target.closest('[data-a]'); if (!a || a.tagName === 'INPUT') return;
@@ -1661,7 +1675,13 @@ sbody.addEventListener('click', async e => {
     const i = +a.dataset.i; if (L.slots.filter(Boolean).length < 2) return toast('The board needs at least one page');
     L.slots[i] = null; if (!L.slots.includes(L.start)) L.start = L.slots.find(Boolean); changed('layout'); rerender();
   }
-  else if (act === 'resethome') { L.home = [...DEFAULT_LAYOUT.home]; changed('layout'); rerender(); }
+  else if (act === 'resethome') { L.home = [...DEFAULT_LAYOUT.home]; homeOpen = null; changed('layout'); rerender(); }
+  else if (act === 'homeslot') { homeOpen = homeOpen === +a.dataset.i ? null : +a.dataset.i; rerender(); }
+  else if (act === 'homew') {
+    const h = homeSlots(), i = +a.dataset.i, v = a.dataset.v, j = h.indexOf(v);
+    if (j >= 0 && j !== i && v !== 'none') h[j] = h[i];
+    h[i] = v; L.home = h; homeOpen = null; changed('layout'); rerender();
+  }
   else if (act === 'resetlayout') { CFG.layout = structuredClone(DEFAULT_LAYOUT); changed('layout'); rerender(); }
   else if (act === 'add') { form = { kind: setSec === 'ai' ? 'ai' : 'data', type: a.dataset.type, name: '', values: {}, adv: false }; const e2 = (form.kind === 'ai' ? AI_BY : DATA_BY)[form.type]; e2.fields.forEach(f => { if (f.def) form.values[f.k] = f.def; }); rerender(); sbody.scrollTop = 0; }
   else if (act === 'edit') { const c = API.conns.find(x => x.id === a.dataset.id); form = { id: c.id, kind: c.kind, type: c.type, name: c.name, values: { ...c.values }, secrets: c.secrets, adv: false }; rerender(); sbody.scrollTop = 0; }
@@ -1708,6 +1728,7 @@ sbody.addEventListener('click', async e => {
     changed('all'); toast('Reset'); rerender();
   }
 });
+sbody.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.hp')) { e.preventDefault(); e.target.click(); } });
 sbody.addEventListener('dblclick', e => { const s = e.target.closest('.slot.full[data-slot]'); if (s) { CFG.layout.start = s.dataset.id; changed('layout'); rerender(); } });
 sbody.addEventListener('click', e => {
   const l = e.target.closest('[data-lib]'); if (!l || l.classList.contains('used')) return;
@@ -1718,11 +1739,6 @@ sbody.addEventListener('click', e => {
 sbody.addEventListener('change', async e => {
   const t = e.target;
   if (t.dataset.k) { setPath(t.dataset.k, t.value); changed(t.dataset.k); if (t.tagName === 'SELECT' || t.type === 'color') rerender(); return; }
-  if (t.dataset.a === 'homew') {
-    const h = homeSlots(), i = +t.dataset.i, j = h.indexOf(t.value);
-    if (j >= 0 && j !== i && t.value !== 'none') h[j] = h[i];
-    h[i] = t.value; CFG.layout.home = h; changed('layout'); rerender(); return;
-  }
   if (t.dataset.a === 'import' && t.files[0]) { try { toast(importTheme(await t.files[0].text(), t.files[0].name)); changed('appearance'); rerender(); } catch (err) { toast('Import failed · ' + err.message); } }
   if (t.dataset.a === 'importcfg' && t.files[0]) { try { const j = JSON.parse(await t.files[0].text()); CFG = mergeDeep(structuredClone(DEFAULTS), j); changed('all'); toast('Settings imported'); rerender(); } catch (err) { toast('Import failed · ' + err.message); } }
 });
@@ -3187,6 +3203,8 @@ const LIVE = (() => {
   const ph = (id, text, title, right = '') => `<div class="ph"><div>${eb(id, text)}<h1>${esc(title)}</h1></div>${right}</div>`;
   const stats = list => `<div class="ph-stats">${list.map(([v, k, cls]) => `<div class="stat"><div class="v num ${cls || ''}">${v}</div><div class="k">${esc(k)}</div></div>`).join('')}</div>`;
   const NAMES = Object.fromEntries(INTEGRATIONS.map(i => [i.id, i.name]));
+  // When the phone or watch last reported a health value, and when JARVIS last asked Home Assistant.
+  const healthFresh = hs => { const t = Math.max(0, ...hs.map(x => x.updated || 0)); return `${t ? 'last reported ' + ago(t) : 'never reported'} · checked ${S?.at ? hm(new Date(S.at)) : '—'}`; };
   const need = (types, why) => `<div class="empty"><div><b>${esc(why)}</b></div><div class="muted" style="font-size:12.5px">Connect ${[].concat(types).map(t => esc(NAMES[t] || t)).join(' or ')} in Settings → Connections.</div><button class="btn pri" data-settings="connections">Connect</button></div>`;
   const broken = (k, what) => { const s = src(k); if (s?.pending) return `<div class="empty"><div class="muted">${esc(what)} · loading…</div></div>`; if (s && !s.ok && setupStep(s.error)) return `<div class="empty"><div><b>${esc(what)} needs one more step</b></div><div class="muted" style="font-size:13px">${esc(s.error[0].toUpperCase() + s.error.slice(1))}</div><button class="btn pri" data-settings="connections">Open Connections</button></div>`;
     return s && !s.ok ? `<div class="empty"><div><b>${esc(what)} is not answering</b></div><div class="muted mono" style="font-size:12px">${esc(s.error)}</div><button class="btn" data-la="refresh">Try again</button></div>` : null; };
@@ -3409,7 +3427,7 @@ const LIVE = (() => {
       world: () => `<h3>World <span class="go" data-go="world">Briefing →</span></h3>${feeds ? `<div class="list scroll">${feeds.items.slice(0, 4).map(i => `<div class="hl"><span class="lv ${i.topics.length > 1 ? 'hi' : i.topics.length ? 'md' : 'lo'}">${i.topics.length > 1 ? 'HIGH' : i.topics.length ? 'MED' : 'NEWS'}</span><span class="h">${esc(i.title)}</span></div>`).join('')}</div>` : broken('feeds', 'Your feeds') || need('rss', 'Headlines that matter to you')}`,
       todo: () => `<h3>Todo <span class="go" data-go="schedule">${todos.length} open →</span></h3><div class="list scroll">${todos.slice(0, 20).map(t => `<div class="todo" data-la="todo" data-id="${esc(t.id)}"><span class="bx"></span><span class="tx">${esc(t.text)}${t.due ? `<span class="by">due ${esc(t.due)}</span>` : ''}</span><button class="x" data-la="todo-rm" data-id="${esc(t.id)}" title="Remove">×</button></div>`).join('') || '<div class="muted">Nothing to do.</div>'}</div><label class="addrow"><span>+</span><input data-add="todos" placeholder="Add a todo and press Enter"></label>`,
       weather: () => `<h3>Weather <span class="go">${w ? esc(w.place) : ''}</span></h3>${w ? `<div class="row" style="align-items:baseline;gap:10px"><span class="big" style="font-size:32px">${esc(w.now.icon)} ${Math.round(w.now.temp)}${esc(w.unit)}</span><span class="muted">${esc(w.now.text)}${w.nextRain ? ' · rain ' + esc(w.nextRain) : ''}</span></div><div class="list scroll" style="margin-top:8px">${w.days.slice(1, 5).map(d => `<div class="cons"><span>${DAYN[new Date(d.date + 'T12:00').getDay()]} ${esc(d.icon)} <span class="muted" style="font-size:11.5px">${esc(d.text)}</span></span><span class="v">${Math.round(d.min)}–${Math.round(d.max)}${esc(w.unit)}${d.rain ? ' · ' + d.rain + '%' : ''}</span></div>`).join('')}</div>` : broken('weather', 'The weather') || need('weather', 'The forecast shows up here')}`,
-      health: () => `<h3>Health <span class="go" data-go="health">Health →</span></h3>${hs.length ? `<div class="list scroll">${hs.slice(0, 8).map(x => `<div class="cons"><span>${esc(x.label)}</span><span class="v">${hv(x)} ${esc(x.unit)}</span></div>`).join('')}</div>` : ha ? '<div class="empty"><div class="muted">No health sensors in Home Assistant yet.</div></div>' : broken('home', 'Home Assistant') || need('home-assistant', 'Steps, sleep and heart rate show up here')}`,
+      health: () => `<h3>Health <span class="go" data-go="health">Health →</span></h3>${hs.length ? `<div class="list scroll">${hs.slice(0, 8).map(x => `<div class="cons"><span>${esc(x.label)}</span><span class="v">${hv(x)} ${esc(x.unit)}</span></div>`).join('')}</div><div class="muted mono" style="font-size:10.5px;margin-top:6px">${esc(healthFresh(hs))}</div>` : ha ? '<div class="empty"><div class="muted">No health sensors in Home Assistant yet.</div></div>' : broken('home', 'Home Assistant') || need('home-assistant', 'Steps, sleep and heart rate show up here')}`,
     };
     const seen = new Set(), cards = homeSlots().map((id, i) => { if (!widgets[id] || seen.has(id)) return `<div class="hs${i}"></div>`; seen.add(id); return `<div class="card hs${i} w-${id}">${widgets[id]()}</div>`; });
     return `<div data-brief>${brief}</div><div data-glance>${glance}</div><div data-cards>${cards.join('')}</div>`;
@@ -3755,10 +3773,10 @@ const LIVE = (() => {
     if (!hs.length) return ph('health', 'Health · Home Assistant', 'Health') + `<div class="empty"><div><b>No health sensors in Home Assistant</b></div><div class="muted" style="max-width:580px;font-size:13px">Turn on the step, heart rate and sleep sensors in the Home Assistant companion app (Android: Health Connect), or add a Fitbit, Withings, Garmin or Oura integration. Sensors with units such as steps, bpm, h, kg and kcal appear here on their own. Nothing leaves your network.</div></div>`;
     const v = (x, d = 0) => x ? (x.value >= 1000 && x.unit !== 'kg' ? Math.round(x.value).toLocaleString('en-US') : +x.value.toFixed(d)) : '—';
     const sl = get('sleep'), sleepH = sl ? (sl.unit === 'min' ? sl.value / 60 : sl.unit === 's' ? sl.value / 3600 : sl.value) : null, hr = get('restingHeartRate') || get('heartRate');
-    return ph('health', 'Health · from Home Assistant · stays on your network', 'Health', stats([[v(get('steps')), 'steps today'], [sleepH != null ? sleepH.toFixed(1) + ' h' : '—', 'sleep'], [hr ? v(hr) : '—', hr ? hr.label.toLowerCase() : 'heart rate'], [get('weight') ? v(get('weight'), 1) + ' ' + esc(get('weight').unit) : '—', 'weight']])) +
+    return ph('health', `Health · from Home Assistant · ${healthFresh(hs)}`, 'Health', stats([[v(get('steps')), 'steps today'], [sleepH != null ? sleepH.toFixed(1) + ' h' : '—', 'sleep'], [hr ? v(hr) : '—', hr ? hr.label.toLowerCase() : 'heart rate'], [get('weight') ? v(get('weight'), 1) + ' ' + esc(get('weight').unit) : '—', 'weight']])) +
       `<div class="grid" style="grid-template-columns:1.7fr 1fr;grid-template-rows:1fr 1fr">
       <div class="card"><h3>Steps · last 14 days <span class="go">${get('steps') ? esc(get('steps').name) : ''}</span></h3>${get('steps') ? '<div class="chart" id="lv-hsteps"></div>' : '<div class="empty"><div class="muted">No step counter sensor.</div></div>'}</div>
-      <div class="card"><h3>All health sensors <span class="go">${hs.length}</span></h3><div class="list scroll">${hs.map(x => `<div class="cons"><span>${esc(x.label)} <span class="muted" style="font-size:11.5px">${esc(x.name)}</span></span><span class="v">${v(x, 1)} ${esc(x.unit)}</span></div>`).join('')}</div></div>
+      <div class="card"><h3>All health sensors <span class="go">${hs.length}</span></h3><div class="list scroll">${hs.map(x => `<div class="cons"><span>${esc(x.label)} <span class="muted" style="font-size:11.5px">${esc(x.name)}${x.updated ? ' · ' + ago(x.updated) : ''}</span></span><span class="v">${v(x, 1)} ${esc(x.unit)}</span></div>`).join('')}</div></div>
       <div class="card"><h3>${hr ? esc(hr.label) + ' · today' : 'Heart rate'} <span class="go">${hr ? 'bpm' : ''}</span></h3>${hr ? '<div class="chart" id="lv-hhr"></div>' : '<div class="empty"><div class="muted">No heart rate sensor.</div></div>'}</div>
       <div class="card insight"><h3>JARVIS can help</h3><p>Ask how the last two weeks went, or plan movement around today's calendar.</p><div class="row" style="margin-top:12px;flex-wrap:wrap;gap:8px"><button class="btn pri" data-la="ask" data-q="Look at my health numbers and my calendar. In three short sentences: how am I doing, and one realistic thing to do today.">How am I doing?</button><button class="btn" data-la="ask" data-q="Find a 30 minute slot for a walk or workout today, based on my calendar and the weather.">Find time to move</button></div></div>
       </div>`;

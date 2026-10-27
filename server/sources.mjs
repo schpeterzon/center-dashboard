@@ -79,7 +79,7 @@ export async function weather(c, fresh) {
 const haTarget = (c) => ({ url: baseUrl(c.values?.url, "Home Assistant URL"), headers: { authorization: `Bearer ${secret(c, "token")}` } });
 const AREAS_TEMPLATE = "{% set ns = namespace(out=[]) %}{% for a in areas() %}{% set ns.out = ns.out + [{'name': area_name(a), 'entities': area_entities(a)}] %}{% endfor %}{{ ns.out | tojson }}";
 const SHOW = new Set(["light", "switch", "fan", "climate", "lock", "cover", "media_player", "sensor", "binary_sensor", "alarm_control_panel", "vacuum"]);
-const ent = (s) => ({ id: s.entity_id, domain: s.entity_id.split(".")[0], name: str(s.attributes?.friendly_name || s.entity_id, 80), state: str(s.state, 40), unit: str(s.attributes?.unit_of_measurement, 12), cls: str(s.attributes?.device_class, 30), brightness: num(s.attributes?.brightness), target: num(s.attributes?.temperature), current: num(s.attributes?.current_temperature) });
+const ent = (s) => ({ id: s.entity_id, domain: s.entity_id.split(".")[0], name: str(s.attributes?.friendly_name || s.entity_id, 80), state: str(s.state, 40), unit: str(s.attributes?.unit_of_measurement, 12), cls: str(s.attributes?.device_class, 30), brightness: num(s.attributes?.brightness), target: num(s.attributes?.temperature), current: num(s.attributes?.current_temperature), updated: Date.parse(s.last_updated || s.last_changed) || null });
 export async function homeAssistant(c, fresh) {
   const t = haTarget(c);
   return caches.ha(c.id, async () => {
@@ -136,7 +136,7 @@ function healthSensors(all) {
   const out = [], used = new Set();
   for (const [kind, label, test] of HEALTH) for (const e of all) {
     if (e.domain !== "sensor" || used.has(e.id) || num(e.state) == null || !test(e)) continue;
-    used.add(e.id); out.push({ kind, label, id: e.id, name: e.name, value: num(e.state), unit: e.unit });
+    used.add(e.id); out.push({ kind, label, id: e.id, name: e.name, value: num(e.state), unit: e.unit, updated: e.updated });
   }
   return out.slice(0, 24);
 }

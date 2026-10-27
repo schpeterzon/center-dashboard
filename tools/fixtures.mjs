@@ -41,7 +41,7 @@ function calendar() {
     `BEGIN:VEVENT\r\nUID:trip\r\nSUMMARY:Trip to the mountains\r\nDTSTART;VALUE=DATE:${day(at(3, 0))}\r\nDTEND;VALUE=DATE:${day(at(5, 0))}\r\nEND:VEVENT\r\n` +
     "END:VCALENDAR\r\n";
 }
-const S = (id, state, attrs = {}) => ({ entity_id: id, state, attributes: attrs, last_changed: new Date().toISOString() });
+const S = (id, state, attrs = {}) => ({ entity_id: id, state, attributes: attrs, last_changed: new Date().toISOString(), last_updated: new Date(Date.now() - 12 * 60e3).toISOString() });
 const ha = {
   states: [
     S("light.living_ceiling", "on", { friendly_name: "Ceiling", brightness: 180 }), S("light.living_lamp", "off", { friendly_name: "Floor lamp" }),
