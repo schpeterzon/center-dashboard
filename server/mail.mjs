@@ -11,6 +11,17 @@ const LOOPBACK = /^(127\.\d+\.\d+\.\d+|::1|localhost)$/i;
 // IMAP quoted string. Line breaks cannot be quoted, and nothing we send needs them.
 const q = (s) => { s = String(s ?? ""); if (/[\r\n\0]/.test(s)) throw new SourceError("credentials must not contain line breaks"); return '"' + s.replace(/["\\]/g, "\\$&") + '"'; };
 
+// Most providers refuse your normal password over IMAP; say which password they want, and
+// show the server's own words, which often name the exact problem.
+function loginHelp(host, line) {
+  const said = str(line.replace(/^\S+ (NO|BAD) /i, "").replace(/\s*\(Failure\)\s*$/, ""), 140);
+  const hint = /gmail|googlemail/i.test(host) ? "Gmail needs an app password (Google account → Security → 2-Step Verification → App passwords), not your normal password, and the username is your full address"
+    : /icloud|me\.com|mac\.com/i.test(host) ? "iCloud needs an app-specific password from account.apple.com, and the username is your full address"
+    : /outlook|hotmail|live\.com|office365/i.test(host) ? "Outlook.com and Microsoft 365 no longer accept passwords over IMAP for most accounts"
+    : /yahoo|aol/i.test(host) ? "Yahoo and AOL need an app password from the account security page"
+    : "check the username (usually the full address) and the password";
+  return `login failed · ${hint}. The server said: ${said}`;
+}
 function session({ host, port, secure, timeout = 12000 }) {
   return new Promise((resolve, reject) => {
     const opts = { host, port, servername: net.isIP(host) ? undefined : host };
@@ -31,7 +42,7 @@ function session({ host, port, secure, timeout = 12000 }) {
         if (waiting && line.startsWith(waiting.tag + " ")) {
           const text = buf.subarray(0, i).toString("utf8"), w = waiting;
           buf = buf.subarray(i); i = 0; waiting = null;
-          if (/^\S+ OK/i.test(line)) w.resolve(text); else w.reject(new SourceError(/AUTHENTICATIONFAILED|LOGIN|credentials|password/i.test(line) ? "login failed · check the username and password" : "the mail server refused: " + str(line.replace(/^\S+ /, ""), 120)));
+          if (/^\S+ OK/i.test(line)) w.resolve(text); else w.reject(new SourceError(/AUTHENTICATIONFAILED|LOGIN|credentials|password/i.test(line) ? loginHelp(host, line) : "the mail server refused: " + str(line.replace(/^\S+ /, ""), 120)));
         }
       }
     };
