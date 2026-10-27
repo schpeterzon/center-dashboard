@@ -43,8 +43,16 @@ b{font-weight:600;color:var(--text)}
 
 /* ---------- boot: the board stays hidden until it is laid out and the server has answered ---------- */
 body:not(.booted)>*:not(#bootnote){visibility:hidden}
-#bootnote{position:fixed;inset:0;display:grid;place-items:center;font:500 12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);pointer-events:none;transition:opacity .3s}
+#bootnote{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;font:500 11.5px var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--muted);pointer-events:none;transition:opacity .5s;z-index:50}
+#bootnote i{position:relative;width:74px;height:74px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--accent) 55%,transparent) 0 18%,color-mix(in srgb,var(--accent) 12%,transparent) 40%,transparent 68%);animation:bootcore 1.6s ease-in-out infinite}
+#bootnote i::before,#bootnote i::after{content:"";position:absolute;inset:0;border-radius:50%;border:1px solid color-mix(in srgb,var(--accent) 60%,transparent);animation:bootring 1.8s cubic-bezier(.2,.6,.3,1) infinite}
+#bootnote i::after{animation-delay:.9s}
+@keyframes bootcore{50%{transform:scale(.86);opacity:.75}}
+@keyframes bootring{from{transform:scale(.35);opacity:1}to{transform:scale(1.7);opacity:0}}
 body.booted #bootnote{opacity:0}
+body.booted #board{animation:bootin .6s ease both}
+@keyframes bootin{from{opacity:0}}
+@media (prefers-reduced-motion:reduce){#bootnote i,#bootnote i::before,#bootnote i::after{animation:none}}
 /* ---------- space + board ---------- */
 #space,#space2{position:fixed;inset:-40%;pointer-events:none;will-change:transform}
 #space{background-image:radial-gradient(color-mix(in srgb,var(--ink) 7%,transparent) 1px,transparent 1.2px);background-size:30px 30px}
@@ -737,7 +745,7 @@ body.server .pane:not(.lv-ready) .pane-inner{visibility:hidden}
 </style>
 </head>
 <body>
-<div id="bootnote">JARVIS · starting</div>
+<div id="bootnote"><i></i><span>JARVIS · starting</span></div>
 <noscript><p style="padding:40px;font:16px system-ui;color:#eceef1">JARVIS needs JavaScript to run.</p></noscript>
 <div id="space"></div><div id="space2"></div>
 
@@ -1403,7 +1411,7 @@ async function loadSettings() {
     } catch {}
     if (!served) break;
     const t = $('#toast'); if (t) { $('.zz', t).textContent = 'Waiting for the JARVIS server…'; t.classList.add('show'); }
-    const bn = $('#bootnote'); if (bn) bn.textContent = 'JARVIS · waiting for the server';
+    const bn = $('#bootnote span'); if (bn) bn.textContent = 'JARVIS · waiting for the server';
     await new Promise(r => setTimeout(r, wait));
   }
   try { mergeDeep(CFG, JSON.parse(localStorage.getItem('jarvis-settings') || '{}')); } catch {}
@@ -3263,10 +3271,12 @@ const LIVE = (() => {
     HX.stop();
     $$('.pane').forEach(p => { p.classList.add('live'); if (!PAGES[p.dataset.id]) p.classList.add('lv-ready'); });
     setTimeout(() => $$('.pane').forEach(p => p.classList.add('lv-ready')), 6000);
-    poll(true);
+    // The first read uses the server's caches, so the board fills in a fraction of a second.
+    const ready = poll();
     timer = setInterval(() => { if (!document.hidden) poll(); }, 15000);
     listen();
     document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+    return ready;
   }
   // Re-render a page only when its content changed, and never while you are typing in it.
   function render() {
@@ -3980,9 +3990,11 @@ async function start() {
     $('#hardware-state').hidden = true;
     renderDemoMachines();
   }
-  $('#home-machines').style.visibility = 'visible';
+  if (!API.server) $('#home-machines').style.visibility = 'visible';
   applyAppearance(); applyProfile(); termIntro();
   const first = boot();
+  // The loading animation stays until the live data is drawn (at most 4 s), so the board never shows half empty.
+  if (API.server) { const t = $('#bootnote span'); if (t) t.textContent = 'JARVIS · loading your board'; await Promise.race([LIVE.start(), new Promise(r => setTimeout(r, 4000))]); }
   body.classList.add('booted');
   const intro = !placed(location.hash.slice(1)) && !reduce;
   if (intro) { overview = true; body.classList.add('overview'); cam = overviewCam(); flight = null; apply(); syncChrome(); }
@@ -3998,7 +4010,6 @@ async function start() {
   if (orbGuardTripped) setTimeout(() => say("The last visit did not close normally, so I am drawing myself in light 2D mode on this device. Settings → Appearance switches 3D back on.", { force: true, ttl: 10000, acts: [['Open Appearance', () => openSettings('appearance')], ['OK']] }), 1800);
   setTimeout(ambient, 75000);
   checkStatus();
-  if (API.server) LIVE.start();
   document.fonts?.ready.then(() => { measureSlot(); placeOrb(); syncChrome(); fitGreet(); });
   let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { layout(); drawCharts(); cam = overview ? overviewCam() : paneCam(current); zoomF = 1; flight = { type: 'pan', tx: cam.fx, ty: cam.fy }; apply(); measureSlot(); placeOrb(); syncChrome(); fitGreet(); }, 80); });
 }

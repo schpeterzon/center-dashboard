@@ -9,6 +9,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import zlib from "node:zlib";
 import { state, persist, flush } from "./store.mjs";
 import * as auth from "./auth.mjs";
 import { saveConnection, removeConnection, publicConn, draft, test, answer, entryOf, optedIn } from "./connect.mjs";
@@ -38,7 +39,16 @@ function page(file) {
     "default-src 'none'", `script-src ${hashes.join(" ")}`, "style-src 'self' 'unsafe-inline'", "img-src 'self' data: blob:", "font-src data:",
     "connect-src 'self'", "frame-ancestors 'none'", "base-uri 'none'", "form-action 'self'", "object-src 'none'", "manifest-src 'self'",
   ].join("; ");
-  return { html, csp };
+  // Compressed once: the page is ~650 KB of inlined code and fonts, about a quarter of that compressed.
+  return { html, csp, br: zlib.brotliCompressSync(html, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 9 } }), gz: zlib.gzipSync(html, { level: 9 }) };
+}
+// Sends a body compressed when the browser accepts it (pages, and the large live snapshot).
+function sendPacked(req, res, status, body, type, packed = {}) {
+  const accept = String(req.headers["accept-encoding"] || ""), buf = Buffer.isBuffer(body) ? body : Buffer.from(typeof body === "string" ? body : JSON.stringify(body));
+  const enc = /\bbr\b/.test(accept) ? "br" : /\bgzip\b/.test(accept) ? "gzip" : null;
+  const out = enc === "br" ? packed.br || zlib.brotliCompressSync(buf, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 } }) : enc === "gzip" ? packed.gz || zlib.gzipSync(buf, { level: 6 }) : buf;
+  res.writeHead(status, { "content-type": type, vary: "accept-encoding", ...(enc ? { "content-encoding": enc } : {}) });
+  res.end(out);
 }
 let pages;
 try {
@@ -210,7 +220,7 @@ async function api(req, res, url, who) {
   if (p === "hardware" && m === "GET") return json(res, 200, await hardwareMetrics());
 
   // ---- live data and the actions the board can take
-  if (p === "live" && m === "GET") return json(res, 200, await live.snapshot(url.searchParams.has("fresh")));
+  if (p === "live" && m === "GET") return sendPacked(req, res, 200, await live.snapshot(url.searchParams.has("fresh")), "application/json; charset=utf-8");
   // Server-sent events: "change" whenever the Harness reports something, so the board updates at once.
   if (p === "stream" && m === "GET") {
     if (live.listenerCount() >= 50) return json(res, 503, { error: "Too many open boards." });
@@ -309,12 +319,12 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/" || url.pathname === "/index.html") {
       if (!who.user) { headers(req, res); res.writeHead(302, { location: "/login" }); return res.end(); }
       headers(req, res, { "content-security-policy": pages.app.csp });
-      return send(res, 200, pages.app.html, "text/html; charset=utf-8");
+      return sendPacked(req, res, 200, pages.app.html, "text/html; charset=utf-8", pages.app);
     }
     if (url.pathname === "/login") {
       if (who.user) { headers(req, res); res.writeHead(302, { location: "/" }); return res.end(); }
       headers(req, res, { "content-security-policy": pages.login.csp });
-      return send(res, 200, pages.login.html, "text/html; charset=utf-8");
+      return sendPacked(req, res, 200, pages.login.html, "text/html; charset=utf-8", pages.login);
     }
     headers(req, res);
     return send(res, 404, "Not found", "text/plain");
