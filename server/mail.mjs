@@ -93,5 +93,5 @@ export async function readMailbox(t, count = 25) {
 
 export async function mail(c, fresh) {
   const t = mailTarget(c);
-  return cache(c.id, async () => ({ account: t.user, webmail: t.webmail, ...(await readMailbox(t)) }), fresh);
+  return cache(c.id, async () => ({ account: t.user, webmail: t.webmail, ...(await readMailbox(t)), checked: Date.now() }), fresh);
 }

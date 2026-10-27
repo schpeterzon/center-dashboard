@@ -15,6 +15,7 @@ import { saveConnection, removeConnection, publicConn, draft, test, answer, entr
 import { hardwareMetrics, invalidateHardwareCache } from "./hardware.mjs";
 import * as live from "./live.mjs";
 import { homeAssistantAction, homeAssistantHistory } from "./sources.mjs";
+import { mail } from "./mail.mjs";
 import { SourceError } from "./net.mjs";
 
 const dist = path.join(import.meta.dirname, "../dist");
@@ -224,7 +225,7 @@ async function api(req, res, url, who) {
     res.on("close", () => { off(); clearInterval(beat); clearTimeout(stop); });
     return;
   }
-  const lm = /^live\/(harness|home|local|ai)\/([a-z]+)(?:\/([a-z]+))?$/.exec(p);
+  const lm = /^live\/(harness|home|local|ai|mail)\/([a-z]+)(?:\/([a-z]+))?$/.exec(p);
   if (lm && (m === "POST" || (m === "GET" && lm[2] === "history"))) {
     const b = m === "POST" ? await readBody(req, 64 * 1024) : {};
     try {
@@ -240,6 +241,13 @@ async function api(req, res, url, who) {
         if (!c) return json(res, 409, { error: "Connect Home Assistant in Settings → Connections first." });
         if (lm[2] === "history") return json(res, 200, { series: await homeAssistantHistory(c, String(url.searchParams.get("ids") || "").split(","), url.searchParams.get("days")) });
         return json(res, 200, await homeAssistantAction(c, b));
+      }
+      // Read the mailbox again now and wait for it, so the next snapshot has new and deleted mail.
+      if (lm[1] === "mail" && lm[2] === "refresh") {
+        const c = live.pick("email");
+        if (!c) return json(res, 409, { error: "Connect your mailbox in Settings → Connections first." });
+        const r = await mail(c, true);
+        return json(res, 200, { unseen: r.unseen, checked: r.checked });
       }
       if (lm[1] === "local") return json(res, 200, live.localAction(lm[2], lm[3], b));
       if (lm[1] === "ai" && lm[2] === "brief") { const text = await live.complete("Write my brief for right now: what is on, what needs me, anything worth knowing. 4–7 short lines, most important first. No greeting line.", { name: state.settings?.profile?.name }); state.brief = { at: Date.now(), text }; persist(); return json(res, 200, { brief: state.brief }); }
