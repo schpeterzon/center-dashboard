@@ -15,6 +15,7 @@ import * as auth from "./auth.mjs";
 import { saveConnection, removeConnection, publicConn, draft, test, answer, entryOf, optedIn } from "./connect.mjs";
 import { hardwareMetrics, invalidateHardwareCache } from "./hardware.mjs";
 import * as live from "./live.mjs";
+import { chatTools } from "./tools.mjs";
 import { homeAssistantAction, homeAssistantHistory } from "./sources.mjs";
 import { mail } from "./mail.mjs";
 import { SourceError } from "./net.mjs";
@@ -219,6 +220,23 @@ async function api(req, res, url, who) {
 
   if (p === "hardware" && m === "GET") return json(res, 200, await hardwareMetrics());
 
+  // ---- terminal conversations, so "/resume" finds them on any device
+  if (p === "chats" && m === "GET") return json(res, 200, { chats: (state.chats || []).slice().sort((x, y) => y.updated - x.updated).map(({ id, title, kind, updated, messages }) => ({ id, title, kind, updated, count: messages.filter((x) => x.role === "user").length })) });
+  const chm = /^chats\/([a-z0-9-]{4,60})$/i.exec(p);
+  if (chm && m === "GET") { const ch = (state.chats || []).find((x) => x.id === chm[1]); return ch ? json(res, 200, ch) : json(res, 404, { error: "That conversation is gone." }); }
+  if (chm && m === "PUT") {
+    const b = await readBody(req, 2 * 1024 * 1024), list = (state.chats ||= []);
+    const messages = (Array.isArray(b.messages) ? b.messages : []).filter((x) => ["user", "assistant", "note", "tool"].includes(x?.role) && typeof x.content === "string").slice(-150).map((x) => ({ role: x.role, content: x.content.slice(0, 20000) }));
+    const ch = list.find((x) => x.id === chm[1]) || { id: chm[1], created: Date.now() };
+    Object.assign(ch, { title: String(b.title || "").replace(/\s+/g, " ").trim().slice(0, 100) || "Conversation", kind: b.kind === "task" ? "task" : "chat", messages, updated: Date.now() });
+    if (!list.includes(ch)) list.push(ch);
+    // The newest 60 conversations are kept.
+    if (list.length > 60) state.chats = list.sort((x, y) => y.updated - x.updated).slice(0, 60);
+    persist();
+    return json(res, 200, { id: ch.id, updated: ch.updated });
+  }
+  if (chm && m === "DELETE") { state.chats = (state.chats || []).filter((x) => x.id !== chm[1]); persist(); return json(res, 200, { ok: true }); }
+
   // ---- live data and the actions the board can take
   if (p === "live" && m === "GET") return sendPacked(req, res, 200, await live.snapshot(url.searchParams.has("fresh")), "application/json; charset=utf-8");
   // Server-sent events: "change" whenever the Harness reports something, so the board updates at once.
@@ -286,7 +304,8 @@ async function api(req, res, url, who) {
     const emit = (o) => res.write(`data: ${JSON.stringify(o)}\n\n`);
     try {
       const ctx = { ...(b.context && typeof b.context === "object" ? b.context : {}), live: await live.liveContext().catch(() => "") };
-      for await (const t of answer(c, Array.isArray(b.messages) ? b.messages : [], ctx, ac.signal)) emit({ t: "text", v: t });
+      const tools = await chatTools().catch(() => null);
+      for await (const t of answer(c, Array.isArray(b.messages) ? b.messages : [], ctx, ac.signal, tools)) emit(typeof t === "string" ? { t: "text", v: t } : { t: "status", v: t.status });
       emit({ t: "done" });
     } catch (e) {
       if (!ac.signal.aborted) emit({ t: "error", v: e.message });

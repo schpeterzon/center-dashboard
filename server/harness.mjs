@@ -114,6 +114,41 @@ export async function harnessAction(c, action, body = {}) {
 }
 export const harnessDone = (s) => TERMINAL.has(s);
 
+// ---------------------------------------------------------------- questions from JARVIS
+// The terminal chat hands questions about the machines to a Harness agent: a read-only
+// investigation, waited on in slices, answered with the agent's last message. A task that stops
+// for an approval is reported as such; the owner decides it like any other.
+export async function harnessAsk(c, question, { worker, signal, onStatus = () => {} } = {}) {
+  const t = target(c), call = (path, b, timeout = 15000) => request(`${t.url}/api/${path}`, { method: b ? "POST" : "GET", headers: t.headers, body: b, timeout });
+  const objective = [
+    "Answer the owner's question about their own machines and services.",
+    "Investigate read-only: look, list, inspect and read. Do not install, change, restart, delete or write anything; if answering would need a change, say so instead.",
+    "Reply in plain text, short and concrete: which machine or VM, what runs there, and exactly how to use it (host, port, command, where credentials live, without printing secrets).",
+    "", "Question: " + str(question, 4000),
+  ].join("\n");
+  const r = await call("tasks", { objective, title: str("Ask: " + question.replace(/\s+/g, " "), 120), worker_role: worker || "researcher", risk: "low", run: true, metadata: { requested_by: "center-dashboard-chat" } });
+  const id = r.task_id;
+  onStatus(`${id} started · ${worker || "researcher"}`);
+  const until = Date.now() + 8 * 60e3;
+  let task = r.task || {};
+  while (!TERMINAL.has(task.status) && Date.now() < until) {
+    if (signal?.aborted) return { id, status: "left running", text: "The user stopped waiting; the task keeps running in the Harness." };
+    if (task.status === "waiting_approval") {
+      const ap = await call(`approvals?status=pending&limit=50`).catch(() => ({}));
+      const mine = (ap.approvals || []).filter((x) => x.task_id === id).map((x) => `${x.id}: ${str(x.description, 300)}`);
+      return { id, status: "waiting for approval", text: `The task is paused until the owner approves: ${mine.join("; ") || "see the Agents page"}. They can approve it there or type "approve <id>" in the terminal; the answer then appears on the task.` };
+    }
+    const w = await call(`tasks/${id}/wait`, { timeout_seconds: 45, until: "settled" }, 60000).catch((e) => ({ error: e }));
+    if (w.error) { if (Date.now() >= until) break; await new Promise((res) => setTimeout(res, 3000)); continue; }
+    task = w.task || task;
+    if (task.activity?.action) onStatus(`${id} · ${str(task.activity.action, 120)}`);
+  }
+  if (!TERMINAL.has(task.status)) return { id, status: str(task.status, 30) || "running", text: "Still working after 8 minutes; the answer will be on the task (Agents page)." };
+  const ev = await call(`tasks/${id}/events?types=assistant.message&limit=500`).catch(() => ({}));
+  const last = (ev.events || []).map((e) => e.payload?.text).filter(Boolean).pop();
+  return { id, status: task.status, text: str(last || task.result?.summary || (task.error ? "failed: " + (task.error.message || task.error.code) : "no answer"), 8000) };
+}
+
 // ---------------------------------------------------------------- live events
 // One WebSocket per Harness (GET /events, harness.events.v1) with the bearer token in the handshake,
 // so the token never goes into a URL. Each relevant event drops the cached snapshot and tells the

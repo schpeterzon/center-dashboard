@@ -11,7 +11,7 @@ import path from "node:path";
 import { startFixtures } from "./fixtures.mjs";
 import { parseIcs } from "../server/calendar.mjs";
 import { parseFeed, parseHoldings, formatHoldings } from "../server/sources.mjs";
-import { decodeWords } from "../server/mail.mjs";
+import { decodeWords, messageText, htmlText } from "../server/mail.mjs";
 
 const root = path.join(import.meta.dirname, "..");
 const data = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-live-"));
@@ -34,7 +34,9 @@ function fakeHarness() {
       const body = b ? JSON.parse(b) : {};
       if (u.pathname === "/api/status") return json({ harness: { version: "0.1.0", uptime_s: 5, executing: 0, max_concurrent_tasks: 4 }, opencode: { connected: true, version: "1.19.3" }, inference_queue: { state: "available", age_seconds: 1, snapshot: { active: true, queued: 1, max_queue: 8, oldest_wait_seconds: 2.5, admitted: 20 } }, ui_state: "waiting_approval", tasks: { counts: { waiting_approval: 1, completed: 3 }, total: 4, active: [task] }, approvals: { pending: approval.status === "pending" ? 1 : 0 }, workspace: { default_directory: "/srv", allowed_directories: ["/srv"] }, events: { last_seq: 10 } });
       if (u.pathname === "/api/tasks" && req.method === "GET") return json({ tasks: [task], total: 1 });
-      if (u.pathname === "/api/tasks" && req.method === "POST") { created.push(body); return json({ task_id: "task_0new000001", status: "running", task: {} }, 201); }
+      if (u.pathname === "/api/tasks" && req.method === "POST") { created.push(body); return json({ task_id: "task_0new000001", status: "running", task: { status: "running" } }, 201); }
+      if (u.pathname === "/api/tasks/task_0new000001/wait") return json({ task_id: "task_0new000001", status: "completed", timed_out: false, task: { status: "completed", result: { summary: "short" } } });
+      if (u.pathname === "/api/tasks/task_0new000001/events") return json({ events: [{ seq: 11, type: "assistant.message", payload: { text: "Looking." } }, { seq: 12, type: "assistant.message", payload: { text: "MariaDB runs on db-vm (192.168.1.50:3306); connect with mysql -h db-vm -u app." } }] });
       if (u.pathname === "/api/approvals") return json({ approvals: approval.status === "pending" ? [approval] : [] });
       if (u.pathname === `/api/approvals/${approval.id}`) { decisions.push(body.decision); approval.status = body.decision === "reject" ? "rejected" : "approved"; return json({ approval, task_id: task.id, status: "running" }); }
       if (u.pathname === "/api/usage") return json({ totals: { total_tokens: 1200, cost: 0.02, messages: 4 }, by_model: [{ provider: "ollama", model: "qwen3.8:9b", total_tokens: 1200, cost: 0, messages: 4 }] });
@@ -229,4 +231,61 @@ test("Harness events reach open boards at once", async () => {
   for (const s of sockets) s.destroy();
   assert.ok(await until(/harness\.connected/), "reconnects and refreshes");
   await reader.cancel();
+});
+
+// An OpenAI-compatible model that calls one tool, then answers with what the tool returned.
+test("the terminal AI reads mail and asks the Harness through tools", async () => {
+  const seen = [];
+  const model = http.createServer((req, res) => {
+    let b = ""; req.on("data", (d) => (b += d)).on("end", () => {
+      const body = JSON.parse(b); seen.push(body);
+      res.writeHead(200, { "content-type": "text/event-stream" });
+      const last = body.messages.at(-1), q = body.messages.find((m) => m.role === "user").content;
+      const send = (delta) => res.write(`data: ${JSON.stringify({ choices: [{ delta }] })}\n\n`);
+      if (last.role === "tool") send({ content: "Tool said: " + last.content.slice(0, 2000) });
+      else {
+        const call = /heating/.test(q) ? ["read_email", { query: "engineer" }] : ["ask_harness", { question: "Which VM has MariaDB?", worker: "infrastructure" }];
+        send({ tool_calls: [{ index: 0, id: "call_1", function: { name: call[0], arguments: "" } }] });
+        send({ tool_calls: [{ index: 0, function: { arguments: JSON.stringify(call[1]) } }] });
+      }
+      res.end("data: [DONE]\n\n");
+    });
+  });
+  await new Promise((r) => model.listen(0, "127.0.0.1", r));
+  try {
+    const ai = await connect("compatible", { baseUrl: `http://127.0.0.1:${model.address().port}/v1`, model: "tiny" }, "ai");
+    assert.equal(ai.status, 200, JSON.stringify(ai.body));
+    const ask = async (content) => {
+      const r = await fetch(B + "/api/ai/chat", { method: "POST", headers: { "x-jarvis": "1", cookie, "content-type": "application/json" }, body: JSON.stringify({ connection: ai.body.connection.id, messages: [{ role: "user", content }] }) });
+      return [...(await r.text()).matchAll(/^data: (.*)$/gm)].map((m) => JSON.parse(m[1]));
+    };
+    let parts = await ask("what does the heating email say?");
+    assert.ok(seen[0].tools.some((t) => t.function.name === "read_email") && seen[0].tools.some((t) => t.function.name === "ask_harness"));
+    assert.ok(parts.some((p) => p.t === "status" && /read mail/.test(p.v)), JSON.stringify(parts));
+    const text = parts.filter((p) => p.t === "text").map((p) => p.v).join("");
+    assert.match(text, /engineer comes at 10:00 on Friday\. Please leave the boiler cupboard open\. — Landlord/);
+    parts = await ask("which server vm has mariadb installed and how can i use it");
+    assert.match(parts.filter((p) => p.t === "text").map((p) => p.v).join(""), /MariaDB runs on db-vm \(192\.168\.1\.50:3306\)/);
+    const task = created.at(-1);
+    assert.equal(task.worker_role, "infrastructure");
+    assert.equal(task.risk, "low");
+    assert.match(task.objective, /read-only/i);
+    await call(`/api/connections/${ai.body.connection.id}`, { method: "DELETE" });
+  } finally { model.close(); }
+});
+
+test("terminal conversations are saved, listed and reopened", async () => {
+  const put = await call("/api/chats/abc123", { method: "PUT", body: { title: "MariaDB", messages: [{ role: "user", content: "where?" }, { role: "assistant", content: "db-vm" }, { role: "tool", content: "harness · task" }, { role: "evil", content: "x" }] } });
+  assert.equal(put.status, 200);
+  const list = (await call("/api/chats")).body.chats;
+  assert.deepEqual(list.map((c) => [c.id, c.title, c.count]), [["abc123", "MariaDB", 1]]);
+  const one = (await call("/api/chats/abc123")).body;
+  assert.deepEqual(one.messages.map((m) => m.role), ["user", "assistant", "tool"]);
+  assert.equal((await call("/api/chats/abc123", { method: "DELETE" })).status, 200);
+  assert.equal((await call("/api/chats/abc123")).status, 404);
+});
+
+test("mail text comes out of MIME and HTML", () => {
+  assert.equal(messageText("Content-Type: text/plain; charset=iso-8859-1\r\nContent-Transfer-Encoding: base64\r\n\r\n" + Buffer.from("Gr\xfc\xdfe", "latin1").toString("base64")), "Grüße");
+  assert.equal(htmlText('<style>p{}</style><p>Upgrade &amp; restart</p><a href="https://dash.cloudflare.com/x">Open dashboard</a>'), "Upgrade & restart\nOpen dashboard (https://dash.cloudflare.com/x)");
 });

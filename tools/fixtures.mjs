@@ -121,7 +121,8 @@ export function startFixtures(port = 0) {
 // A mailbox with three messages, two unread, served over plain IMAP on 127.0.0.1 (user "me", password "mail-pass").
 function imap(port) {
   const msgs = [
-    { flags: "\\Seen", head: "From: Landlord <rent@example.com>\r\nSubject: Heating check on Friday\r\nDate: Mon, 20 Oct 2026 09:12:00 +0200\r\n\r\n" },
+    { flags: "\\Seen", head: "From: Landlord <rent@example.com>\r\nSubject: Heating check on Friday\r\nDate: Mon, 20 Oct 2026 09:12:00 +0200\r\n\r\n",
+      body: "Content-Type: multipart/alternative; boundary=\"zz\"\r\n\r\n--zz\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\nThe engineer comes at 10:00 on Friday. Please leave the boiler cupboard op=\r\nen. =E2=80=94 Landlord\r\n--zz\r\nContent-Type: text/html\r\n\r\n<p>The engineer comes at 10:00</p>\r\n--zz--\r\n" },
     { flags: "", head: "From: =?utf-8?B?TcOkcnRh?= <marta@example.com>\r\nSubject: =?utf-8?Q?Dinner_on_S=C3=BCnday=3F?=\r\nDate: Sat, 24 Oct 2026 18:40:00 +0200\r\n\r\n" },
     { flags: "\\Flagged", head: "From: \"GitHub\" <noreply@github.com>\r\nSubject: [center-dashboard] CI passed\r\nDate: Sun, 25 Oct 2026 08:01:00 +0100\r\n\r\n" },
   ];
@@ -137,8 +138,10 @@ function imap(port) {
         if (/^LOGIN$/i.test(cmd)) { authed = line === `${tag} LOGIN "me" "mail-pass"`; w(authed ? `${tag} OK logged in\r\n` : `${tag} NO [AUTHENTICATIONFAILED] Invalid credentials\r\n`); }
         else if (!authed) w(`${tag} BAD log in first\r\n`);
         else if (/^EXAMINE$/i.test(cmd)) w(`* ${msgs.length} EXISTS\r\n* OK [READ-ONLY]\r\n${tag} OK [READ-ONLY] EXAMINE completed\r\n`);
+        else if (/^SEARCH$/i.test(cmd) && / TEXT "/i.test(line)) { const word = /TEXT "([^"]*)"/i.exec(line)[1].toLowerCase(); w(`* SEARCH ${msgs.map((m, k) => ((m.head + (m.body || "")).toLowerCase().includes(word) ? k + 1 : "")).filter(Boolean).join(" ")}\r\n${tag} OK SEARCH completed\r\n`); }
         else if (/^SEARCH$/i.test(cmd)) w(`* SEARCH ${msgs.map((m, k) => (/Seen/.test(m.flags) ? "" : k + 1)).filter(Boolean).join(" ")}\r\n${tag} OK SEARCH completed\r\n`);
-        else if (/^FETCH$/i.test(cmd)) { msgs.forEach((m, k) => w(`* ${k + 1} FETCH (UID ${100 + k} FLAGS (${m.flags}) INTERNALDATE "25-Oct-2026 08:01:00 +0100" BODY[HEADER.FIELDS (FROM SUBJECT DATE)] {${Buffer.byteLength(m.head)}}\r\n${m.head})\r\n`)); w(`${tag} OK FETCH completed\r\n`); }
+        else if (/^FETCH$/i.test(cmd) && /BODY\.PEEK\[\]/i.test(line)) { const k = Number(line.split(" ")[2]) - 1, m = msgs[k], full = m.head.replace(/\r\n\r\n$/, "\r\n") + (m.body || "\r\n(empty)"); w(`* ${k + 1} FETCH (BODY[]<0> {${Buffer.byteLength(full)}}\r\n${full})\r\n${tag} OK FETCH completed\r\n`); }
+        else if (/^FETCH$/i.test(cmd)) { const set = new Set(line.split(" ")[2].split(",").flatMap((r) => { const [a, b] = r.split(":").map(Number); return b ? Array.from({ length: b - a + 1 }, (_, i) => a + i) : [a]; })); msgs.forEach((m, k) => set.has(k + 1) && w(`* ${k + 1} FETCH (UID ${100 + k} FLAGS (${m.flags}) INTERNALDATE "25-Oct-2026 08:01:00 +0100" BODY[HEADER.FIELDS (FROM SUBJECT DATE)] {${Buffer.byteLength(m.head)}}\r\n${m.head})\r\n`)); w(`${tag} OK FETCH completed\r\n`); }
         else if (/^LOGOUT$/i.test(cmd)) { w(`* BYE\r\n${tag} OK LOGOUT completed\r\n`); s.end(); }
         else w(`${tag} BAD unknown\r\n`);
       }

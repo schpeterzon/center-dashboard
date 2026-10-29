@@ -1,5 +1,5 @@
-// A small, read-only IMAP client for the Inbox: it opens the folder with EXAMINE (so nothing is
-// marked as read), fetches the headers of the newest messages and logs out. No bodies, no writes.
+// A small, read-only IMAP client: it opens the folder with EXAMINE (so nothing is marked as read)
+// and never writes. The Inbox reads headers only; JARVIS can search and read a message's text.
 import net from "node:net";
 import tls from "node:tls";
 import { cached, str, SourceError } from "./net.mjs";
@@ -40,14 +40,14 @@ function session({ host, port, secure, timeout = 12000 }) {
         i = eol + 2;
         if (!greeted) { greeted = true; buf = buf.subarray(i); if (/^\* (OK|PREAUTH)/i.test(line)) resolve(api); else fail(new SourceError("unexpected mail server greeting")); i = 0; continue; }
         if (waiting && line.startsWith(waiting.tag + " ")) {
-          const text = buf.subarray(0, i).toString("utf8"), w = waiting;
+          const raw = Buffer.from(buf.subarray(0, i)), w = waiting;
           buf = buf.subarray(i); i = 0; waiting = null;
-          if (/^\S+ OK/i.test(line)) w.resolve(text); else w.reject(new SourceError(/AUTHENTICATIONFAILED|LOGIN|credentials|password/i.test(line) ? loginHelp(host, line) : "the mail server refused: " + str(line.replace(/^\S+ /, ""), 120)));
+          if (/^\S+ OK/i.test(line)) w.resolve(w.raw ? raw : raw.toString("utf8")); else w.reject(new SourceError(/AUTHENTICATIONFAILED|LOGIN|credentials|password/i.test(line) ? loginHelp(host, line) : "the mail server refused: " + str(line.replace(/^\S+ /, ""), 120)));
         }
       }
     };
     const api = {
-      cmd: (c) => new Promise((res, rej) => { const tag = "a" + ++n; waiting = { tag, resolve: res, reject: rej }; sock.write(`${tag} ${c}\r\n`); }),
+      cmd: (c, raw = false) => new Promise((res, rej) => { const tag = "a" + ++n; waiting = { tag, raw, resolve: res, reject: rej }; sock.write(`${tag} ${c}\r\n`); }),
       close: () => { clearTimeout(timer); sock.end(); },
     };
     sock.on("data", (d) => { buf = Buffer.concat([buf, d]); if (buf.length > 4 * 1024 * 1024) return fail(new SourceError("response too large")); scan(); });
@@ -118,4 +118,69 @@ export async function readMailbox(t, count = 25) {
 export async function mail(c, fresh) {
   const t = mailTarget(c);
   return cache(c.id, async () => ({ account: t.user, webmail: t.webmail, ...(await readMailbox(t)), checked: Date.now() }), fresh);
+}
+
+// ---------------------------------------------------------------- reading a message (for JARVIS)
+// MIME is walked as latin1 text so byte offsets survive; each text part is decoded on its own.
+function mimeParts(raw, depth = 0) {
+  const sep = /\r?\n\r?\n/.exec(raw), head = sep ? raw.slice(0, sep.index) : raw, body = sep ? raw.slice(sep.index + sep[0].length) : "";
+  const ct = header(head, "Content-Type") || "text/plain", type = ct.split(";")[0].trim().toLowerCase();
+  const param = (k) => new RegExp(`${k}\\s*=\\s*"?([^";]+)"?`, "i").exec(ct)?.[1];
+  if (type.startsWith("multipart/") && depth < 8) {
+    const b = param("boundary"); if (!b) return { plain: "", html: "" };
+    const out = { plain: "", html: "" };
+    for (const part of body.split("--" + b).slice(1)) {
+      if (part.startsWith("--")) break;
+      const r = mimeParts(part.replace(/^\r?\n/, ""), depth + 1);
+      // An alternative holds the same text twice; the first readable version is enough.
+      if (type === "multipart/alternative") { out.plain ||= r.plain; out.html ||= r.html; } else { out.plain += r.plain; out.html += r.html; }
+    }
+    return out;
+  }
+  if (type === "message/rfc822" && depth < 8) return mimeParts(body, depth + 1);
+  if (!/^text\/(plain|html)$/.test(type) || /^\s*attachment/i.test(header(head, "Content-Disposition"))) return { plain: "", html: "" };
+  const enc = header(head, "Content-Transfer-Encoding").toLowerCase();
+  const bytes = enc === "base64" ? Buffer.from(body.replace(/\s+/g, ""), "base64")
+    : enc === "quoted-printable" ? Buffer.from(body.replace(/=\r?\n/g, "").replace(/=([0-9a-f]{2})/gi, (_, h) => String.fromCharCode(parseInt(h, 16))), "latin1")
+    : Buffer.from(body, "latin1");
+  let text;
+  try { text = new TextDecoder((param("charset") || "utf-8").toLowerCase()).decode(bytes); } catch { text = bytes.toString("utf8"); }
+  return type === "text/html" ? { plain: "", html: text + "\n" } : { plain: text + "\n", html: "" };
+}
+const ENT = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+export function htmlText(h) {
+  return h.replace(/<(style|script|head)[\s\S]*?<\/\1>/gi, "")
+    .replace(/<a\s[^>]*href="(https?:[^"]{1,300})"[^>]*>([\s\S]*?)<\/a>/gi, (m, url, t) => { const label = t.replace(/<[^>]+>/g, "").trim(); return label && !url.includes(label) ? `${label} (${url})` : url; })
+    .replace(/<br\s*\/?>|<\/(p|div|tr|li|h\d|table)>/gi, "\n").replace(/<li[^>]*>/gi, "• ").replace(/<[^>]+>/g, "")
+    .replace(/&(#x?[0-9a-f]+|\w+);/gi, (m, e) => e[0] === "#" ? String.fromCodePoint(e[1].toLowerCase() === "x" ? parseInt(e.slice(2), 16) : Number(e.slice(1))) : ENT[e.toLowerCase()] ?? m)
+    .replace(/[ \t\u00a0]+/g, " ").replace(/ *\n */g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+export function messageText(raw) {
+  const s = Buffer.isBuffer(raw) ? raw.toString("latin1") : String(raw), p = mimeParts(s);
+  const plain = p.plain.replace(/\r/g, "").replace(/\n{3,}/g, "\n\n").trim();
+  return plain.length > 40 || !p.html ? plain : htmlText(p.html);
+}
+
+// Gmail understands its own search language (from:, newer_than:, words in the body); other
+// servers get a plain TEXT search. Queries are folded to ASCII so they fit an IMAP quoted string.
+export async function searchMail(c, query, { read = 2, list = 10 } = {}) {
+  const t = mailTarget(c), s = await session({ ...t, timeout: 30000 });
+  const words = String(query || "").normalize("NFKD").replace(/[^\x20-\x7e]/g, "").replace(/\s+/g, " ").trim().slice(0, 200);
+  try {
+    await s.cmd(`LOGIN ${q(t.user)} ${q(t.password)}`);
+    const ex = await s.cmd(`EXAMINE ${q(t.folder)}`), total = Number(/^\* (\d+) EXISTS/im.exec(ex)?.[1] || 0);
+    const gmail = /gmail|googlemail/i.test(t.host);
+    let seqs = [];
+    if (total && words) seqs = (/^\* SEARCH([\d ]*)/im.exec(await s.cmd("SEARCH " + (gmail ? `X-GM-RAW ${q(words)}` : `TEXT ${q(words)}`)))?.[1] || "").trim().split(/\s+/).filter(Boolean).map(Number);
+    else if (total) seqs = Array.from({ length: Math.min(list, total) }, (_, i) => total - i);
+    seqs = seqs.sort((a, b) => b - a);
+    const found = seqs.length, top = seqs.slice(0, list);
+    const heads = top.length ? parseFetch(await s.cmd(`FETCH ${top.join(",")} (UID FLAGS INTERNALDATE BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])`)).sort((a, b) => b.seq - a.seq) : [];
+    for (const m of heads.slice(0, read)) {
+      const raw = await s.cmd(`FETCH ${m.seq} (BODY.PEEK[]<0.600000>)`, true), lit = /\{(\d+)\}\r\n/.exec(raw.toString("latin1"));
+      m.text = lit ? str(messageText(raw.subarray(lit.index + lit[0].length, lit.index + lit[0].length + Number(lit[1]))), 12000) : "";
+    }
+    await s.cmd("LOGOUT").catch(() => {});
+    return { query: words, found, messages: heads };
+  } finally { s.close(); }
 }

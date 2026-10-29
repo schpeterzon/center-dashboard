@@ -740,6 +740,7 @@ body.calm *,body.calm *::before,body.calm *::after{animation-duration:.001s!impo
 .hp .menu button:hover{background:color-mix(in srgb,var(--ink) 6%,transparent)}
 .hp .menu button.cur{color:var(--accent)} .hp .menu button em{font:500 10px var(--mono);font-style:normal;color:var(--muted)}
 #tout .sug{font:500 .92em var(--mono);padding:.3em .8em;margin:.2em .3em .2em 0}
+#tout .chatpick{cursor:pointer;display:inline-block;border-radius:5px;padding:0 .3em} #tout .chatpick:hover{background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--text)}
 .pane.live .empty{flex:1;min-height:0;overflow:hidden;padding:10px 8px;gap:8px}
 .pane.live .card.span4 .empty .muted{font-size:11.5px}
 /* In server mode a page stays blank until its live data has rendered, so sample content never flashes. */
@@ -1341,7 +1342,7 @@ body.server .pane:not(.lv-ready) .pane-inner{visibility:hidden}
 
 <!-- ================= TERMINAL ================= -->
 <div id="term" role="dialog" aria-label="Jarvis terminal">
- <header><div class="dots"><i></i><i></i><i></i></div><span>jarvis — ~/home</span><div class="sp"></div><span class="chip e-local"><i></i>route: auto · local-first</span><kbd>`</kbd><button type="button" class="term-close" id="term-close" aria-label="Close terminal" title="Close terminal (Esc)">×</button></header>
+ <header><div class="dots"><i></i><i></i><i></i></div><span id="ttitle">jarvis — ~/home</span><div class="sp"></div><span class="chip e-local"><i></i>route: auto · local-first</span><kbd>`</kbd><button type="button" class="term-close" id="term-close" aria-label="Close terminal" title="Close terminal (Esc)">×</button></header>
  <div id="tout"></div>
  <div id="tin"><span>jarvis ›</span><input id="tinput" placeholder="try: status · plan my week · run fix · build an app · portfolio · go lab" autocomplete="off"></div>
 </div>
@@ -3074,7 +3075,7 @@ const replies = [
   [/build|code|app|project|pr|implement|idea/, 'harness → codex (escalation)', ['<span class="m">◇ plan </span>  hermes splits the idea into tasks, harness codes locally,', '          codex takes over after 2 failed attempts.', 'Created a project draft in <b>Projects › Idea</b>. Want me to start planning now?']],
   [/money|invest|portfolio|market|stock/, 'local only (money never leaves home)', ['<span class="m">◇ tool </span>  broker.read positions (read-only)', () => `Portfolio ${eur(pval)}, +0.8% today, +9.4% YTD. World ETFs are 6 pts over target.`, 'Suggestion: route the next two €650 contributions to bonds/cash. <span class="m">No trades without approval.</span>']],
   [/hello|hi\b|hey/, 'local · qwen3-32b', ['Evening. Everything important is on Home; everything else can wait.']],
-  [/help/, 'built-in', ['commands: go &lt;page&gt; · theme &lt;name&gt; · settings · clear', () => API.server ? 'actions: task &lt;objective&gt; · todo &lt;text&gt; · idea &lt;text&gt; · approve &lt;id&gt; · reject &lt;id&gt;' : '', () => API.server && chatConn() ? `anything else goes to ${esc(chatConn().name)}.` : 'demo prompts: status · plan my week · run fix · build &lt;idea&gt; · portfolio']],
+  [/help/, 'built-in', ['commands: go &lt;page&gt; · theme &lt;name&gt; · settings · clear', () => API.server ? 'conversations: /new starts a new one · /resume lists earlier ones (and task details) · /resume &lt;n&gt; reopens one' : '', () => API.server ? 'actions: task &lt;objective&gt; · todo &lt;text&gt; · idea &lt;text&gt; · approve &lt;id&gt; · reject &lt;id&gt;' : '', () => API.server && chatConn() ? `anything else goes to ${esc(chatConn().name)}.` : 'demo prompts: status · plan my week · run fix · build &lt;idea&gt; · portfolio']],
 ];
 // Replies queue up, so a question asked mid-answer waits its turn instead of interleaving.
 let replying = Promise.resolve();
@@ -3082,6 +3083,8 @@ const respond = q => (replying = replying.then(() => answer(q)));
 async function answer(q) {
   const lc = q.toLowerCase();
   if (lc === 'clear') { tout.innerHTML = ''; return; }
+  if (API.server && /^\/?new$/.test(lc)) return newChat();
+  const rs = API.server && lc.match(/^\/?(?:resume|sessions)(?:\s+(.*))?$/); if (rs) return resumeChat((rs[1] || '').trim());
   const gm = lc.match(/^go (\w+)/); if (gm) { const id = order.find(o => o.startsWith(gm[1]) || byId[o].dataset.name.toLowerCase().startsWith(gm[1])); if (id) { toggleTerm(false); go(id); } else out('<span class="m">no page "' + esc(gm[1]) + '" on the board</span>\n'); return; }
   if (/^(settings|config|prefs)$/.test(lc)) { openSettings(); return; }
   const tm = lc.match(/^theme\s+(.+)/);
@@ -3108,7 +3111,7 @@ tin.addEventListener('keydown', e => {
   const q = tin.value.trim(); tin.value = '';
   out(`<span class="p">jarvis ›</span> <span class="u">${q.replace(/</g, '&lt;')}</span>`); respond(q);
 });
-const sendToTerm = q => { toggleTerm(true); out(`<span class="p">jarvis ›</span> <span class="u">${q}</span>`); respond(q); };
+const sendToTerm = q => { toggleTerm(true); out(`<span class="p">jarvis ›</span> <span class="u">${esc(q)}</span>`); respond(q); };
 for (const input of [$('#ask'), tin, $('#addtodo')]) {
   input.addEventListener('focus', () => orb.setInteraction({ focused: true }));
   input.addEventListener('input', () => orb.setInteraction({ focused: true, typing: true }));
@@ -3120,17 +3123,89 @@ $$('.hero .sugg button').forEach(b => b.onclick = () => sendToTerm(b.textContent
 /* ======================================================== real AI in the terminal (server mode)
    The server streams the answer of whichever provider is the default: a subscription CLI, an
    API or a local model. The browser only ever sees the text. */
-const chatHistory = [];
+// Each conversation is saved on the server: "/new" starts another, "/resume" lists and reopens
+// them on any device, and a task's details open in a conversation of their own.
+let chat = { id: '', title: '', kind: 'chat', messages: [] }, chatSaveT = 0;
+const freshChat = () => ({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), title: '', kind: 'chat', messages: [] });
+chat = freshChat();
+function saveChat(now) {
+  clearTimeout(chatSaveT);
+  const c = chat;
+  if (!API.server || !c.messages.some(m => m.role === 'user' || m.role === 'note')) return Promise.resolve();
+  try { localStorage.setItem('jarvis.chat', c.id); } catch {}
+  const put = () => api('chats/' + c.id, { method: 'PUT', body: { title: c.title, kind: c.kind, messages: c.messages } }).catch(e => console.warn('chat save:', e.message));
+  if (now) return put();
+  chatSaveT = setTimeout(put, 600); return Promise.resolve();
+}
+const agoS = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
+const showUser = q => out(`<span class="p">jarvis ›</span> <span class="u">${esc(q)}</span>`);
+function showAnswer(text, line) {
+  const sug = liveActions(text);
+  if (!line) { line = document.createElement('span'); tout.appendChild(line); }
+  line.textContent = sug.body;
+  if (sug.acts.length) out('\n' + sug.acts.map(([k, v]) => `<button class="btn sug" data-sk="${esc(k)}" data-sv="${esc(v)}">${esc({ todo: '+ Todo', task: '▶ Start task', approve: '✓ Approve', reject: '✗ Reject', go: '→ Open' }[k])}: ${esc(v.slice(0, 70))}</button>`).join(' '));
+  else out('');
+}
+function drawChat() {
+  tout.innerHTML = ''; termIntro();
+  const t = $('#ttitle'); if (t) t.textContent = 'jarvis — ' + (chat.title || 'new conversation');
+  if (chat.messages.length) out(`<span class="rt">◆ ${chat.kind === 'task' ? 'task' : 'resumed'}</span>  <span class="m">${esc(chat.title)} · /new starts another · /resume lists them</span>\n`);
+  for (const m of chat.messages) {
+    if (m.role === 'user') showUser(m.content);
+    else if (m.role === 'assistant') { showAnswer(m.content); out(''); }
+    else if (m.role === 'tool') out(`<span class="m">◇ ${esc(m.content)}</span>`);
+    else if (m.role === 'note') { const [h, ...rest] = m.content.split('\n'); out(`<span class="rt">${esc(h)}</span>${rest.length ? '\n<span class="m">' + esc(rest.join('\n')) + '</span>' : ''}\n`); }
+  }
+  tout.scrollTop = tout.scrollHeight;
+}
+async function newChat() { await saveChat(true); chat = freshChat(); try { localStorage.removeItem('jarvis.chat'); } catch {} drawChat(); out('<span class="m">New conversation. /resume brings back an earlier one.</span>\n'); }
+async function openChat(id) {
+  try { const c = await api('chats/' + id); await saveChat(true); chat = c; try { localStorage.setItem('jarvis.chat', c.id); } catch {} drawChat(); }
+  catch (e) { out(`<span class="w">✗ ${esc(e.message)}</span>\n`); }
+}
+async function resumeChat(arg) {
+  let list;
+  try { list = (await api('chats')).chats.filter(c => c.id !== chat.id); } catch (e) { out(`<span class="w">✗ ${esc(e.message)}</span>\n`); return; }
+  if (!list.length) { out('<span class="m">No earlier conversations yet.</span>\n'); return; }
+  const pick = /^\d+$/.test(arg) ? list[+arg - 1] : arg ? list.find(c => c.title.toLowerCase().includes(arg.toLowerCase())) : null;
+  if (pick) return openChat(pick.id);
+  if (arg) out(`<span class="m">No conversation matches "${esc(arg)}".</span>`);
+  out('<span class="m">Pick one (click, or type /resume &lt;number&gt;):</span>\n' + list.slice(0, 20).map((c, i) => `<a class="chatpick" data-chat="${esc(c.id)}"><span class="p">${String(i + 1).padStart(2)}</span>  ${esc(c.title)}  <span class="m">${c.kind === 'task' ? 'task · ' : ''}${c.count} question${c.count === 1 ? '' : 's'} · ${agoS(c.updated)}</span></a>`).join('\n') + '\n');
+}
+tout.addEventListener('click', e => { const a = e.target.closest('[data-chat]'); if (a) openChat(a.dataset.chat); });
+// Task details: the newest details replace the note at the top; questions asked about it stay.
+async function openTaskChat(taskId, title, note) {
+  const id = 'task-' + taskId.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 50);
+  let c = null; try { c = await api('chats/' + id); } catch {}
+  c ||= { id, kind: 'task', title: 'Task · ' + title, messages: [] };
+  c.messages = [{ role: 'note', content: note }, ...c.messages.filter((m, i) => !(i === 0 && m.role === 'note'))];
+  if (chat.id !== id) await saveChat(true);
+  chat = c; toggleTerm(true); drawChat(); saveChat(true);
+}
+// On a reload the conversation from the last 12 hours carries on.
+async function restoreChat() {
+  let id = ''; try { id = localStorage.getItem('jarvis.chat') || ''; } catch {}
+  if (!API.server || !id) return;
+  try { const c = await api('chats/' + id); if (Date.now() - c.updated < 12 * 3600e3) { chat = c; drawChat(); } } catch {}
+}
+// What the model sees: user and assistant turns; notes (task details) go in front of the first question kept.
+function aiMessages() {
+  let msgs = chat.messages.filter(m => m.role === 'user' || m.role === 'assistant').slice(-16);
+  while (msgs.length && msgs[0].role !== 'user') msgs = msgs.slice(1);
+  const notes = chat.messages.filter(m => m.role === 'note').map(m => m.content).join('\n\n');
+  return notes && msgs.length ? [{ role: 'user', content: `Shown in this conversation (context):\n${notes}\n\n${msgs[0].content}` }, ...msgs.slice(1)] : msgs;
+}
 async function askAI(q) {
   const c = chatConn(), e = AI_BY[c.type] || {};
   out(`<span class="rt">◆ route</span>  <span class="m">${esc(c.name)} · ${esc(c.values?.model || e.via || 'default model')}${e.local ? ' · stays home' : ''}</span>`);
   jSet('thinking');
   const line = document.createElement('span'); line.className = 'typing'; tout.appendChild(line); tout.scrollTop = tout.scrollHeight;
-  chatHistory.push({ role: 'user', content: q });
+  chat.messages.push({ role: 'user', content: q });
+  if (!chat.title) { chat.title = q.replace(/\s+/g, ' ').slice(0, 70); const t = $('#ttitle'); if (t) t.textContent = 'jarvis — ' + chat.title; }
   let text = '', failed = '';
   try {
     const r = await fetch('/api/ai/chat', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json', 'x-jarvis': '1' },
-      body: JSON.stringify({ connection: c.id, messages: chatHistory.slice(-16), context: { page: byId[current]?.dataset.name, pages: order.map(id => byId[id].dataset.name), name: CFG.profile.name, time: new Date().toString() } }) });
+      body: JSON.stringify({ connection: c.id, messages: aiMessages(), context: { page: byId[current]?.dataset.name, pages: order.map(id => byId[id].dataset.name), name: CFG.profile.name, time: new Date().toString() } }) });
     if (r.status === 401) { location.assign('/login'); return; }
     if (!r.ok || !r.body) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
     const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
@@ -3143,19 +3218,19 @@ async function askAI(q) {
         if (!data) continue;
         const m = JSON.parse(data);
         if (m.t === 'text') { if (!text) jSet('generating'); text += m.v; line.textContent = text; tout.scrollTop = tout.scrollHeight; }
+        // A tool at work: the line goes above the answer, and stays in the conversation.
+        else if (m.t === 'status') { jSet('tool'); chat.messages.push({ role: 'tool', content: m.v }); const st = document.createElement('span'); st.className = 'm'; st.textContent = '◇ ' + m.v + '\n'; tout.insertBefore(st, line); tout.scrollTop = tout.scrollHeight; }
         else if (m.t === 'error') failed = m.v;
       }
     }
   } catch (err) { failed = err.message; }
   line.classList.remove('typing');
-  if (text) chatHistory.push({ role: 'assistant', content: text }); else chatHistory.pop();
-  const sug = liveActions(text);
-  if (sug.acts.length) {
-    line.textContent = sug.body;
-    out('\n' + sug.acts.map(([k, v], i) => `<button class="btn sug" data-sk="${esc(k)}" data-sv="${esc(v)}">${esc({ todo: '+ Todo', task: '▶ Start task', approve: '✓ Approve', reject: '✗ Reject', go: '→ Open' }[k])}: ${esc(v.slice(0, 70))}</button>`).join(' '));
-  }
-  if (failed) { out(`\n<span class="w">✗ ${esc(failed)}</span>`); jSet('error', 2600); }
-  else { out('\n'); jSet('success', 2400); }
+  if (text) chat.messages.push({ role: 'assistant', content: text });
+  else { const i = chat.messages.findLastIndex(m => m.role === 'user'); if (i >= 0 && !chat.messages.slice(i + 1).some(m => m.role === 'tool')) chat.messages.splice(i, 1); }
+  showAnswer(text, line);
+  saveChat();
+  if (failed) { out(`<span class="w">✗ ${esc(failed)}</span>\n`); jSet('error', 2600); }
+  else { out(''); jSet('success', 2400); }
 }
 
 /* ======================================================== life: live data + a few scripted moments */
@@ -3288,7 +3363,9 @@ const LIVE = (() => {
       const id = p.dataset.id, fn = PAGES[id];
       if (!fn || !placed(id)) continue;
       const inner = $('.pane-inner', p);
-      if (inner.contains(document.activeElement) && document.activeElement.matches('input,textarea,select')) continue;
+      // An empty "add" box keeps focus through a redraw, so a new todo shows up at once.
+      const ae = document.activeElement, addBox = inner.contains(ae) && ae.matches('[data-add]') && !ae.value ? $$('[data-add]', inner).indexOf(ae) : -1;
+      if (addBox < 0 && inner.contains(ae) && ae.matches('input,textarea,select')) continue;
       if ([...inner.querySelectorAll('input,textarea')].some(i => i.value && !i.closest('[data-keep]'))) continue;
       let html;
       try { html = fn(); } catch (e) { console.error('live page', id, e); continue; }
@@ -3297,6 +3374,7 @@ const LIVE = (() => {
       if (id === 'home') renderHome(inner, html); else inner.innerHTML = html;
       $$('.scroll', inner).forEach((x, i) => { if (scrolls[i]) x.scrollTop = scrolls[i]; });
       last[id] = html;
+      if (addBox >= 0) $$('[data-add]', inner)[addBox]?.focus({ preventScroll: true });
       p.classList.add('lv-ready');
       drawPage(id);
     }
@@ -3332,7 +3410,9 @@ const LIVE = (() => {
       const r = await api(`live/${kind}/${action}`, { method: 'POST', body: body || {} });
       if (okText) toast(okText);
       orb.ripple(0, 0, .3);
-      await poll(true);
+      // The dashboard's own data comes back with the answer: draw it now, then read the rest.
+      if (kind === 'local' && r?.todos && S) { S = { ...S, local: r }; render(); await poll(); }
+      else await poll(true);
       return r;
     } catch (e) { toast(e.message); jSet('error', 2000); return null; }
   }
@@ -3403,15 +3483,15 @@ const LIVE = (() => {
   async function showTask(id) {
     try {
       const t = await api('live/harness/detail', { method: 'POST', body: { id } });
-      toggleTerm(true);
-      out(`<span class="rt">◆ task</span>  <b>${esc(t.title)}</b> <span class="m">${esc(t.id)} · ${esc(t.worker)}${t.model ? ' · ' + esc(t.model) : ''} · ${esc(stLabel(t))}</span>`);
-      if (t.objective) out(`<span class="m">objective</span>  ${esc(t.objective.slice(0, 800))}`);
-      if (t.summaryText) out(`<span class="ok">result</span>  ${esc(t.summaryText)}`);
-      if (t.error) out(`<span class="w">error</span>  ${esc(t.error)}`);
-      for (const r of t.reasons) out(`<span class="m">  · ${esc(r)}</span>`);
-      for (const f of t.files) out(`<span class="m">  ${esc(f.status)}</span> ${esc(f.path)}`);
-      for (const ev of t.events.slice(0, 14)) out(`<span class="m">${esc(time(ev.at))}  ${esc(ev.text)}</span>`);
-      out('');
+      const L = [`◆ task  ${t.title}`, `${t.id} · ${t.worker}${t.model ? ' · ' + t.model : ''} · ${stLabel(t)}`];
+      if (t.objective) L.push('objective  ' + t.objective.slice(0, 800));
+      if (t.summaryText) L.push('result  ' + t.summaryText);
+      if (t.error) L.push('error  ' + t.error);
+      for (const r of t.reasons) L.push('  · ' + r);
+      for (const f of t.files) L.push(`  ${f.status} ${f.path}`);
+      for (const ev of t.events.slice(0, 14)) L.push(`${time(ev.at)}  ${ev.text}`);
+      await openTaskChat(t.id, t.title, L.join('\n'));
+      out('<span class="m">Ask anything about this task here. /resume goes back to another conversation.</span>\n');
     } catch (e) { toast(e.message); }
   }
   function autoForm(f) {
@@ -3886,7 +3966,7 @@ const LIVE = (() => {
     return ph('inbox', 'Inbox · ' + [mail && 'mail', h && 'approvals', gh && 'GitHub', ha && 'alerts'].filter(Boolean).join(', '), 'Inbox', stats([[items.filter(i => i.g === 'Needs a decision' || i.g === 'Needs a reply').length, 'need you'], [mail ? mail.unseen : '—', mail ? 'unread in ' + mail.folder : 'unread mail'], [items.filter(i => i.g === 'FYI').length, 'for your information'], [gh?.notifications ? gh.notifications.filter(n => n.unread).length : '—', 'unread on GitHub']])) +
       `<div class="grid" style="grid-template-columns:1.55fr 1fr"><div class="card"><h3>Triage <span class="go">${mail?.checked ? 'mail checked ' + esc(hm(new Date(mail.checked))) + ' · ' : ''}newest first <button class="btn" data-la="mail-refresh" style="margin-left:8px;padding:3px 10px;font-size:11.5px">↻ Refresh</button></span></h3><div class="scroll">${groups.map(g => { const list = items.filter(i => i.g === g).sort((a, b) => b.t - a.t); return list.length ? `<div class="tg">${g} · ${list.length}</div>` + list.map(i => `<div class="msg" ${i.url ? `data-la="open" data-url="${esc(i.url)}"` : ''}><span class="av" style="background:${i.c}">${esc((i.who || '?')[0].toUpperCase())}</span><span class="who">${esc(i.title)}<span class="t2" style="font-weight:400"> · ${esc(i.who)}</span></span><span class="src">${esc(i.src)}</span><p>${esc(i.text || '')}</p>${i.acts ? `<div class="row" style="grid-column:2/-1;margin-top:6px">${i.acts}</div>` : ''}</div>`).join('') : ''; }).join('') || '<div class="empty"><div>Inbox zero. Nothing wants you.</div></div>'}</div></div>
       <div class="col-stack"><div class="card insight"><h3>JARVIS can help</h3><p>Ask for a summary of everything waiting: mail, approvals, pull requests and failures.</p><div class="row" style="margin-top:12px"><button class="btn pri" data-la="ask" data-q="Go through what is waiting for me (unread mail, approvals, pull requests, failures) and tell me what to do first, briefly.">What first?</button></div></div>
-      <div class="card fill"><h3>Sources</h3><div class="list">${[['email', 'Unread mail', mail, 'mail'], ['harness', 'Agent approvals and failures', h, 'harness'], ['github', 'Pull requests and notifications', gh, 'github'], ['home-assistant', 'Home problems', ha, 'home']].map(([t, d, on, k]) => `<div class="cron"><span>${esc(NAMES[t])}</span><span class="nx">${on ? '<span class="st good">connected</span>' : src(k) && !src(k).pending ? '<span class="st crit">not answering</span>' : '<a class="lk" data-settings="connections">connect</a>'}</span><span></span><span class="w">${d}</span></div>`).join('')}</div><p class="muted" style="font-size:12px;margin-top:10px">Mail is read-only: JARVIS reads the headers of new messages and never marks, moves or sends anything.${mail?.webmail ? ' Click a message to open your webmail.' : ''}</p></div></div></div>`;
+      <div class="card fill"><h3>Sources</h3><div class="list">${[['email', 'Unread mail', mail, 'mail'], ['harness', 'Agent approvals and failures', h, 'harness'], ['github', 'Pull requests and notifications', gh, 'github'], ['home-assistant', 'Home problems', ha, 'home']].map(([t, d, on, k]) => `<div class="cron"><span>${esc(NAMES[t])}</span><span class="nx">${on ? '<span class="st good">connected</span>' : src(k) && !src(k).pending ? '<span class="st crit">not answering</span>' : '<a class="lk" data-settings="connections">connect</a>'}</span><span></span><span class="w">${d}</span></div>`).join('')}</div><p class="muted" style="font-size:12px;margin-top:10px">Mail is read-only: the Inbox shows the headers of new messages, JARVIS reads a message's text when you ask about it, and nothing is ever marked, moved or sent.${mail?.webmail ? ' Click a message to open your webmail.' : ''}</p></div></div></div>`;
   };
 
   // Network ------------------------------------------------------------------
@@ -3969,7 +4049,7 @@ async function runSuggested(kind, value) {
   if (kind === 'go') { const id = order.find(o => byId[o].dataset.name.toLowerCase() === value.toLowerCase() || o === value.toLowerCase()); if (id) { toggleTerm(false); go(id); } return; }
   const map = { idea: ['local', 'ideas/add', { text: value }], todo: ['local', 'todos/add', { text: value, from: 'from the terminal' }], task: ['harness', 'create', { objective: value }], approve: ['harness', 'decide', { id: value, decision: 'approve' }], reject: ['harness', 'decide', { id: value, decision: 'reject' }] };
   const [k, a, b] = map[kind];
-  try { const r = await api(`live/${k}/${a}`, { method: 'POST', body: b }); out(`<span class="ok">✓ ${esc(kind)} · ${esc(r.id || value.slice(0, 60))}</span>\n`); LIVE.poll(true); }
+  try { const r = await api(`live/${k}/${a}`, { method: 'POST', body: b }); out(`<span class="ok">✓ ${esc(kind)} · ${esc(r.id || value.slice(0, 60))}</span>\n`); LIVE.poll(k !== 'local'); }
   catch (e) { out(`<span class="w">✗ ${esc(e.message)}</span>\n`); }
 }
 
@@ -3994,7 +4074,7 @@ async function start() {
     renderDemoMachines();
   }
   if (!API.server) $('#home-machines').style.visibility = 'visible';
-  applyAppearance(); applyProfile(); termIntro();
+  applyAppearance(); applyProfile(); termIntro(); restoreChat();
   const first = boot();
   // The loading animation stays until the live data is drawn (at most 4 s), so the board never shows half empty.
   if (API.server) { const t = $('#bootnote span'); if (t) t.textContent = 'JARVIS · loading your board'; await Promise.race([LIVE.start(), new Promise(r => setTimeout(r, 4000))]); }
