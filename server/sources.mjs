@@ -242,8 +242,10 @@ export async function tailscale(c, fresh) {
 export async function cloudflare(c, fresh) {
   const h = { authorization: `Bearer ${secret(c, "token")}` }, cf = (p) => request(`https://api.cloudflare.com/client/v4/${p}`, { headers: h }).then((r) => r.result);
   return caches.cloudflare(c.id, async () => {
-    const acct = (await cf("accounts?per_page=5"))?.[0];
-    if (!acct) throw new SourceError("the token cannot see any account");
+    // Tokens scoped to tunnels/Access/zones (no Account Settings permission) list no accounts, but
+    // their zones name the account that owns them.
+    const acct = (await cf("accounts?per_page=5"))?.[0] || (await cf("zones?per_page=5").catch(() => []))?.[0]?.account;
+    if (!acct?.id) throw new SourceError("the token cannot see any account or zone");
     const [tunnels, apps] = await Promise.all([cf(`accounts/${acct.id}/cfd_tunnel?is_deleted=false&per_page=20`).catch(() => []), cf(`accounts/${acct.id}/access/apps?per_page=100`).catch(() => null)]);
     const protectedHosts = new Set((apps || []).flatMap((a) => [a.domain, ...(a.self_hosted_domains || [])]).filter(Boolean).map((d) => String(d).split("/")[0].toLowerCase()));
     const routes = [];
