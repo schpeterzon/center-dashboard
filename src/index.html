@@ -1393,7 +1393,7 @@ const DEFAULTS = {
   appearance: { theme: 'jarvis', accent: '', font: 'grotesk', motion: 'full', css: '', themes: [] },
   layout: structuredClone(DEFAULT_LAYOUT),
   jarvis: { chatty: true },
-  ai: { chat: '', auto: true },
+  ai: { chat: '', auto: true, via: '' },
 };
 let CFG = structuredClone(DEFAULTS);
 const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
@@ -1665,7 +1665,8 @@ function connSection(kind) {
     h += `<div class="grp"><h4>${title}</h4>${sub ? `<p>${sub}</p>` : ''}<div class="prov">${items.map(x => `<button class="pcard" data-a="add" data-type="${x.id}" ${API.server ? '' : 'disabled style="opacity:.75"'}>${x.via ? `<em>${esc(x.via.toUpperCase())}</em>` : ''}<b>${x.icon ? `<span class="mono t2" style="margin-right:8px">${x.icon}</span>` : ''}${esc(x.name)}</b><span>${esc(x.blurb)}</span></button>`).join('')}</div></div>`;
   }
   if (ai && API.server) h += `<div class="grp"><h4>Routing</h4>${fld('Terminal & chat use', `<select class="inp sel" data-k="ai.chat"><option value="">first connected</option>${aiList().map(c => `<option value="${c.id}" ${CFG.ai.chat === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>`)}
-    <p class="hint">Claude CLI runs in bare mode with its tools disabled and denied. API and local model requests do not include tool definitions. Codex and Gemini subscriptions are hidden until JARVIS can enforce text-only execution. Agents keep their own routing in jarvis-hermes.</p></div>`;
+    ${fld('Terminal answers come from', `<select class="inp sel" data-k="ai.via"><option value="">the AI connection above (fast, its own API limits)</option>${(API.engines || []).map(e => `<option value="${esc(e.id)}" ${CFG.ai.via === e.id ? 'selected' : ''}>${esc(e.label)} · via the Harness</option>`).join('')}${CFG.ai.via && !(API.engines || []).some(e => e.id === CFG.ai.via) ? `<option value="${esc(CFG.ai.via)}" selected>${esc(CFG.ai.via)} (not available now)</option>` : ''}</select>`)}
+    <p class="hint">Through a Harness, a Harness agent answers each message on that Harness' models (for example your ChatGPT subscription) and can check your machines itself; it takes about a minute. With the AI connection, API and local models get JARVIS' tools (mail, look-ups, the Harness); the Claude CLI runs with its tools disabled. Codex and Gemini subscriptions are hidden until JARVIS can enforce text-only execution.</p></div>`;
   return h;
 }
 function formHtml() {
@@ -3277,6 +3278,7 @@ async function openTaskChat(taskId, title, note) {
 // On a reload the conversation from the last 12 hours carries on.
 async function restoreChat() {
   if (!API.server) return;
+  api('ai/engines').then(r => { API.engines = r.engines; }).catch(() => {});
   $('#tnew').hidden = $('#tsess').hidden = $('#tauto').hidden = false;
   const chip = $('#term header .chip'); if (chip) chip.hidden = true;
   syncAuto();
@@ -3295,8 +3297,10 @@ function aiMessages(conv = chat) {
 async function askAI(q, conv = chat) {
   // The answer belongs to the conversation it was asked in, even if you switch away meanwhile.
   const c = chatConn(), e = AI_BY[c.type] || {}, here = () => chat === conv;
+  // The conversation's own route (picked after a rate limit), else the default from Settings.
+  const via = conv.via || CFG.ai.via || '', viaLabel = conv.via ? conv.viaLabel : (API.engines || []).find(x => x.id === via)?.label || via;
   // A conversation can be answered through a Harness (a subscription) instead of the API key.
-  if (here()) out(`<span class="rt">◆ route</span>  <span class="m">${conv.via ? esc(conv.viaLabel || conv.via) + ' · via the Harness, takes a minute' : esc(c.name) + ' · ' + esc(c.values?.model || e.via || 'default model') + (e.local ? ' · stays home' : '')}</span>`);
+  if (here()) out(`<span class="rt">◆ route</span>  <span class="m">${via ? esc(viaLabel) + ' · via the Harness, takes a minute' : esc(c.name) + ' · ' + esc(c.values?.model || e.via || 'default model') + (e.local ? ' · stays home' : '')}</span>`);
   jSet('thinking');
   const line = document.createElement('span'); line.className = 'typing'; if (here()) { tout.appendChild(line); tout.scrollTop = tout.scrollHeight; }
   conv.messages.push({ role: 'user', content: q });
@@ -3304,8 +3308,8 @@ async function askAI(q, conv = chat) {
   saveChat(true, conv);
   let text = '', failed = '', fallback = null;
   try {
-    const r = await fetch(conv.via ? '/api/ai/harness' : '/api/ai/chat', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json', 'x-jarvis': '1' },
-      body: JSON.stringify({ connection: c.id, auto: CFG.ai.auto !== false, engine: conv.via || conv.engine || '', messages: aiMessages(conv), context: { page: byId[current]?.dataset.name, pages: order.map(id => byId[id].dataset.name), name: CFG.profile.name, time: new Date().toString() } }) });
+    const r = await fetch(via ? '/api/ai/harness' : '/api/ai/chat', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json', 'x-jarvis': '1' },
+      body: JSON.stringify({ connection: c.id, auto: CFG.ai.auto !== false, engine: via || conv.engine || '', messages: aiMessages(conv), context: { page: byId[current]?.dataset.name, pages: order.map(id => byId[id].dataset.name), name: CFG.profile.name, time: new Date().toString() } }) });
     if (r.status === 401) { location.assign('/login'); return; }
     if (!r.ok || !r.body) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
     const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';

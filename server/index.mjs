@@ -328,6 +328,12 @@ async function api(req, res, url, who) {
     return res.end();
   }
 
+  // Which Harnesses and models can answer the terminal (Settings → AI → Routing).
+  if (p === "ai/engines" && m === "GET") {
+    const chatModel = state.connections.find((x) => x.kind === "ai")?.values?.model;
+    return json(res, 200, { engines: (await engines(chatModel).catch(() => [])).map(({ id, label }) => ({ id, label })) });
+  }
+
   // The same conversation answered by a Harness agent (for example on a ChatGPT subscription
   // when the API key is rate-limited). Streams like ai/chat: status lines, then the answer.
   if (p === "ai/harness" && m === "POST") {
