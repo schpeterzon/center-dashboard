@@ -830,7 +830,7 @@ body.server .pane:not(.lv-ready) .pane-inner{visibility:hidden}
     <div id="mini" title="Board map"><div id="camrect"></div></div>
     <span class="mono" id="clock">18:42</span>
     <button class="ibtn" id="chatty" title="Let Jarvis speak up on its own"><i class="dot"></i><span>Chatty</span></button>
-    <button class="ibtn" id="ovbtn">Overview <kbd>Esc</kbd></button>
+    <button class="ibtn" id="ovbtn">Overview <kbd>O</kbd></button>
     <button class="ibtn" id="setbtn" title="Settings  ( , )" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
   </div>
 </div></header>
@@ -839,7 +839,7 @@ body.server .pane:not(.lv-ready) .pane-inner{visibility:hidden}
 <div class="edgewrap r"><button class="edge zz" id="e-r"></button></div>
 <div class="edgewrap u"><button class="edge zz" id="e-u"></button></div>
 <div class="edgewrap d"><button class="edge zz" id="e-d"></button></div>
-<div id="termwrap"><button class="ibtn zz" id="termbtn"><span style="color:var(--accent)">✦</span> Ask JARVIS <kbd>`</kbd></button></div>
+<div id="termwrap"><button class="ibtn zz" id="termbtn"><span style="color:var(--accent)">✦</span> Ask JARVIS <kbd>Esc</kbd></button></div>
 
 <main id="board">
 
@@ -2249,14 +2249,14 @@ const LINES = {
 };
 const QUIPS = ["Yes? Press ` if you want to talk properly.", "Still here. Still watching forge.", "Hold me down if you're bored. I'll charge up.", "Nothing's on fire. I checked twice.", "Drag me to the other corner. I'll remember it."];
 const AMBIENT = [
-  "Tip: press Esc to see the whole board. I like the view from up there.",
+  "Tip: press O to see the whole board. I like the view from up there.",
   "€21.40 of €60 spent this month. Most of the thinking happened at home.",
   "The new coder model benchmark starts at 21:00. I'll report back.",
   "Your weekly review drafts itself Sunday at 18:00. I'm keeping notes.",
   "You can drag the board around, by the way. Grab any empty space.",
   "Gym at 19:30. I'm not saying anything. I'm just saying.",
 ];
-const TIPS = ["Tip: press Esc to see the whole board.", "Tip: press , to open settings. Themes, pages, AI — it's all in there.", "You can drag the board around. Grab any empty space.", "Tip: type \"theme nord\" in the terminal.", "Drag me to the other corner. I'll remember it."];
+const TIPS = ["Tip: press Esc to talk to me, and O to see the whole board.", "Tip: press , to open settings. Themes, pages, AI — it's all in there.", "You can drag the board around. Grab any empty space.", "Tip: type \"theme nord\" in the terminal.", "Drag me to the other corner. I'll remember it."];
 const visited = new Set();
 function onArrive(a) {
   if (a.ov) { if (!visited.has('ov')) { visited.add('ov'); setTimeout(() => say("That's the whole board. Pick a tile.", { force: true }), 200); } return; }
@@ -2367,7 +2367,9 @@ document.addEventListener('keydown', e => {
   if (e.key === '`') { e.preventDefault(); toggleTerm(); return; }
   // "/" anywhere opens the chat with its command menu.
   if (e.key === '/' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); toggleTerm(true); setTimeout(() => { tin.value = '/'; growIn(); updateMenu(); tin.focus(); }, 80); return; }
-  if (e.key === 'Escape') { if (termOpen) toggleTerm(false); else if (sp) hush(); else toggleOverview(); return; }
+  // Esc opens and closes the chat (the backtick is awkward on many keyboards); it first leaves the
+  // overview or quiets a speech bubble if one is up. O shows the whole board.
+  if (e.key === 'Escape') { if (termOpen) toggleTerm(false); else if (overview) go(current); else if (sp) hush(); else toggleTerm(true); return; }
   if (typing) return;
   if (e.code === 'Space') { e.preventDefault(); spaceHeld = true; return; }
   const m = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
