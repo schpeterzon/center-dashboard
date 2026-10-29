@@ -740,6 +740,7 @@ body.calm *,body.calm *::before,body.calm *::after{animation-duration:.001s!impo
 .hp .menu button:hover{background:color-mix(in srgb,var(--ink) 6%,transparent)}
 .hp .menu button.cur{color:var(--accent)} .hp .menu button em{font:500 10px var(--mono);font-style:normal;color:var(--muted)}
 #tout .sug{font:500 .92em var(--mono);padding:.3em .8em;margin:.2em .3em .2em 0}
+#term .tconv{font:500 .85em var(--sans);padding:.3em .75em;border:1px solid var(--line-2);border-radius:7px;color:var(--text-2);background:none;cursor:pointer} #term .tconv:hover{color:var(--text);border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
 #tout .chatpick{cursor:pointer;display:inline-block;border-radius:5px;padding:0 .3em} #tout .chatpick:hover{background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--text)}
 .pane.live .empty{flex:1;min-height:0;overflow:hidden;padding:10px 8px;gap:8px}
 .pane.live .card.span4 .empty .muted{font-size:11.5px}
@@ -1342,7 +1343,7 @@ body.server .pane:not(.lv-ready) .pane-inner{visibility:hidden}
 
 <!-- ================= TERMINAL ================= -->
 <div id="term" role="dialog" aria-label="Jarvis terminal">
- <header><div class="dots"><i></i><i></i><i></i></div><span id="ttitle">jarvis — ~/home</span><div class="sp"></div><span class="chip e-local"><i></i>route: auto · local-first</span><kbd>`</kbd><button type="button" class="term-close" id="term-close" aria-label="Close terminal" title="Close terminal (Esc)">×</button></header>
+ <header><div class="dots"><i></i><i></i><i></i></div><span id="ttitle">jarvis — ~/home</span><div class="sp"></div><button type="button" class="tconv" id="tnew" hidden title="Start a new conversation (/new)">+ New</button><button type="button" class="tconv" id="tsess" hidden title="Earlier conversations and task details (/resume)">Conversations</button><span class="chip e-local"><i></i>route: auto · local-first</span><kbd>`</kbd><button type="button" class="term-close" id="term-close" aria-label="Close terminal" title="Close terminal (Esc)">×</button></header>
  <div id="tout"></div>
  <div id="tin"><span>jarvis ›</span><input id="tinput" placeholder="try: status · plan my week · run fix · build an app · portfolio · go lab" autocomplete="off"></div>
 </div>
@@ -3079,8 +3080,17 @@ const replies = [
 ];
 // Replies queue up, so a question asked mid-answer waits its turn instead of interleaving.
 let replying = Promise.resolve();
-const respond = q => (replying = replying.then(() => answer(q)));
-async function answer(q) {
+// Conversation commands run at once, even while an answer (say a Harness investigation) is still coming.
+// Answers queue per conversation, so a long one (a Harness investigation) never holds up another.
+const queues = new Map();
+const respond = q => {
+  if (API.server && /^\/?(new|resume|sessions)(\s|$)/i.test(q.trim())) return answer(q);
+  if (!API.server) return (replying = replying.then(() => answer(q)));
+  const conv = chat, next = (queues.get(conv.id) || Promise.resolve()).then(() => answer(q, conv));
+  queues.set(conv.id, next); next.finally(() => queues.get(conv.id) === next && queues.delete(conv.id));
+  return next;
+};
+async function answer(q, conv) {
   const lc = q.toLowerCase();
   if (lc === 'clear') { tout.innerHTML = ''; return; }
   if (API.server && /^\/?new$/.test(lc)) return newChat();
@@ -3092,7 +3102,7 @@ async function answer(q) {
   // Direct commands act at once, without asking the AI.
   const cm = API.server && q.match(/^(task|todo|idea|approve|reject)\s+(.+)$/i);
   if (cm) { await runSuggested(cm[1].toLowerCase() === 'idea' ? 'idea' : cm[1].toLowerCase(), cm[2].trim()); return; }
-  if (API.server && chatConn() && !/^help$/.test(lc)) return askAI(q);
+  if (API.server && chatConn() && !/^help$/.test(lc)) return askAI(q, conv);
   const r = replies.find(([re]) => re.test(lc)) || [0, 'local · sample', [API.server ? 'No AI is connected yet. Open Settings → AI and pick a subscription, an API key or a local model.' : 'This demo answers from a script. Run the server and connect an AI in Settings → AI for real answers.']];
   jSet(r[1].includes('hermes') ? 'planning' : 'thinking');
   out(`<span class="rt">◆ route</span>  <span class="m">auto → ${r[1]}</span>`);
@@ -3128,13 +3138,12 @@ $$('.hero .sugg button').forEach(b => b.onclick = () => sendToTerm(b.textContent
 let chat = { id: '', title: '', kind: 'chat', messages: [] }, chatSaveT = 0;
 const freshChat = () => ({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), title: '', kind: 'chat', messages: [] });
 chat = freshChat();
-function saveChat(now) {
-  clearTimeout(chatSaveT);
-  const c = chat;
+function saveChat(now, c = chat) {
+  if (c === chat) clearTimeout(chatSaveT);
   if (!API.server || !c.messages.some(m => m.role === 'user' || m.role === 'note')) return Promise.resolve();
-  try { localStorage.setItem('jarvis.chat', c.id); } catch {}
+  if (c === chat) try { localStorage.setItem('jarvis.chat', c.id); } catch {}
   const put = () => api('chats/' + c.id, { method: 'PUT', body: { title: c.title, kind: c.kind, messages: c.messages } }).catch(e => console.warn('chat save:', e.message));
-  if (now) return put();
+  if (now || c !== chat) return put();
   chatSaveT = setTimeout(put, 600); return Promise.resolve();
 }
 const agoS = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
@@ -3173,6 +3182,8 @@ async function resumeChat(arg) {
   out('<span class="m">Pick one (click, or type /resume &lt;number&gt;):</span>\n' + list.slice(0, 20).map((c, i) => `<a class="chatpick" data-chat="${esc(c.id)}"><span class="p">${String(i + 1).padStart(2)}</span>  ${esc(c.title)}  <span class="m">${c.kind === 'task' ? 'task · ' : ''}${c.count} question${c.count === 1 ? '' : 's'} · ${agoS(c.updated)}</span></a>`).join('\n') + '\n');
 }
 tout.addEventListener('click', e => { const a = e.target.closest('[data-chat]'); if (a) openChat(a.dataset.chat); });
+$('#tnew').onclick = () => { showUser('/new'); newChat(); tin.focus(); };
+$('#tsess').onclick = () => { showUser('/resume'); resumeChat(''); tin.focus(); };
 // Task details: the newest details replace the note at the top; questions asked about it stay.
 async function openTaskChat(taskId, title, note) {
   const id = 'task-' + taskId.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 50);
@@ -3184,28 +3195,33 @@ async function openTaskChat(taskId, title, note) {
 }
 // On a reload the conversation from the last 12 hours carries on.
 async function restoreChat() {
+  if (!API.server) return;
+  $('#tnew').hidden = $('#tsess').hidden = false;
+  tin.placeholder = 'ask anything · /new starts a new conversation · /resume opens an earlier one';
   let id = ''; try { id = localStorage.getItem('jarvis.chat') || ''; } catch {}
-  if (!API.server || !id) return;
+  if (!id) return;
   try { const c = await api('chats/' + id); if (Date.now() - c.updated < 12 * 3600e3) { chat = c; drawChat(); } } catch {}
 }
 // What the model sees: user and assistant turns; notes (task details) go in front of the first question kept.
-function aiMessages() {
-  let msgs = chat.messages.filter(m => m.role === 'user' || m.role === 'assistant').slice(-16);
+function aiMessages(conv = chat) {
+  let msgs = conv.messages.filter(m => m.role === 'user' || m.role === 'assistant').slice(-16);
   while (msgs.length && msgs[0].role !== 'user') msgs = msgs.slice(1);
-  const notes = chat.messages.filter(m => m.role === 'note').map(m => m.content).join('\n\n');
+  const notes = conv.messages.filter(m => m.role === 'note').map(m => m.content).join('\n\n');
   return notes && msgs.length ? [{ role: 'user', content: `Shown in this conversation (context):\n${notes}\n\n${msgs[0].content}` }, ...msgs.slice(1)] : msgs;
 }
-async function askAI(q) {
-  const c = chatConn(), e = AI_BY[c.type] || {};
-  out(`<span class="rt">◆ route</span>  <span class="m">${esc(c.name)} · ${esc(c.values?.model || e.via || 'default model')}${e.local ? ' · stays home' : ''}</span>`);
+async function askAI(q, conv = chat) {
+  // The answer belongs to the conversation it was asked in, even if you switch away meanwhile.
+  const c = chatConn(), e = AI_BY[c.type] || {}, here = () => chat === conv;
+  if (here()) out(`<span class="rt">◆ route</span>  <span class="m">${esc(c.name)} · ${esc(c.values?.model || e.via || 'default model')}${e.local ? ' · stays home' : ''}</span>`);
   jSet('thinking');
-  const line = document.createElement('span'); line.className = 'typing'; tout.appendChild(line); tout.scrollTop = tout.scrollHeight;
-  chat.messages.push({ role: 'user', content: q });
-  if (!chat.title) { chat.title = q.replace(/\s+/g, ' ').slice(0, 70); const t = $('#ttitle'); if (t) t.textContent = 'jarvis — ' + chat.title; }
+  const line = document.createElement('span'); line.className = 'typing'; if (here()) { tout.appendChild(line); tout.scrollTop = tout.scrollHeight; }
+  conv.messages.push({ role: 'user', content: q });
+  if (!conv.title) { conv.title = q.replace(/\s+/g, ' ').slice(0, 70); const t = $('#ttitle'); if (t && here()) t.textContent = 'jarvis — ' + conv.title; }
+  saveChat(true, conv);
   let text = '', failed = '';
   try {
     const r = await fetch('/api/ai/chat', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json', 'x-jarvis': '1' },
-      body: JSON.stringify({ connection: c.id, messages: aiMessages(), context: { page: byId[current]?.dataset.name, pages: order.map(id => byId[id].dataset.name), name: CFG.profile.name, time: new Date().toString() } }) });
+      body: JSON.stringify({ connection: c.id, messages: aiMessages(conv), context: { page: byId[current]?.dataset.name, pages: order.map(id => byId[id].dataset.name), name: CFG.profile.name, time: new Date().toString() } }) });
     if (r.status === 401) { location.assign('/login'); return; }
     if (!r.ok || !r.body) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
     const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
@@ -3217,18 +3233,19 @@ async function askAI(q) {
         const data = ev.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5).trim()).join('');
         if (!data) continue;
         const m = JSON.parse(data);
-        if (m.t === 'text') { if (!text) jSet('generating'); text += m.v; line.textContent = text; tout.scrollTop = tout.scrollHeight; }
+        if (m.t === 'text') { if (!text) jSet('generating'); text += m.v; line.textContent = text; if (here()) tout.scrollTop = tout.scrollHeight; }
         // A tool at work: the line goes above the answer, and stays in the conversation.
-        else if (m.t === 'status') { jSet('tool'); chat.messages.push({ role: 'tool', content: m.v }); const st = document.createElement('span'); st.className = 'm'; st.textContent = '◇ ' + m.v + '\n'; tout.insertBefore(st, line); tout.scrollTop = tout.scrollHeight; }
+        else if (m.t === 'status') { jSet('tool'); conv.messages.push({ role: 'tool', content: m.v }); if (!here()) continue; const st = document.createElement('span'); st.className = 'm'; st.textContent = '◇ ' + m.v + '\n'; tout.insertBefore(st, line); tout.scrollTop = tout.scrollHeight; }
         else if (m.t === 'error') failed = m.v;
       }
     }
   } catch (err) { failed = err.message; }
   line.classList.remove('typing');
-  if (text) chat.messages.push({ role: 'assistant', content: text });
-  else { const i = chat.messages.findLastIndex(m => m.role === 'user'); if (i >= 0 && !chat.messages.slice(i + 1).some(m => m.role === 'tool')) chat.messages.splice(i, 1); }
+  if (text) conv.messages.push({ role: 'assistant', content: text });
+  else if (failed) conv.messages.push({ role: 'tool', content: '✗ ' + failed });
+  saveChat(false, conv);
+  if (!here()) { out(`<span class="m">◆ an answer arrived in "${esc(conv.title)}" · /resume to read it</span>\n`); jSet('success', 2400); return; }
   showAnswer(text, line);
-  saveChat();
   if (failed) { out(`<span class="w">✗ ${esc(failed)}</span>\n`); jSet('error', 2600); }
   else { out(''); jSet('success', 2400); }
 }
