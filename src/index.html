@@ -511,6 +511,15 @@ body.term.tbig::after{opacity:1}
 #term .tconv.on{color:var(--good);border-color:color-mix(in srgb,var(--good) 40%,transparent)}
 #tgrip{position:absolute;right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;z-index:3;background:linear-gradient(135deg,transparent 55%,var(--line-2) 55% 62%,transparent 62% 72%,var(--line-2) 72% 79%,transparent 79%)}
 body.tbig #tgrip{display:none}
+/* Scrollbars in the chat: a slim rounded thumb in the board's colours, no arrow buttons, shown
+   only while the pointer is over something that scrolls (and only when it has more to show). */
+#term ::-webkit-scrollbar{width:9px;height:9px}
+#term ::-webkit-scrollbar-track,#term ::-webkit-scrollbar-corner{background:transparent}
+#term ::-webkit-scrollbar-button{display:none;width:0;height:0}
+#term ::-webkit-scrollbar-thumb{background:transparent;border-radius:99px;border:2px solid transparent;background-clip:padding-box;min-height:36px}
+#term :hover::-webkit-scrollbar-thumb{background-color:color-mix(in srgb,var(--ink) 16%,transparent)}
+#term ::-webkit-scrollbar-thumb:hover,#term ::-webkit-scrollbar-thumb:active{background-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+@supports (-moz-appearance:none){#term *{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--ink) 18%,transparent) transparent}}
 /* the conversations dropdown */
 #tconvs{position:absolute;top:3.9em;right:.6em;width:min(380px,calc(100% - 1.2em));max-height:min(70%,480px);display:flex;flex-direction:column;z-index:5;background:var(--term);border:1px solid var(--line-2);border-radius:14px;box-shadow:0 24px 60px -16px color-mix(in srgb,var(--shadow) 90%,transparent);animation:tdrop .22s cubic-bezier(.2,1.2,.3,1);transform-origin:top right;overflow:hidden}
 #tconvs[hidden]{display:none}
@@ -518,7 +527,7 @@ body.tbig #tgrip{display:none}
 #tconvs .tch{display:flex;gap:.45em;padding:.6em;border-bottom:1px solid var(--line)}
 #tcq{flex:1;min-width:0;font:13.5px var(--sans);color:var(--text);background:color-mix(in srgb,var(--ink) 4%,transparent);border:1px solid var(--line-2);border-radius:9px;padding:.42em .7em;outline:none}
 #tcq:focus{border-color:color-mix(in srgb,var(--accent) 50%,transparent)}
-#tconvs .tcl{overflow:auto;padding:.3em;scrollbar-width:thin}
+#tconvs .tcl{overflow:auto;padding:.3em}
 #tconvs .tcg{font:600 10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:.7em .7em .3em}
 #tconvs .tc{display:grid;grid-template-columns:1.3em 1fr auto;align-items:center;gap:.15em .5em;padding:.45em .55em;border-radius:9px;cursor:pointer;position:relative}
 #tconvs .tc:hover,#tconvs .tc.sel{background:color-mix(in srgb,var(--accent) 9%,transparent)}
@@ -531,7 +540,7 @@ body.tbig #tgrip{display:none}
 #tconvs .tcx.sure{font:600 11px var(--sans);color:var(--crit)}
 #tconvs .tcm{padding:1.2em;text-align:center;color:var(--muted);font-size:13px}
 /* the conversation */
-#tout{flex:1;overflow:auto;padding:1em 1em .7em;scrollbar-width:thin;display:flex;flex-direction:column;gap:.75em;overscroll-behavior:contain}
+#tout{flex:1;overflow:auto;padding:1em 1em .7em;display:flex;flex-direction:column;gap:.75em;overscroll-behavior:contain}
 #tout .sys{white-space:pre-wrap;font:12.5px/1.6 var(--mono);color:var(--text-2);animation:tpop .3s ease-out}
 #tout .sys:empty{display:none}
 #tout .p{color:var(--accent)} #tout .u{color:var(--text)} #tout .m{color:var(--muted)}
@@ -580,7 +589,7 @@ body.tbig #tgrip{display:none}
 /* the message box */
 #tin{display:flex;gap:.5em;padding:.6em .7em .7em;border-top:1px solid var(--line);align-items:flex-end;flex:none}
 #tin>span{display:none}
-#tinput{flex:1;resize:none;min-height:2.6em;max-height:9em;font:14px/1.45 var(--sans);color:var(--text);background:color-mix(in srgb,var(--ink) 4%,transparent);border:1px solid var(--line-2);border-radius:13px;padding:.55em .85em;outline:none;transition:border-color .2s,box-shadow .2s}
+#tinput{flex:1;resize:none;min-height:2.6em;max-height:170px;overflow-y:hidden;font:14px/1.45 var(--sans);color:var(--text);background:color-mix(in srgb,var(--ink) 4%,transparent);border:1px solid var(--line-2);border-radius:13px;padding:.55em .85em;outline:none;transition:border-color .2s,box-shadow .2s}
 #tinput:focus{border-color:color-mix(in srgb,var(--accent) 50%,transparent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)}
 #tsend{width:2.6em;height:2.6em;flex:none;border-radius:12px;border:0;background:var(--accent);color:var(--bg);font:600 1.05em/1 var(--sans);cursor:pointer;transition:transform .15s,opacity .2s}
 #tsend:disabled{opacity:.35;cursor:default} #tsend:not(:disabled):hover{transform:translateY(-1px) scale(1.04)}
@@ -588,7 +597,7 @@ body.tbig #tgrip{display:none}
 #jarvis.unread::after{content:"";position:absolute;top:10%;right:10%;width:22%;height:22%;min-width:9px;min-height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--bg),0 0 14px var(--accent);animation:tbadge 1.6s ease-in-out infinite;pointer-events:none}
 @keyframes tbadge{50%{transform:scale(1.25)}}
 @media (prefers-reduced-motion:reduce){#term,body.term #term{transition:opacity .2s,visibility 0s}#tout .cm,#tout .sys,#tout .hello{animation:none}}
-#tmenu{position:absolute;left:.7em;right:.7em;bottom:4em;font:13px/1.5 var(--mono);max-height:17.5em;overflow:auto;background:var(--term);border:1px solid var(--line-2);border-radius:10px;box-shadow:0 18px 40px -12px color-mix(in srgb,var(--shadow) 80%,transparent);padding:.3em;z-index:2;scrollbar-width:thin}
+#tmenu{position:absolute;left:.7em;right:.7em;bottom:4em;font:13px/1.5 var(--mono);max-height:17.5em;overflow:auto;background:var(--term);border:1px solid var(--line-2);border-radius:10px;box-shadow:0 18px 40px -12px color-mix(in srgb,var(--shadow) 80%,transparent);padding:.3em;z-index:2}
 #tmenu .mi{display:flex;gap:1.4em;padding:.32em .75em;border-radius:6px;cursor:pointer;white-space:nowrap}
 #tmenu .mi b{font-weight:500;color:var(--text);flex:none;min-width:13em;overflow:hidden;text-overflow:ellipsis;max-width:60%}
 #tmenu .mi span{color:var(--muted);overflow:hidden;text-overflow:ellipsis}
@@ -3311,7 +3320,13 @@ async function answer(q, conv) {
   }
   out(''); jSet('success', 2400);
 }
-const growIn = () => { tin.style.height = 'auto'; tin.style.height = Math.min(tin.scrollHeight, 150) + 'px'; $('#tsend').disabled = !tin.value.trim(); };
+const growIn = () => {
+  tin.style.height = 'auto';
+  const full = tin.scrollHeight + tin.offsetHeight - tin.clientHeight;
+  tin.style.height = Math.min(full, 170) + 'px';
+  tin.style.overflowY = full > 170 ? 'auto' : 'hidden';
+  $('#tsend').disabled = !tin.value.trim();
+};
 tin.addEventListener('input', growIn);
 function sendIn() {
   const q = tin.value.trim(); if (!q) return;
