@@ -486,30 +486,96 @@ td .mono{font-size:12px;color:var(--text-2)}
 .goal .bar{grid-column:1/-1}
 .goal .v{font:500 12px var(--mono);color:var(--text-2)}
 
-/* ---------- terminal (scaled through font-size so it stays one fixed box) ---------- */
-#term{position:fixed;left:50%;bottom:calc(18px*var(--z));width:min(calc(1000px*var(--z)),92vw);height:min(54vh,calc(520px*var(--z)));z-index:30;transform:translate(-50%,calc(100% + 60px));transition:transform .6s cubic-bezier(.7,0,.2,1);background:var(--term);border:1px solid var(--line-2);border-radius:calc(18px*var(--z));box-shadow:0 30px 80px -10px color-mix(in srgb,var(--shadow) 80%,transparent),0 0 0 1px color-mix(in srgb,var(--accent) 5%,transparent);display:flex;flex-direction:column;font:calc(13px*var(--z))/1.6 var(--mono);overflow:hidden}
-body.term #term{transform:translate(-50%,0)}
-/* The open terminal dims the board, so half-covered cards never read as text running into it. */
-body::after{content:"";position:fixed;inset:0;z-index:29;background:color-mix(in srgb,var(--bg) 78%,transparent);opacity:0;pointer-events:none;transition:opacity .45s}
-body.term::after{opacity:1}
-#term header{display:flex;align-items:center;gap:.8em;padding:.8em 1.1em;border-bottom:1px solid var(--line);font-size:.92em;color:var(--muted)}
-#term header .chip,#term header kbd{font-size:.88em}
-#term header .dots{display:flex;gap:.5em} #term header .dots i{width:.8em;height:.8em;border-radius:50%;background:color-mix(in srgb,var(--ink) 12%,transparent)}
-#term .term-close{width:1.9em;height:1.9em;display:grid;place-items:center;flex:none;border:1px solid var(--line-2);border-radius:7px;color:var(--text-2);font:500 1.15em/1 var(--sans);transition:color .2s,border-color .2s,background .2s}
-#term .term-close:hover{color:var(--text);border-color:color-mix(in srgb,var(--accent) 45%,transparent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
-#term .term-close:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-#tout{flex:1;overflow:auto;padding:1.1em 1.4em;white-space:pre-wrap;scrollbar-width:thin}
+/* ---------- JARVIS chat: a floating window the orb carries ----------
+   The orb sits on the window's corner like an avatar; dragging either moves both. The window
+   opens out of the orb and folds back into it. No backdrop blur: it is expensive on some GPUs. */
+#term{position:fixed;left:0;top:0;width:440px;height:600px;z-index:30;display:flex;flex-direction:column;background:var(--term);border:1px solid var(--line-2);border-radius:18px;
+  box-shadow:0 40px 90px -24px color-mix(in srgb,var(--shadow) 90%,transparent),0 0 0 1px color-mix(in srgb,var(--accent) 6%,transparent),0 0 70px -40px var(--jc,var(--accent));
+  font:14px/1.55 var(--sans);overflow:hidden;transform-origin:34px 30px;transform:scale(.12);opacity:0;visibility:hidden;pointer-events:none;
+  transition:transform .42s cubic-bezier(.5,0,.75,0),opacity .3s .1s,visibility 0s .45s,box-shadow .6s}
+body.term #term{transform:none;opacity:1;visibility:visible;pointer-events:auto;transition:transform .55s cubic-bezier(.2,1.25,.3,1),opacity .2s,visibility 0s,box-shadow .6s}
+#term.dragging{box-shadow:0 60px 120px -24px color-mix(in srgb,var(--shadow) 95%,transparent),0 0 0 1px color-mix(in srgb,var(--accent) 22%,transparent),0 0 80px -30px var(--accent)}
+#term.dragging,#term.dragging *{cursor:grabbing!important;user-select:none}
+/* Focus mode dims the board; the floating window leaves it usable. */
+body::after{content:"";position:fixed;inset:0;z-index:29;background:color-mix(in srgb,var(--bg) 72%,transparent);opacity:0;pointer-events:none;transition:opacity .45s}
+body.term.tbig::after{opacity:1}
+#term header{display:flex;align-items:center;gap:.45em;padding:.6em .7em .6em 4.6em;border-bottom:1px solid var(--line);cursor:grab;user-select:none;min-height:3.6em;flex:none}
+#term header .tt{min-width:0;flex:1;display:flex;flex-direction:column;line-height:1.3;cursor:pointer}
+#ttitle{font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.95em}
+#tsub{font:500 .72em var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#tsub i{display:inline-block;width:.55em;height:.55em;border-radius:50%;background:var(--good);margin-right:.4em;vertical-align:.05em}
+#term .tib{width:2.1em;height:2.1em;display:grid;place-items:center;flex:none;border:1px solid transparent;border-radius:9px;color:var(--text-2);background:none;cursor:pointer;font:500 1em/1 var(--sans);transition:color .2s,border-color .2s,background .2s}
+#term .tib:hover,#term .tconv:hover{color:var(--text);border-color:color-mix(in srgb,var(--accent) 40%,transparent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
+#term .tib:focus-visible,#term .tconv:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+#term .tconv{font:500 .78em var(--sans);padding:.38em .7em;border:1px solid var(--line-2);border-radius:99px;color:var(--text-2);background:none;cursor:pointer;flex:none;white-space:nowrap}
+#term .tconv.on{color:var(--good);border-color:color-mix(in srgb,var(--good) 40%,transparent)}
+#tgrip{position:absolute;right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;z-index:3;background:linear-gradient(135deg,transparent 55%,var(--line-2) 55% 62%,transparent 62% 72%,var(--line-2) 72% 79%,transparent 79%)}
+body.tbig #tgrip{display:none}
+/* the conversation */
+#tout{flex:1;overflow:auto;padding:1em 1em .7em;scrollbar-width:thin;display:flex;flex-direction:column;gap:.75em;overscroll-behavior:contain}
+#tout .sys{white-space:pre-wrap;font:12.5px/1.6 var(--mono);color:var(--text-2);animation:tpop .3s ease-out}
+#tout .sys:empty{display:none}
 #tout .p{color:var(--accent)} #tout .u{color:var(--text)} #tout .m{color:var(--muted)}
 #tout .ok{color:var(--good)} #tout .w{color:var(--warn)} #tout .rt{color:var(--warm)}
-#tin{display:flex;gap:.8em;padding:.9em 1.4em;border-top:1px solid var(--line);align-items:center}
-#tin span{color:var(--accent)}
-#tmenu{position:absolute;left:1em;right:1em;bottom:3.7em;max-height:17.5em;overflow:auto;background:var(--term);border:1px solid var(--line-2);border-radius:10px;box-shadow:0 18px 40px -12px color-mix(in srgb,var(--shadow) 80%,transparent);padding:.3em;z-index:2;scrollbar-width:thin}
+#tout .cm{max-width:86%;padding:.6em .85em;border-radius:15px;animation:tpop .38s cubic-bezier(.2,1.3,.3,1);overflow-wrap:anywhere}
+#tout .cm.me{align-self:flex-end;background:color-mix(in srgb,var(--accent) 15%,var(--term));border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);color:var(--text);border-bottom-right-radius:5px;white-space:pre-wrap}
+#tout .cm.ai{align-self:flex-start;max-width:96%;background:color-mix(in srgb,var(--ink) 3.5%,var(--term));border:1px solid var(--line);border-bottom-left-radius:5px}
+#tout .cm.note{align-self:stretch;max-width:none;background:none;border:1px dashed var(--line-2);font:12px/1.55 var(--mono);color:var(--text-2);white-space:pre-wrap}
+#tout .cm.note b{display:block;font:600 13.5px var(--sans);color:var(--warm);margin-bottom:.3em}
+#tout .meta{font:500 .7em var(--mono);color:var(--muted);margin-bottom:.35em;letter-spacing:.02em;display:flex;gap:.6em}
+#tout .acts:empty{display:none} #tout .acts{margin-top:.55em;display:flex;flex-wrap:wrap;gap:.35em}
+#tout .sug{font:500 .82em var(--sans);padding:.35em .8em;border-radius:99px}
+#tout .err{color:var(--warn);font-size:.9em}
+@keyframes tpop{from{opacity:0;transform:translateY(8px) scale(.97)}}
+/* markdown in answers */
+.md>:first-child{margin-top:0} .md>:last-child{margin-bottom:0}
+.md p{margin:.45em 0} .md ul,.md ol{margin:.4em 0 .4em 1.25em;padding:0} .md li{margin:.15em 0}
+.md h4{margin:.7em 0 .25em;font-size:.95em;color:var(--text)} .md b{color:var(--text);font-weight:600}
+.md a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+.md code{font:.86em var(--mono);background:color-mix(in srgb,var(--ink) 7%,transparent);padding:.08em .38em;border-radius:5px}
+.md .code{position:relative;margin:.55em 0}
+.md pre{font:12px/1.55 var(--mono);background:color-mix(in srgb,var(--bg) 65%,transparent);border:1px solid var(--line);border-radius:10px;padding:.7em .85em;overflow:auto;white-space:pre;margin:0}
+.md .copy{position:absolute;top:.4em;right:.4em;font:500 10.5px var(--mono);padding:.25em .6em;border-radius:6px;border:1px solid var(--line-2);background:var(--term);color:var(--text-2);cursor:pointer;opacity:0;transition:opacity .2s}
+.md .code:hover .copy,.md .copy:focus{opacity:1}
+/* typing dots, and the live "working" line for tool steps */
+.tdots{display:inline-flex;gap:4px;padding:.35em 0} .tdots i{width:6px;height:6px;border-radius:50%;background:var(--accent);opacity:.35;animation:tdot 1.2s infinite} .tdots i:nth-child(2){animation-delay:.15s} .tdots i:nth-child(3){animation-delay:.3s}
+@keyframes tdot{30%{opacity:1;transform:translateY(-3px)}}
+#tout .steps{margin:0 0 .45em;font:11.5px/1.5 var(--mono);color:var(--muted)}
+#tout .steps summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:.55em;padding:.3em .55em;border-radius:8px;background:color-mix(in srgb,var(--ink) 4%,transparent)}
+#tout .steps summary::-webkit-details-marker{display:none}
+#tout .steps .spin{width:.95em;height:.95em;border-radius:50%;border:2px solid color-mix(in srgb,var(--accent) 25%,transparent);border-top-color:var(--accent);animation:tspin .8s linear infinite;flex:none}
+#tout .steps.done .spin{animation:none;border:0;width:auto;height:auto} #tout .steps.done .spin::before{content:"✓";color:var(--good)}
+#tout .steps.fail .spin::before{content:"✗";color:var(--warn)}
+#tout .steps .now{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-2)}
+#tout .steps .n{flex:none}
+#tout .steps ol{margin:.45em 0 .1em 1.6em;padding:0;max-height:13em;overflow:auto} #tout .steps li{margin:.12em 0;overflow-wrap:anywhere}
+@keyframes tspin{to{transform:rotate(360deg)}}
+/* hello: what to ask on this page */
+#tout .hello{margin:auto 0;text-align:center;padding:.5em .5em 1em;animation:tpop .5s ease-out}
+#tout .hello h3{font:600 1.3em var(--sans);margin:0 0 .25em;color:var(--text)} #tout .hello p{margin:0;color:var(--muted);font-size:.9em}
+#tout .chips{display:flex;flex-wrap:wrap;gap:.4em;justify-content:center;margin-top:1em}
+#tout .chips button{font:500 .84em var(--sans);padding:.45em .85em;border:1px solid var(--line-2);border-radius:99px;color:var(--text-2);background:none;cursor:pointer;transition:all .2s}
+#tout .chips button:hover{color:var(--text);border-color:color-mix(in srgb,var(--accent) 50%,transparent);background:color-mix(in srgb,var(--accent) 9%,transparent);transform:translateY(-1px)}
+#tout .chips button.cont{border-style:dashed}
+#tout .chatpick{cursor:pointer;display:block;border-radius:7px;padding:.25em .45em} #tout .chatpick:hover{background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--text)}
+/* the message box */
+#tin{display:flex;gap:.5em;padding:.6em .7em .7em;border-top:1px solid var(--line);align-items:flex-end;flex:none}
+#tin>span{display:none}
+#tinput{flex:1;resize:none;min-height:2.6em;max-height:9em;font:14px/1.45 var(--sans);color:var(--text);background:color-mix(in srgb,var(--ink) 4%,transparent);border:1px solid var(--line-2);border-radius:13px;padding:.55em .85em;outline:none;transition:border-color .2s,box-shadow .2s}
+#tinput:focus{border-color:color-mix(in srgb,var(--accent) 50%,transparent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)}
+#tsend{width:2.6em;height:2.6em;flex:none;border-radius:12px;border:0;background:var(--accent);color:var(--bg);font:600 1.05em/1 var(--sans);cursor:pointer;transition:transform .15s,opacity .2s}
+#tsend:disabled{opacity:.35;cursor:default} #tsend:not(:disabled):hover{transform:translateY(-1px) scale(1.04)}
+/* an answer waiting while the chat is closed */
+#jarvis.unread::after{content:"";position:absolute;top:10%;right:10%;width:22%;height:22%;min-width:9px;min-height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--bg),0 0 14px var(--accent);animation:tbadge 1.6s ease-in-out infinite;pointer-events:none}
+@keyframes tbadge{50%{transform:scale(1.25)}}
+@media (prefers-reduced-motion:reduce){#term,body.term #term{transition:opacity .2s,visibility 0s}#tout .cm,#tout .sys,#tout .hello{animation:none}}
+#tmenu{position:absolute;left:.7em;right:.7em;bottom:4em;font:13px/1.5 var(--mono);max-height:17.5em;overflow:auto;background:var(--term);border:1px solid var(--line-2);border-radius:10px;box-shadow:0 18px 40px -12px color-mix(in srgb,var(--shadow) 80%,transparent);padding:.3em;z-index:2;scrollbar-width:thin}
 #tmenu .mi{display:flex;gap:1.4em;padding:.32em .75em;border-radius:6px;cursor:pointer;white-space:nowrap}
 #tmenu .mi b{font-weight:500;color:var(--text);flex:none;min-width:13em;overflow:hidden;text-overflow:ellipsis;max-width:60%}
 #tmenu .mi span{color:var(--muted);overflow:hidden;text-overflow:ellipsis}
 #tmenu .mi.on{background:color-mix(in srgb,var(--accent) 13%,transparent)} #tmenu .mi.on b{color:var(--accent)}
 #tmenu .mt{padding:.25em .75em .35em;color:var(--muted);font-size:.85em}
-#tin input{flex:1;font-family:var(--mono)}
+
 @keyframes blink{50%{opacity:0}}
 /* ---------- library panes ---------- */
 .rooms{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:16px;min-height:0}
@@ -745,10 +811,6 @@ body.calm *,body.calm *::before,body.calm *::after{animation-duration:.001s!impo
 .hp .menu button{display:flex;justify-content:space-between;gap:10px;padding:6px 9px;border-radius:6px;font-size:12.5px;text-align:left}
 .hp .menu button:hover{background:color-mix(in srgb,var(--ink) 6%,transparent)}
 .hp .menu button.cur{color:var(--accent)} .hp .menu button em{font:500 10px var(--mono);font-style:normal;color:var(--muted)}
-#tout .sug{font:500 .92em var(--mono);padding:.3em .8em;margin:.2em .3em .2em 0}
-#term .tconv{font:500 .85em var(--sans);padding:.3em .75em;border:1px solid var(--line-2);border-radius:7px;color:var(--text-2);background:none;cursor:pointer} #term .tconv:hover{color:var(--text);border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
-#term .tconv.on{color:var(--good);border-color:color-mix(in srgb,var(--good) 45%,transparent)}
-#tout .chatpick{cursor:pointer;display:inline-block;border-radius:5px;padding:0 .3em} #tout .chatpick:hover{background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--text)}
 .pane.live .empty{flex:1;min-height:0;overflow:hidden;padding:10px 8px;gap:8px}
 .pane.live .card.span4 .empty .muted{font-size:11.5px}
 /* In server mode a page stays blank until its live data has rendered, so sample content never flashes. */
@@ -777,7 +839,7 @@ body.server .pane:not(.lv-ready) .pane-inner{visibility:hidden}
 <div class="edgewrap r"><button class="edge zz" id="e-r"></button></div>
 <div class="edgewrap u"><button class="edge zz" id="e-u"></button></div>
 <div class="edgewrap d"><button class="edge zz" id="e-d"></button></div>
-<div id="termwrap"><button class="ibtn zz" id="termbtn"><span style="color:var(--accent)">›_</span> Terminal <kbd>`</kbd></button></div>
+<div id="termwrap"><button class="ibtn zz" id="termbtn"><span style="color:var(--accent)">✦</span> Ask JARVIS <kbd>`</kbd></button></div>
 
 <main id="board">
 
@@ -935,7 +997,7 @@ body.server .pane:not(.lv-ready) .pane-inner{visibility:hidden}
       </div>
      </div>
     </div>
-    <label class="ask"><span class="pr">›</span><input id="ask" placeholder="Ask Jarvis anything — it answers in the terminal"><kbd>↵</kbd></label>
+    <label class="ask"><span class="pr">›</span><input id="ask" placeholder="Ask Jarvis anything — it answers in the chat"><kbd>↵</kbd></label>
     <div class="sugg"><button>Plan my Thursday</button><button>What changed on the server today?</button><button>How is my portfolio?</button><button>Build an app from an idea…</button></div>
    </div>
    <div class="card needs"><h3>Needs you <span class="go" id="needc">3</span></h3>
@@ -1349,10 +1411,10 @@ body.server .pane:not(.lv-ready) .pane-inner{visibility:hidden}
 <style id="user-css"></style>
 
 <!-- ================= TERMINAL ================= -->
-<div id="term" role="dialog" aria-label="Jarvis terminal">
- <header><div class="dots"><i></i><i></i><i></i></div><span id="ttitle">jarvis — ~/home</span><div class="sp"></div><button type="button" class="tconv" id="tnew" hidden title="Start a new conversation (/new)">+ New</button><button type="button" class="tconv" id="tsess" hidden title="Earlier conversations and task details (/resume)">Conversations</button><button type="button" class="tconv" id="tauto" hidden></button><span class="chip e-local"><i></i>route: auto · local-first</span><kbd>`</kbd><button type="button" class="term-close" id="term-close" aria-label="Close terminal" title="Close terminal (Esc)">×</button></header>
+<div id="term" role="dialog" aria-label="JARVIS chat">
+ <header id="thead"><div class="tt" id="ttitlebox" title="Conversations"><span id="ttitle">JARVIS</span><span id="tsub"></span></div><button type="button" class="tconv" id="tnew" hidden title="Start a new conversation (/new)">+ New</button><button type="button" class="tconv" id="tauto" hidden></button><button type="button" class="tib" id="tsess" hidden title="Conversations and task details (/resume)" aria-label="Conversations">☰</button><button type="button" class="tib" id="tbig" title="Focus mode (double-click the title bar)" aria-label="Focus mode"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5 9 7M2.5 13.5 7 9"/></svg></button><button type="button" class="tib term-close" id="term-close" aria-label="Close the chat" title="Close (Esc)">–</button></header>
  <div id="tout"></div>
- <div id="tin"><span>jarvis ›</span><input id="tinput" placeholder="try: status · plan my week · run fix · build an app · portfolio · go lab" autocomplete="off"></div>
+ <div id="tin"><span>jarvis ›</span><textarea id="tinput" rows="1" placeholder="try: status · plan my week · run fix · build an app · portfolio · go lab" autocomplete="off" aria-label="Message JARVIS"></textarea><button type="button" id="tsend" aria-label="Send" title="Send (Enter)" disabled>↑</button></div><div id="tgrip" aria-hidden="true"></div>
 </div>
 
 <!--@ORB@-->
@@ -2043,9 +2105,9 @@ function setOrb(cx, cy, size, animate = jEl.classList.contains('ready')) {
     { duration: 820, easing: 'cubic-bezier(.45,0,.2,1)' });
   anim.onfinish = () => { if (orbAnim !== anim) return; orbAnim = null; sizeTo(size); jEl.style.transform = orbT(cx, cy, size); };
 }
-function placeOrb() {
+function placeOrb(anim) {
   if (held?.on) return;
-  const m = orbMode();
+  const m = orbMode(), A = anim === false ? false : undefined;
   if (m === 'home') {
     const size = slot.w * 1.35, cx = slot.x + slot.w / 2, cy = slot.y + slot.w / 2 - 16 * z;
     setOrb(cx, cy, size); cap(cx, slot.y + slot.w - 2 * z, 'center', 1);
@@ -2054,8 +2116,10 @@ function placeOrb() {
     setOrb(cx, cy, size);
     cap(cx + (right ? -1 : 1) * 36 * z, cy - 11 * z, right ? 'right' : 'left', 1);
   } else {
-    const th = Math.min(H() * .54, 520 * z), size = 170 * z;
-    setOrb(W() / 2, H() - 18 * z - th - 34 * z, size); cap(W() / 2, 0, 'center', 0);
+    // On the chat window's top-left corner, like an avatar; it moves with the window.
+    if (!tcur) layoutTerm();
+    const size = 66, cx = tcur.x + 31, cy = tcur.y + 29;
+    setOrb(cx, cy, size, A); cap(cx, 0, 'center', 0);
   }
   placeBubble();
 }
@@ -2082,7 +2146,9 @@ addEventListener('pointermove', e => {
 }, { passive: true });
 function saveCorner() { try { localStorage.setItem('jarvis-corner', corner); } catch {} }
 jEl.addEventListener('pointerdown', e => {
-  if (e.button !== 0 || orbMode() === 'term') return;
+  if (e.button !== 0) return;
+  // With the chat open the orb is its handle: dragging moves the window, a click closes it.
+  if (orbMode() === 'term') { if (startTermDrag(e)) tdrag.fromOrb = true; return; }
   held = { x: e.clientX, y: e.clientY, on: false, id: e.pointerId };
 });
 function holdMove(e) {
@@ -2211,8 +2277,11 @@ jEl.addEventListener('pointerup', () => {
 });
 jEl.addEventListener('click', e => {
   if (suppressClick) return;
+  if (termOpen) { toggleTerm(false); return; }
   if (charged) { charged = false; return; }
-  if (sp) { hush(); return; }
+  if (sp && !sp.acts) { hush(); if (!API.server) return; }
+  // On a real install the orb opens the chat; the sample board keeps its quips.
+  if (API.server) { orb.pulseAt(e.clientX, e.clientY); toggleTerm(true); return; }
   orb.pulseAt(e.clientX, e.clientY);
   const l = API.server ? (LIVE.line(current) ? { text: LIVE.line(current) } : null) : LINES[current]?.();
   say(Math.random() < .5 && l ? l.text : pick(QUIPS), { force: true, acts: l?.acts || [] });
@@ -2296,6 +2365,8 @@ document.addEventListener('keydown', e => {
   if (setOpen) { if (e.key === 'Escape') closeSettings(); return; }
   const typing = e.target instanceof Element && e.target.matches('input,textarea,select');
   if (e.key === '`') { e.preventDefault(); toggleTerm(); return; }
+  // "/" anywhere opens the chat with its command menu.
+  if (e.key === '/' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); toggleTerm(true); setTimeout(() => { tin.value = '/'; growIn(); updateMenu(); tin.focus(); }, 80); return; }
   if (e.key === 'Escape') { if (termOpen) toggleTerm(false); else if (sp) hush(); else toggleOverview(); return; }
   if (typing) return;
   if (e.code === 'Space') { e.preventDefault(); spaceHeld = true; return; }
@@ -2354,7 +2425,7 @@ addEventListener('pointermove', e => {
 });
 addEventListener('pointerup', () => { if (drag?.on) endPan(); drag = null; });
 addEventListener('wheel', e => {
-  if (termOpen || setOpen || e.target.closest('#term,#bubble,#settings')) return;
+  if (setOpen || (termOpen && tbig) || e.target.closest('#term,#bubble,#settings')) return;
   lastInput = performance.now();
   if (e.ctrlKey) { e.preventDefault(); if (e.deltaY > 4 && !overview) toggleOverview(true); else if (e.deltaY < -4 && overview) go(current); return; }
   if (overview) return;
@@ -3043,17 +3114,105 @@ const ACTIONS = {
 /* ======================================================== terminal */
 const tout = $('#tout'), tin = $('#tinput');
 let termFocusTimer = 0, termReturnFocus = null;
+/* The chat window. Its geometry is remembered; the orb sits on its top-left corner and carries
+   it: drag the orb or the title bar, throw it and it glides to rest against the nearest edge.
+   Focus mode (⤢) centres it large and dims the board. Narrow screens get a bottom sheet. */
+const termEl = $('#term'), TB_GROW = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5 9 7M2.5 13.5 7 9"/></svg>`, TB_SHRINK = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 6.5h-4v-4M2.5 9.5h4v4M9.5 6.5l4.5-4.5M6.5 9.5 2 14"/></svg>`;
+let tgeo = null, tbig = false;
+try { tgeo = JSON.parse(localStorage.getItem('jarvis-chat-geo') || 'null'); tbig = localStorage.getItem('jarvis-chat-big') === '1'; } catch {}
+const narrow = () => W() < 700;
+function geoNow() {
+  const w0 = Math.min(460, W() - 24), h0 = Math.min(640, H() - 110);
+  let g = tgeo && Number.isFinite(tgeo.x) ? { ...tgeo } : { w: w0, h: h0, x: W() - w0 - 28, y: H() - h0 - 64 };
+  if (narrow()) return { x: 8, w: W() - 16, h: Math.round(H() * .78), y: Math.round(H() * .22) - 8 };
+  if (tbig) { const w = Math.min(980, W() - 80), h = Math.min(H() - 120, 860); return { x: (W() - w) / 2, y: Math.max(64, (H() - h) / 2), w, h }; }
+  g.w = clamp(g.w, 320, W() - 16); g.h = clamp(g.h, 300, H() - 16);
+  // The orb hangs over the top-left corner, so leave it room.
+  g.x = clamp(g.x, 30, W() - g.w - 8); g.y = clamp(g.y, 34, H() - g.h - 8);
+  return g;
+}
+let tcur = null;
+function layoutTerm(g = geoNow()) {
+  tcur = g;
+  Object.assign(termEl.style, { left: g.x + 'px', top: g.y + 'px', width: g.w + 'px', height: g.h + 'px' });
+  body.classList.toggle('tbig', tbig && termOpen && !narrow());
+}
+const saveGeo = () => { try { if (!tbig && !narrow()) localStorage.setItem('jarvis-chat-geo', JSON.stringify(tgeo)); localStorage.setItem('jarvis-chat-big', tbig ? '1' : '0'); } catch {} };
+// A short spring between two geometries, moving the orb along every frame.
+let tween = 0;
+function glideTo(to, ms = 420) {
+  cancelAnimationFrame(tween);
+  const from = { ...tcur }, t0 = performance.now(), back = t => { const c = 1.25; return 1 + (c + 1) * (t - 1) ** 3 + c * (t - 1) ** 2; };
+  const step = now => {
+    const t = Math.min(1, (now - t0) / (reduce ? 1 : ms)), k = back(t);
+    layoutTerm(Object.fromEntries(['x', 'y', 'w', 'h'].map(n => [n, from[n] + (to[n] - from[n]) * k])));
+    placeOrb(false);
+    if (t < 1) tween = requestAnimationFrame(step); else layoutTerm(to);
+  };
+  tween = requestAnimationFrame(step);
+}
+function setBig(on) {
+  tbig = on; saveGeo();
+  $('#tbig').innerHTML = on ? TB_SHRINK : TB_GROW; $('#tbig').title = on ? 'Back to the floating window' : 'Focus mode (double-click the title bar)';
+  if (termOpen) { body.classList.toggle('tbig', on && !narrow()); glideTo(geoNow(), 480); }
+}
+$('#tbig').onclick = () => setBig(!tbig);
+if (tbig) $('#tbig').innerHTML = TB_SHRINK;
+$('#thead').addEventListener('dblclick', e => { if (!e.target.closest('button')) setBig(!tbig); });
+// Dragging: from the title bar, or from the orb itself while the chat is open.
+let tdrag = null;
+function startTermDrag(e) {
+  if (narrow() || tbig) return false;
+  cancelAnimationFrame(tween);
+  tdrag = { id: e.pointerId, dx: e.clientX - tcur.x, dy: e.clientY - tcur.y, x0: e.clientX, y0: e.clientY, on: false, v: { x: 0, y: 0 }, last: { x: e.clientX, y: e.clientY, t: performance.now() } };
+  return true;
+}
+$('#thead').addEventListener('pointerdown', e => { if (e.button !== 0 || e.target.closest('button')) return; if (startTermDrag(e)) e.preventDefault(); });
+addEventListener('pointermove', e => {
+  if (!tdrag || e.pointerId !== tdrag.id) return;
+  if (!tdrag.on) { if (Math.hypot(e.clientX - tdrag.x0, e.clientY - tdrag.y0) < 4) return; tdrag.on = true; termEl.classList.add('dragging'); orb.cancelGestures(); }
+  const now = performance.now(), dt = Math.max(8, now - tdrag.last.t);
+  tdrag.v = { x: .7 * tdrag.v.x + .3 * (e.clientX - tdrag.last.x) / dt, y: .7 * tdrag.v.y + .3 * (e.clientY - tdrag.last.y) / dt };
+  tdrag.last = { x: e.clientX, y: e.clientY, t: now };
+  layoutTerm({ ...tcur, x: e.clientX - tdrag.dx, y: e.clientY - tdrag.dy });
+  placeOrb(false);
+  orb.setAttention({ x: clamp(tdrag.v.x * .8, -1, 1), y: clamp(-tdrag.v.y * .8, -1, 1), active: true });
+}, { passive: true });
+addEventListener('pointerup', e => {
+  if (!tdrag || e.pointerId !== tdrag.id) return;
+  const d = tdrag; tdrag = null; termEl.classList.remove('dragging');
+  if (!d.on) return;
+  if (d.fromOrb) { suppressClick = true; setTimeout(() => suppressClick = false, 60); }
+  // A throw carries on for a moment, then the window settles; near an edge it snaps to it.
+  const fling = { x: tcur.x + d.v.x * 140, y: tcur.y + d.v.y * 140 }, M = 14, SNAP = 70;
+  let g = { ...tcur, ...fling };
+  g.x = clamp(g.x, 30, W() - g.w - 8); g.y = clamp(g.y, 34, H() - g.h - 8);
+  if (g.x < 30 + SNAP) g.x = 30 + M - 14; else if (W() - g.x - g.w < SNAP + 8) g.x = W() - g.w - M;
+  if (g.y < 34 + SNAP) g.y = 34 + M - 14; else if (H() - g.y - g.h < SNAP + 8) g.y = H() - g.h - M;
+  tgeo = g; saveGeo(); glideTo(g, 520); orb.ripple(0, 0, .35);
+});
+// Resizing from the bottom-right corner.
+$('#tgrip').addEventListener('pointerdown', e => {
+  if (narrow() || tbig) return;
+  e.preventDefault(); e.stopPropagation();
+  const r = { x: e.clientX, y: e.clientY, w: tcur.w, h: tcur.h };
+  const mv = ev => { layoutTerm({ ...tcur, w: clamp(r.w + ev.clientX - r.x, 320, W() - tcur.x - 8), h: clamp(r.h + ev.clientY - r.y, 300, H() - tcur.y - 8) }); };
+  const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); tgeo = { ...tcur }; saveGeo(); };
+  addEventListener('pointermove', mv); addEventListener('pointerup', up);
+});
 function toggleTerm(force) {
   const open = force ?? !termOpen;
   if (open === termOpen) return;
   if (open) {
     const active = document.activeElement;
     termReturnFocus = active instanceof HTMLElement && active !== document.body && !$('#term').contains(active) ? active : null;
-    termOpen = true; body.classList.add('term'); hush();
+    layoutTerm(); jEl.classList.remove('unread');
+    termOpen = true; body.classList.add('term'); body.classList.toggle('tbig', tbig && !narrow()); hush();
+    if (!tout.children.length || (API.server && !chat.messages.length)) drawChat();
     clearTimeout(termFocusTimer);
     termFocusTimer = setTimeout(() => { if (termOpen) tin.focus({ preventScroll: true }); }, 300);
   } else {
-    termOpen = false; body.classList.remove('term');
+    termOpen = false; body.classList.remove('term', 'tbig'); hideMenu?.();
     clearTimeout(termFocusTimer); tin.blur();
     const target = termReturnFocus === jEl ? $('#termbtn') : termReturnFocus; termReturnFocus = null;
     if (target?.isConnected && typeof target.focus === 'function') target.focus({ preventScroll: true });
@@ -3063,7 +3222,11 @@ function toggleTerm(force) {
 $('#termbtn').onclick = () => toggleTerm();
 tout.addEventListener('click', e => { const b = e.target.closest('.sug'); if (!b || b.disabled) return; b.disabled = true; runSuggested(b.dataset.sk, b.dataset.sv); });
 $('#term-close').onclick = () => toggleTerm(false);
-const out = html => { tout.insertAdjacentHTML('beforeend', html + '\n'); tout.scrollTop = tout.scrollHeight; };
+// Plain lines (command output, lists, notices) between the chat bubbles.
+const stick = () => { if (tout.scrollHeight - tout.scrollTop - tout.clientHeight < 140) tout.scrollTop = tout.scrollHeight; };
+const out = html => { html = String(html).replace(/^\n+|\n+$/g, ''); if (!html) return; $('.hello', tout)?.remove(); tout.insertAdjacentHTML('beforeend', `<div class="sys">${html}</div>`); tout.scrollTop = tout.scrollHeight; };
+// Copy buttons on code blocks.
+tout.addEventListener('click', e => { const b = e.target.closest('.copy'); if (!b) return; navigator.clipboard?.writeText(b.nextElementSibling.textContent).then(() => { b.textContent = 'copied ✓'; setTimeout(() => b.textContent = 'copy', 1300); }); });
 const introText = () => `JARVIS terminal · type "help" · ${chatConn() ? 'answers come from ' + esc(chatConn().name) : 'connect an AI in Settings → AI'}`;
 // The first line follows the AI connection, so it never tells you to connect one you already have.
 const syncIntro = () => { const el = $('#tintro'); if (el) el.innerHTML = introText(); };
@@ -3126,11 +3289,19 @@ async function answer(q, conv) {
   }
   out(''); jSet('success', 2400);
 }
+const growIn = () => { tin.style.height = 'auto'; tin.style.height = Math.min(tin.scrollHeight, 150) + 'px'; $('#tsend').disabled = !tin.value.trim(); };
+tin.addEventListener('input', growIn);
+function sendIn() {
+  const q = tin.value.trim(); if (!q) return;
+  tin.value = ''; growIn();
+  if (q.startsWith('/') || !API.server) out(`<span class="p">›</span> <span class="u">${esc(q)}</span>`); else showUser(q);
+  respond(q);
+}
 tin.addEventListener('keydown', e => {
-  if (e.key !== 'Enter' || !tin.value.trim()) return;
-  const q = tin.value.trim(); tin.value = '';
-  out(`<span class="p">jarvis ›</span> <span class="u">${q.replace(/</g, '&lt;')}</span>`); respond(q);
+  if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+  e.preventDefault(); sendIn();
 });
+$('#tsend').onclick = () => { sendIn(); tin.focus(); };
 /* Slash commands: typing "/" lists them, as in Claude Code or Codex. ↑↓ choose, Tab completes,
    Enter runs (or completes a command that still needs an argument), Esc closes. After a
    command that takes a page, theme or conversation, the menu lists those. */
@@ -3154,6 +3325,7 @@ function drawMenu(title) {
   if (!menuItems.length) return hideMenu();
   menuSel = Math.min(menuSel, menuItems.length - 1);
   tmenu.innerHTML = (title ? `<div class="mt">${esc(title)}</div>` : '') + menuItems.map((it, i) => `<div class="mi ${i === menuSel ? 'on' : ''}" role="option" data-mi="${i}"><b>${esc(it.l)}</b><span>${esc(it.h || '')}</span></div>`).join('');
+  tmenu.style.bottom = $('#tin').offsetHeight + 4 + 'px';
   tmenu.hidden = false;
   tmenu.querySelector('.on')?.scrollIntoView({ block: 'nearest' });
 }
@@ -3195,7 +3367,7 @@ tmenu.addEventListener('click', e => {
   const r = e.target.closest('[data-mi]'); if (!r) return;
   if (!pickMenu(+r.dataset.mi, true)) tin.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 });
-const sendToTerm = q => { toggleTerm(true); out(`<span class="p">jarvis ›</span> <span class="u">${esc(q)}</span>`); respond(q); };
+const sendToTerm = q => { toggleTerm(true); if (API.server && !q.startsWith('/')) showUser(q); else out(`<span class="p">›</span> <span class="u">${esc(q)}</span>`); respond(q); };
 for (const input of [$('#ask'), tin, $('#addtodo')]) {
   input.addEventListener('focus', () => orb.setInteraction({ focused: true }));
   input.addEventListener('input', () => orb.setInteraction({ focused: true, typing: true }));
@@ -3221,27 +3393,113 @@ function saveChat(now, c = chat) {
   chatSaveT = setTimeout(put, 600); return Promise.resolve();
 }
 const agoS = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
-const showUser = q => out(`<span class="p">jarvis ›</span> <span class="u">${esc(q)}</span>`);
-function showAnswer(text, line) {
-  const sug = liveActions(text);
-  if (!line) { line = document.createElement('span'); tout.appendChild(line); }
-  line.textContent = sug.body;
-  if (sug.acts.length) out('\n' + sug.acts.map(([k, v]) => `<button class="btn sug" data-sk="${esc(k)}" data-sv="${esc(v)}">${k === 'engine' ? '◆ ' + esc((v.split(' | ')[1] || v).slice(0, 90)) : esc({ todo: '+ Todo', task: '▶ Start task', approve: '✓ Approve', reject: '✗ Reject', go: '→ Open' }[k]) + ': ' + esc(v.slice(0, 70))}</button>`).join(' '));
-  else out('');
-}
-function drawChat() {
-  tout.innerHTML = ''; termIntro();
-  const t = $('#ttitle'); if (t) t.textContent = 'jarvis — ' + (chat.title || 'new conversation');
-  if (chat.messages.length) out(`<span class="rt">◆ ${chat.kind === 'task' ? 'task' : 'resumed'}</span>  <span class="m">${esc(chat.title)} · /new starts another · /resume lists them</span>\n`);
-  for (const m of chat.messages) {
-    if (m.role === 'user') showUser(m.content);
-    else if (m.role === 'assistant') { showAnswer(m.content); out(''); }
-    else if (m.role === 'tool') out(`<span class="m">◇ ${esc(m.content)}</span>`);
-    else if (m.role === 'note') { const [h, ...rest] = m.content.split('\n'); out(`<span class="rt">${esc(h)}</span>${rest.length ? '\n<span class="m">' + esc(rest.join('\n')) + '</span>' : ''}\n`); }
+// Answers are light markdown: paragraphs, lists, headings, **bold**, `code`, code blocks and links.
+// Everything is escaped first, so only these few tags can come out of it.
+const mdInline = t => esc(t)
+  .replace(/`([^`]+)`/g, '<code>$1</code>')
+  .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+  .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+  .replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>');
+function mdText(t) {
+  const html = []; let list = null, para = [];
+  const flush = () => {
+    if (para.length) { html.push('<p>' + para.map(mdInline).join('<br>') + '</p>'); para = []; }
+    if (list) { html.push(`<${list.t}>${list.items.map(x => '<li>' + mdInline(x) + '</li>').join('')}</${list.t}>`); list = null; }
+  };
+  for (const line of t.split('\n')) {
+    const li = /^\s*(?:[-*•]|(\d+)[.)])\s+(.*)$/.exec(line), hd = /^\s*#{1,4}\s+(.*)$/.exec(line);
+    if (!line.trim()) { flush(); continue; }
+    if (hd) { flush(); html.push('<h4>' + mdInline(hd[1]) + '</h4>'); continue; }
+    if (li) { const tag = li[1] ? 'ol' : 'ul'; if (para.length || (list && list.t !== tag)) flush(); list ||= { t: tag, items: [] }; list.items.push(li[2]); continue; }
+    if (list) flush();
+    para.push(line);
   }
+  flush();
+  return html.join('');
+}
+const md = src => String(src || '').replace(/\r/g, '').split(/```[^\n]*\n?([\s\S]*?)(?:```|$)/).map((b, i) => i % 2 ? `<div class="code"><button class="copy" type="button">copy</button><pre>${esc(b.replace(/\n$/, ''))}</pre></div>` : mdText(b)).join('');
+const actButtons = acts => acts.map(([k, v]) => `<button class="btn sug" data-sk="${esc(k)}" data-sv="${esc(v)}">${k === 'engine' ? '◆ ' + esc((v.split(' | ')[1] || v).slice(0, 90)) : esc({ todo: '+ Todo', task: '▶ Start task', approve: '✓ Approve', reject: '✗ Reject', go: '→ Open' }[k]) + ': ' + esc(v.slice(0, 70))}</button>`).join('');
+const add = el => { $('.hello', tout)?.remove(); tout.appendChild(el); tout.scrollTop = tout.scrollHeight; return el; };
+const showUser = q => { const el = document.createElement('div'); el.className = 'cm me'; el.textContent = q; return add(el); };
+// One JARVIS reply: who answered, the steps it took (live while it works), the text, and buttons.
+function replyEl(meta = '') {
+  const el = document.createElement('div'); el.className = 'cm ai';
+  el.innerHTML = `${meta ? `<div class="meta">${meta}</div>` : ''}<details class="steps" hidden><summary><i class="spin"></i><span class="now"></span><span class="n"></span></summary><ol></ol></details><div class="md body"></div><div class="acts"></div>`;
+  return el;
+}
+const fmtDur = ms => { const s2 = Math.round(ms / 1000); return s2 < 60 ? s2 + ' s' : Math.floor(s2 / 60) + ':' + String(s2 % 60).padStart(2, '0'); };
+function stepAdd(el, text) {
+  const st = $('.steps', el); st.hidden = false;
+  // A tool line says "<who> · <what>"; the live line shows the what.
+  const what = text.replace(/^(harness|Main Harness[^·]*|Harness[^·]*)·\s*/i, '').replace(/^task_\w+\s*·\s*/, '');
+  $('ol', st).insertAdjacentHTML('beforeend', `<li>${esc(text)}</li>`);
+  $('.now', st).textContent = what;
+  $('.n', st).textContent = $('ol', st).children.length + ' step' + ($('ol', st).children.length === 1 ? '' : 's');
+}
+function stepsDone(el, ms, failed) {
+  const st = $('.steps', el); if (st.hidden) return;
+  const n = $('ol', st).children.length;
+  st.classList.add(failed ? 'fail' : 'done');
+  $('.now', st).textContent = failed ? 'stopped' : `${n} step${n === 1 ? '' : 's'}${ms ? ' · ' + fmtDur(ms) : ''}`;
+  $('.n', st).textContent = 'details';
+}
+function showAnswer(text, tools = []) {
+  const el = replyEl(), sug = liveActions(text);
+  tools.forEach(t => stepAdd(el, t)); if (tools.length) stepsDone(el, 0, false);
+  $('.body', el).innerHTML = md(sug.body); $('.acts', el).innerHTML = actButtons(sug.acts);
+  return add(el);
+}
+// What to ask here: a few suggestions for the page you are on.
+const ASK = {
+  home: ['What needs me today?', 'Plan the rest of my day', 'How are my machines?'],
+  inbox: ['What in my mail needs an answer?', 'Summarise my unread mail'],
+  schedule: ['What is on this week?', 'Find two free hours tomorrow'],
+  markets: ['How is my portfolio doing?', 'Should I rebalance?'],
+  agents: ['What are the agents doing?', 'Why did the last task fail?'],
+  infra: ['How are my machines?', 'Which VM runs MariaDB?', 'Anything that needs updating?'],
+  world: ['What in the news matters to me?'],
+  health: ['How am I doing this week?', 'Find time to move today'],
+  lab: ['Which local model is fastest?'],
+  projects: ['What is the status of my projects?'],
+  reviews: ['How did this week go?'],
+};
+async function hello() {
+  const page = byId[current]?.dataset.name || 'Home', name = CFG.profile.name ? ', ' + CFG.profile.name : '';
+  const chips = [...(ASK[current] || ASK.home), ...(current === 'home' ? [] : ASK.home.slice(0, 1))].slice(0, 4);
+  const el = document.createElement('div'); el.className = 'hello';
+  el.innerHTML = `<h3>Hi${esc(name)}. What can I do?</h3><p>${API.server ? `Ask anything about your board, mail or machines. Type <b>/</b> for commands.` : 'Try one of these, or type help.'}</p><div class="chips">${chips.map(q => `<button type="button" data-ask="${esc(q)}">${esc(q)}</button>`).join('')}</div>`;
+  tout.appendChild(el);
+  if (!API.server) return;
+  try {
+    const last = (await api('chats')).chats.find(c => c.id !== chat.id);
+    if (last && el.isConnected) $('.chips', el).insertAdjacentHTML('beforeend', `<button type="button" class="cont" data-chat="${esc(last.id)}">↺ Continue: ${esc(last.title.slice(0, 40))}</button>`);
+  } catch {}
+}
+tout.addEventListener('click', e => { const b = e.target.closest('[data-ask]'); if (b) sendToTerm(b.dataset.ask); });
+// The header: the conversation's title, and who answers.
+function syncHead() {
+  $('#ttitle').textContent = chat.title || (API.server ? 'New conversation' : 'JARVIS');
+  const c = chatConn(), via = chat.via || CFG.ai.via || '', lab = chat.via ? chat.viaLabel : (API.engines || []).find(x => x.id === via)?.label;
+  $('#tsub').innerHTML = !API.server ? '<i></i>demo · scripted answers' : via ? `<i></i>${esc(lab || via)}` : c ? `<i></i>${esc(c.name)} · ${esc(c.values?.model || 'default model')}` : '<i style="background:var(--warn)"></i>connect an AI in Settings → AI';
+}
+$('#ttitlebox').addEventListener('click', () => { if (API.server) { out('<span class="p">›</span> <span class="u">/resume</span>'); resumeChat(''); } });
+function drawChat() {
+  tout.innerHTML = '';
+  syncHead();
+  if (!API.server) { termIntro(); return; }
+  if (!chat.messages.length) { hello(); return; }
+  let tools = [];
+  for (const m of chat.messages) {
+    if (m.role === 'tool') { if (m.content.startsWith('✗ ')) { out(`<span class="w">${esc(m.content)}</span>`); } else tools.push(m.content); continue; }
+    if (m.role === 'assistant') { showAnswer(m.content, tools); tools = []; continue; }
+    if (tools.length) { const el = add(replyEl()); tools.forEach(t => stepAdd(el, t)); stepsDone(el, 0, false); tools = []; }
+    if (m.role === 'user') showUser(m.content);
+    else if (m.role === 'note') { const [h, ...rest] = m.content.split('\n'); const el = document.createElement('div'); el.className = 'cm note'; el.innerHTML = `<b>${esc(h.replace(/^◆\s*task\s*/, 'Task · '))}</b>${esc(rest.join('\n'))}`; add(el); }
+  }
+  if (tools.length) { const el = add(replyEl()); tools.forEach(t => stepAdd(el, t)); stepsDone(el, 0, false); }
   tout.scrollTop = tout.scrollHeight;
 }
-async function newChat() { await saveChat(true); chat = freshChat(); try { localStorage.removeItem('jarvis.chat'); } catch {} drawChat(); out('<span class="m">New conversation. /resume brings back an earlier one.</span>\n'); }
+async function newChat() { await saveChat(true); chat = freshChat(); try { localStorage.removeItem('jarvis.chat'); } catch {} drawChat(); }
 async function openChat(id) {
   try { const c = await api('chats/' + id); await saveChat(true); chat = c; try { localStorage.setItem('jarvis.chat', c.id); } catch {} drawChat(); }
   catch (e) { out(`<span class="w">✗ ${esc(e.message)}</span>\n`); }
@@ -3264,8 +3522,8 @@ function syncAuto() {
   b.title = on ? 'Auto mode: JARVIS acts and approves routine steps itself; risky ones still ask you. Click to make it ask first.' : 'Ask first: JARVIS only investigates and suggests; every Harness step waits for you. Click for auto mode.';
 }
 $('#tauto').onclick = () => { CFG.ai.auto = CFG.ai.auto === false; save(); syncAuto(); out(`<span class="m">${CFG.ai.auto ? 'Auto mode on: I act on what you ask and approve routine steps; risky ones still come to you.' : 'Ask first: I investigate and suggest; you approve every step.'}</span>\n`); tin.focus(); };
-$('#tnew').onclick = () => { showUser('/new'); newChat(); tin.focus(); };
-$('#tsess').onclick = () => { showUser('/resume'); resumeChat(''); tin.focus(); };
+$('#tnew').onclick = () => { newChat(); tin.focus(); };
+$('#tsess').onclick = () => { out('<span class="p">›</span> <span class="u">/resume</span>'); resumeChat(''); tin.focus(); };
 // Task details: the newest details replace the note at the top; questions asked about it stay.
 async function openTaskChat(taskId, title, note) {
   const id = 'task-' + taskId.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 50);
@@ -3278,11 +3536,11 @@ async function openTaskChat(taskId, title, note) {
 // On a reload the conversation from the last 12 hours carries on.
 async function restoreChat() {
   if (!API.server) return;
-  api('ai/engines').then(r => { API.engines = r.engines; }).catch(() => {});
+  api('ai/engines').then(r => { API.engines = r.engines; syncHead(); }).catch(() => {});
   $('#tnew').hidden = $('#tsess').hidden = $('#tauto').hidden = false;
   const chip = $('#term header .chip'); if (chip) chip.hidden = true;
-  syncAuto();
-  tin.placeholder = 'ask anything · type / for commands';
+  syncAuto(); syncHead();
+  tin.placeholder = 'Ask anything · / for commands';
   let id = ''; try { id = localStorage.getItem('jarvis.chat') || ''; } catch {}
   if (!id) return;
   try { const c = await api('chats/' + id); if (Date.now() - c.updated < 12 * 3600e3) { chat = c; drawChat(); } } catch {}
@@ -3299,14 +3557,18 @@ async function askAI(q, conv = chat) {
   const c = chatConn(), e = AI_BY[c.type] || {}, here = () => chat === conv;
   // The conversation's own route (picked after a rate limit), else the default from Settings.
   const via = conv.via || CFG.ai.via || '', viaLabel = conv.via ? conv.viaLabel : (API.engines || []).find(x => x.id === via)?.label || via;
-  // A conversation can be answered through a Harness (a subscription) instead of the API key.
-  if (here()) out(`<span class="rt">◆ route</span>  <span class="m">${via ? esc(viaLabel) + ' · via the Harness, takes a minute' : esc(c.name) + ' · ' + esc(c.values?.model || e.via || 'default model') + (e.local ? ' · stays home' : '')}</span>`);
+  const meta = via ? `<span>${esc(viaLabel)}</span><span>via the Harness</span>` : `<span>${esc(c.name)} · ${esc(c.values?.model || e.via || 'default model')}</span>${e.local ? '<span>stays home</span>' : ''}`;
+  const el = replyEl(meta), bodyEl = $('.body', el), t0 = Date.now();
+  bodyEl.innerHTML = '<span class="tdots"><i></i><i></i><i></i></span>';
+  if (here()) add(el);
   jSet('thinking');
-  const line = document.createElement('span'); line.className = 'typing'; if (here()) { tout.appendChild(line); tout.scrollTop = tout.scrollHeight; }
   conv.messages.push({ role: 'user', content: q });
-  if (!conv.title) { conv.title = q.replace(/\s+/g, ' ').slice(0, 70); const t = $('#ttitle'); if (t && here()) t.textContent = 'jarvis — ' + conv.title; }
+  if (!conv.title) { conv.title = q.replace(/\s+/g, ' ').slice(0, 70); if (here()) syncHead(); }
   saveChat(true, conv);
-  let text = '', failed = '', fallback = null;
+  // The step counter ticks while JARVIS works.
+  const tick = setInterval(() => { const st = $('.steps', el); if (!st.hidden) $('.n', st).textContent = `${$('ol', st).children.length} · ${fmtDur(Date.now() - t0)}`; }, 1000);
+  let text = '', failed = '', fallback = null, raf = 0;
+  const paint = () => { raf = 0; bodyEl.innerHTML = md(liveActions(text).body); if (here()) stick(); };
   try {
     const r = await fetch(via ? '/api/ai/harness' : '/api/ai/chat', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json', 'x-jarvis': '1' },
       body: JSON.stringify({ connection: c.id, auto: CFG.ai.auto !== false, engine: via || conv.engine || '', messages: aiMessages(conv), context: { page: byId[current]?.dataset.name, pages: order.map(id => byId[id].dataset.name), name: CFG.profile.name, time: new Date().toString() } }) });
@@ -3321,25 +3583,32 @@ async function askAI(q, conv = chat) {
         const data = ev.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5).trim()).join('');
         if (!data) continue;
         const m = JSON.parse(data);
-        if (m.t === 'text') { if (!text) jSet('generating'); text += m.v; line.textContent = text; if (here()) tout.scrollTop = tout.scrollHeight; }
-        // A tool at work: the line goes above the answer, and stays in the conversation.
-        else if (m.t === 'status') { jSet('tool'); conv.messages.push({ role: 'tool', content: m.v }); if (!here()) continue; const st = document.createElement('span'); st.className = 'm'; st.textContent = '◇ ' + m.v + '\n'; tout.insertBefore(st, line); tout.scrollTop = tout.scrollHeight; }
+        if (m.t === 'text') { if (!text) jSet('generating'); text += m.v; raf ||= requestAnimationFrame(paint); }
+        // A tool at work: a step on the live line, kept in the conversation.
+        else if (m.t === 'status') { jSet('tool'); orb.ripple(0, 0, .15); conv.messages.push({ role: 'tool', content: m.v }); stepAdd(el, m.v); if (here()) stick(); }
         else if (m.t === 'fallback') fallback = m.v;
         else if (m.t === 'error') failed = m.v;
       }
     }
   } catch (err) { failed = err.message; }
-  line.classList.remove('typing');
+  clearInterval(tick); cancelAnimationFrame(raf);
   if (text) conv.messages.push({ role: 'assistant', content: text });
   else if (failed) conv.messages.push({ role: 'tool', content: '✗ ' + failed });
   saveChat(false, conv);
-  if (!here()) { out(`<span class="m">◆ an answer arrived in "${esc(conv.title)}" · /resume to read it</span>\n`); jSet('success', 2400); return; }
-  showAnswer(text, line);
+  stepsDone(el, Date.now() - t0, !!failed && !text);
+  const sug = liveActions(text);
+  bodyEl.innerHTML = text ? md(sug.body) : '';
+  $('.acts', el).innerHTML = actButtons(sug.acts);
   if (failed) {
-    out(`<span class="w">✗ ${esc(failed)}</span>\n`); jSet('error', 2600);
-    if (fallback?.length) out('<span class="m">The API key is out of tokens for now. Answer through your subscription instead (this conversation keeps using it):</span>\n' + fallback.map(f => `<button class="btn sug" data-sk="via" data-sv="${esc(f.id + ' | ' + f.label)}">◆ ${esc(f.label)}</button>`).join(' ') + '\n');
-  }
-  else { out(''); jSet('success', 2400); }
+    bodyEl.insertAdjacentHTML('beforeend', `<div class="err">✗ ${esc(failed)}</div>`);
+    if (fallback?.length) { bodyEl.insertAdjacentHTML('beforeend', '<p class="m" style="font-size:.88em">The API key is out of tokens for now. Answer through your subscription instead (this conversation keeps using it):</p>'); $('.acts', el).innerHTML += fallback.map(f => `<button class="btn sug" data-sk="via" data-sv="${esc(f.id + ' | ' + f.label)}">◆ ${esc(f.label)}</button>`).join(''); }
+    jSet('error', 2600);
+  } else jSet('success', 2400);
+  if (here() && termOpen) { stick(); return; }
+  // Closed, or another conversation is open: the orb says so and wears a badge until you look.
+  if (!termOpen) jEl.classList.add('unread');
+  else out(`<span class="m">◆ an answer arrived in "${esc(conv.title)}" · /resume to read it</span>`);
+  if (!termOpen) setTimeout(() => say(failed && !text ? 'Something went wrong with your question. Have a look?' : 'Your answer is ready.', { force: true, state: failed && !text ? 'error' : 'success', acts: [['Show me', async () => { if (chat !== conv) { await saveChat(true); chat = conv; drawChat(); } toggleTerm(true); }], ['Later']] }), 300);
 }
 
 /* ======================================================== life: live data + a few scripted moments */
@@ -4220,7 +4489,7 @@ async function start() {
   setTimeout(ambient, 75000);
   checkStatus();
   document.fonts?.ready.then(() => { measureSlot(); placeOrb(); syncChrome(); fitGreet(); });
-  let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { layout(); drawCharts(); cam = overview ? overviewCam() : paneCam(current); zoomF = 1; flight = { type: 'pan', tx: cam.fx, ty: cam.fy }; apply(); measureSlot(); placeOrb(); syncChrome(); fitGreet(); }, 80); });
+  let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { layout(); drawCharts(); cam = overview ? overviewCam() : paneCam(current); zoomF = 1; flight = { type: 'pan', tx: cam.fx, ty: cam.fy }; apply(); measureSlot(); if (termOpen) layoutTerm(); placeOrb(); syncChrome(); fitGreet(); }, 80); });
 }
 start();
 })();
