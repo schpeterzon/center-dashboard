@@ -805,6 +805,40 @@ textarea.inp{font:12.5px/1.55 var(--mono);resize:vertical;min-height:150px}
 .kv{display:grid;grid-template-columns:160px 1fr;gap:8px 16px;font-size:13px}
 .kv span:nth-child(odd){color:var(--muted)}
 .code{font:12px/1.6 var(--mono);padding:10px 12px;border-radius:9px;background:var(--bg);border:1px solid var(--line);color:var(--text-2);white-space:pre-wrap;word-break:break-all;user-select:all}
+/* Mail reader: one message over the page, read-only. HTML mail sits on its own white sheet in a
+   sandbox (no scripts, no remote content until asked); plain text uses the board's type. */
+#mailv{position:fixed;inset:0;z-index:40;display:grid;place-items:center;background:color-mix(in srgb,var(--bg) 62%,transparent);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);opacity:0;pointer-events:none;transition:opacity .3s}
+#mailv.open{opacity:1;pointer-events:auto}
+.mv{zoom:var(--z);width:min(940px,calc(var(--dw) - 60px));height:min(840px,calc(var(--dh) - 60px));display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line-2);border-radius:22px;box-shadow:0 40px 100px -20px color-mix(in srgb,var(--shadow) 70%,transparent);overflow:hidden;transform:translateY(16px) scale(.98);transition:transform .45s cubic-bezier(.2,.9,.2,1)}
+#mailv.open .mv{transform:none}
+.mv header{display:grid;grid-template-columns:auto 1fr auto;gap:4px 14px;align-items:start;padding:20px 22px 16px;border-bottom:1px solid var(--line)}
+.mv header .av{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font:600 16px var(--sans);color:var(--on-accent);background:var(--s1);grid-row:span 2}
+.mv h2{font-size:19px;letter-spacing:-.015em;line-height:1.3;overflow-wrap:anywhere}
+.mv .mmeta{grid-column:2;font-size:12.5px;color:var(--text-2);line-height:1.55;overflow-wrap:anywhere}
+.mv .mmeta b{color:var(--text);font-weight:600}
+.mv .mmeta .ad,.mv .mmeta .dt{color:var(--muted)}
+.mv .mtools{grid-row:span 2;display:flex;gap:6px;align-items:center}
+.mv .mtools button,.mv .mtools a{height:32px;min-width:32px;padding:0 10px;border-radius:16px;border:1px solid var(--line-2);color:var(--text-2);font-size:13px;display:grid;place-items:center;text-decoration:none;transition:background .2s,color .2s,border-color .2s}
+.mv .mtools button:hover,.mv .mtools a:hover{color:var(--text);background:color-mix(in srgb,var(--ink) 5%,transparent)}
+.mv .mtools button:disabled{opacity:.35;pointer-events:none}
+.mv .mtools .pri{background:var(--accent);border-color:transparent;color:var(--on-accent);font-weight:600}
+.mv .mtools .pri:hover{background:var(--accent);color:var(--on-accent);filter:brightness(1.08)}
+.mv .mbar{display:flex;gap:10px;align-items:center;padding:8px 22px;font-size:12px;color:var(--text-2);background:color-mix(in srgb,var(--warn) 9%,transparent);border-bottom:1px solid var(--line)}
+.mv .mbar button{margin-left:auto;font-weight:600;color:var(--accent)}
+.mv .mfiles{display:flex;flex-wrap:wrap;gap:6px;padding:10px 22px 0}
+.mv .mfiles span{font:500 11.5px var(--mono);padding:4px 9px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2)}
+.mv .mbody{flex:1;min-height:0;position:relative;padding:14px}
+.mv iframe{width:100%;height:100%;border:0;border-radius:12px;background:#fff;box-shadow:0 0 0 1px var(--line)}
+.mv .mtext{height:100%;overflow:auto;padding:6px 10px 20px;font-size:14.5px;line-height:1.62;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text)}
+.mv .mtext a{color:var(--accent)}
+.mv .mfoot{padding:8px 22px 12px;font:500 10.5px var(--mono);color:var(--muted);display:flex;gap:14px}
+.mv .mfoot kbd{font:inherit;padding:0 5px;border:1px solid var(--line-2);border-radius:4px}
+.mv .mload{display:flex;flex-direction:column;gap:12px;padding:12px}
+.mv .mload i{display:block;height:12px;border-radius:6px;background:linear-gradient(90deg,var(--line) 0,var(--line-2) 40%,var(--line) 80%);background-size:300% 100%;animation:mshim 1.3s linear infinite}
+@keyframes mshim{from{background-position:100% 0}to{background-position:-100% 0}}
+.mv ::-webkit-scrollbar{width:9px}.mv ::-webkit-scrollbar-thumb{background:transparent;border-radius:9px}.mv :hover::-webkit-scrollbar-thumb{background:var(--line-2)}
+.msg[data-la="mail"] .who::after{content:"open";margin-left:8px;font:500 10px var(--mono);color:var(--accent);opacity:0;transition:opacity .2s}
+.msg[data-la="mail"]:hover .who::after{opacity:1}
 .toast{position:fixed;left:50%;top:calc(76px*var(--z));z-index:50;transform:translate(-50%,-10px);opacity:0;transition:opacity .25s,transform .35s cubic-bezier(.3,1.4,.5,1);pointer-events:none}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 .toast .zz{padding:8px 14px;border-radius:99px;background:var(--card-2);border:1px solid var(--line-2);font-size:13px;box-shadow:0 10px 30px -10px color-mix(in srgb,var(--shadow) 60%,transparent)}
@@ -1438,6 +1472,7 @@ body.server .pane:not(.lv-ready) .pane-inner{visibility:hidden}
   <main><header><div><h2 id="sett">Settings</h2><p id="setp"></p></div><button class="x" id="setx" aria-label="Close settings">×</button></header><div class="sbody" id="sbody"></div></main>
  </div>
 </div>
+<div id="mailv" role="dialog" aria-modal="true" aria-label="Email"><div class="mv"></div></div>
 <div class="toast" id="toast"><div class="zz"></div></div>
 <style id="user-css"></style>
 
@@ -1634,6 +1669,51 @@ function openSettings(sec) {
   showSection(sec && SECTIONS.some(s => s[0] === sec) ? sec : setSec);
   setTimeout(() => $('#setx').focus(), 50);
 }
+/* ======================================================== mail reader (Inbox)
+   One message over the page. HTML mail renders in a sandboxed frame with no scripts and, until the
+   owner asks, no remote content (remote images tell the sender the mail was opened). */
+const mailEl = $('#mailv'), mv = $('.mv', mailEl);
+let mailOpen = false, mailCur = null, mailList = [], mailHeads = new Map(), mailSeq = 0;
+const mailDoc = (html, imgs) => { const net = imgs ? ' https:' : ''; return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'${net}; img-src data:${net}; font-src data:${net}"><base target="_blank"><style>html{color-scheme:light}body{margin:0;padding:22px 26px;font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#1d1d1f;background:#fff;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%!important}pre{white-space:pre-wrap}</style></head><body>${html}</body></html>`; };
+const linkify = t => esc(t).replace(/https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)]/g, u => `<a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`);
+const fmtSize = n => n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : n >= 1e3 ? Math.round(n / 1e3) + ' KB' : n + ' B';
+const people = l => l.map(x => `<span title="${esc(x.address)}">${esc(x.name || x.address)}</span>`).join(', ');
+function drawMail(m) {
+  const i = mailList.indexOf(m.uid), f = m.from || {};
+  const body = m.loading ? `<div class="mload">${[92, 80, 86, 60, 74, 40, 88, 52].map(w => `<i style="width:${w}%"></i>`).join('')}</div>`
+    : m.error ? `<div class="mtext">Could not open this message: ${esc(m.error)}</div>`
+    : m.html ? '<iframe sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" title="Email body"></iframe>'
+    : `<div class="mtext">${linkify(m.text || '(this message has no text)')}</div>`;
+  mv.innerHTML = `<header><span class="av">${esc((f.name || '?')[0].toUpperCase())}</span><h2>${esc(m.subject)}</h2>
+    <div class="mtools"><button data-mv="prev" ${i > 0 ? '' : 'disabled'} title="Newer (↑)" aria-label="Newer message">↑</button><button data-mv="next" ${i >= 0 && i < mailList.length - 1 ? '' : 'disabled'} title="Older (↓)" aria-label="Older message">↓</button>${m.loading || m.error ? '' : '<button class="pri" data-mv="ask">✦ Ask JARVIS</button>'}${m.webmail ? `<a href="${esc(m.webmail)}" target="_blank" rel="noopener noreferrer" title="Open in your webmail (to reply or download attachments)">↗</a>` : ''}<button data-mv="close" title="Close (Esc)" aria-label="Close">×</button></div>
+    <div class="mmeta"><b>${esc(f.name)}</b> <span class="ad">&lt;${esc(f.address)}&gt;</span>${m.to?.length ? '<br>to ' + people(m.to) + (m.cc?.length ? ' · cc ' + people(m.cc) : '') : ''}${m.at ? `<br><span class="dt">${esc(new Date(m.at).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }))} · ${esc(agoS(m.at))}</span>` : ''}</div></header>
+    ${m.html && m.remote && !m.imgs ? '<div class="mbar">Remote images are blocked: loading them can tell the sender you opened this.<button data-mv="imgs">Show images</button></div>' : ''}
+    ${m.files?.length ? `<div class="mfiles">${m.files.map(x => `<span title="${esc(x.type)}">${esc(x.name)} · ${fmtSize(x.size)}</span>`).join('')}</div>` : ''}
+    <div class="mbody">${body}</div>
+    <div class="mfoot"><span>read-only · stays unread in your mailbox${m.cut ? ' · very long, shown in part' : ''}</span><span style="margin-left:auto"><kbd>↑</kbd> <kbd>↓</kbd> other mail · <kbd>Esc</kbd> close</span></div>`;
+  const fr = $('iframe', mv); if (fr) fr.srcdoc = mailDoc(m.html, m.imgs);
+}
+async function openMail(uid) {
+  if (termOpen) toggleTerm(false);
+  hush(); mailOpen = true; mailEl.classList.add('open');
+  const seq = ++mailSeq, head = mailHeads.get(uid) || {};
+  mailCur = { uid, subject: head.subject || 'Opening…', from: head.from, at: head.at, loading: true };
+  drawMail(mailCur);
+  try { const m = await api('live/mail/open', { method: 'POST', body: { uid } }); if (seq === mailSeq) drawMail(mailCur = { ...m, imgs: false }); }
+  catch (e) { if (seq === mailSeq) drawMail(mailCur = { ...mailCur, loading: false, error: e.message }); }
+}
+function closeMail() { mailOpen = false; mailSeq++; mailEl.classList.remove('open'); }
+function stepMail(d) { const i = mailList.indexOf(mailCur?.uid), n = mailList[i + d]; if (i >= 0 && n) openMail(n); }
+mv.addEventListener('click', e => {
+  const b = e.target.closest('[data-mv]'); if (!b) return;
+  const a = b.dataset.mv, m = mailCur;
+  if (a === 'close') closeMail();
+  else if (a === 'prev' || a === 'next') stepMail(a === 'next' ? 1 : -1);
+  else if (a === 'imgs') { m.imgs = true; drawMail(m); }
+  // The question names the email; through a Harness the email itself goes along (read-only).
+  else if (a === 'ask') { closeMail(); askFresh(`About the email "${m.subject}" from ${m.from.name} <${m.from.address}>: what is it about, and do I need to do anything? Be brief.`, { mail: m.uid }); }
+});
+mailEl.addEventListener('pointerdown', e => { if (e.target === mailEl) closeMail(); });
 function closeSettings() { setOpen = false; setEl.classList.remove('open'); form = null; }
 $('#setbtn').onclick = () => openSettings();
 $('#setx').onclick = closeSettings;
@@ -2412,6 +2492,7 @@ let spaceHeld = false;
 document.addEventListener('keydown', e => {
   lastInput = performance.now();
   if (setOpen) { if (e.key === 'Escape') closeSettings(); return; }
+  if (mailOpen) { if (e.key === 'Escape') closeMail(); else if (e.key === 'ArrowDown' || e.key === 'j') { e.preventDefault(); stepMail(1); } else if (e.key === 'ArrowUp' || e.key === 'k') { e.preventDefault(); stepMail(-1); } return; }
   const typing = e.target instanceof Element && e.target.matches('input,textarea,select');
   if (e.key === '`') { e.preventDefault(); toggleTerm(); return; }
   // "/" anywhere opens the chat with its command menu.
@@ -3432,7 +3513,7 @@ for (const input of [$('#ask'), tin, $('#addtodo')]) {
 }
 // A question asked from the page (Home's box, a card's "Ask JARVIS" button) starts its own
 // conversation, so unrelated questions never run together; the chat window keeps its thread.
-async function askFresh(q) { if (API.server && chat.messages.length) await newChat(); sendToTerm(q); }
+async function askFresh(q, o = {}) { if (API.server && chat.messages.length) await newChat(); chat.mail = o.mail || undefined; sendToTerm(q); }
 $('#ask').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.value.trim()) { askFresh(e.target.value.trim()); e.target.value = ''; } });
 $$('.hero .sugg button').forEach(b => b.onclick = () => askFresh(b.textContent.replace('…', '')));
 
@@ -3448,7 +3529,7 @@ function saveChat(now, c = chat) {
   if (c === chat) clearTimeout(chatSaveT);
   if (!API.server || !c.messages.some(m => m.role === 'user' || m.role === 'note')) return Promise.resolve();
   if (c === chat) try { localStorage.setItem('jarvis.chat', c.id); } catch {}
-  const put = () => api('chats/' + c.id, { method: 'PUT', body: { title: c.title, kind: c.kind, engine: c.engine || '', via: c.via || '', viaLabel: c.viaLabel || '', messages: c.messages } }).catch(e => console.warn('chat save:', e.message));
+  const put = () => api('chats/' + c.id, { method: 'PUT', body: { title: c.title, kind: c.kind, engine: c.engine || '', via: c.via || '', viaLabel: c.viaLabel || '', mail: c.mail, messages: c.messages } }).catch(e => console.warn('chat save:', e.message));
   if (now || c !== chat) return put();
   chatSaveT = setTimeout(put, 600); return Promise.resolve();
 }
@@ -3680,7 +3761,7 @@ async function askAI(q, conv = chat) {
   const paint = () => { raf = 0; bodyEl.innerHTML = md(liveActions(text).body); if (here()) stick(); };
   try {
     const r = await fetch(via ? '/api/ai/harness' : '/api/ai/chat', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json', 'x-jarvis': '1' },
-      body: JSON.stringify({ connection: c.id, auto: CFG.ai.auto !== false, engine: via || conv.engine || '', messages: aiMessages(conv), context: { page: byId[current]?.dataset.name, pages: order.map(id => byId[id].dataset.name), name: CFG.profile.name, time: new Date().toString() } }) });
+      body: JSON.stringify({ connection: c.id, auto: CFG.ai.auto !== false, engine: via || conv.engine || '', mail: conv.mail, messages: aiMessages(conv), context: { page: byId[current]?.dataset.name, pages: order.map(id => byId[id].dataset.name), name: CFG.profile.name, time: new Date().toString() } }) });
     if (r.status === 401) { location.assign('/login'); return; }
     if (!r.ok || !r.body) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
     const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
@@ -3959,6 +4040,7 @@ const LIVE = (() => {
     if (a === 'ha') { b.classList.toggle('on'); return act('home', 'toggle', { action: d.action || 'toggle', entity: d.entity, value: d.value }); }
     if (a === 'ask') return askFresh(d.q);
     if (a === 'open') return window.open(d.url, '_blank', 'noopener,noreferrer');
+    if (a === 'mail') return openMail(+d.uid);
   }, true);
   document.addEventListener('keydown', async e => {
     if (e.key !== 'Enter' || !LIVE.on) return;
@@ -4449,19 +4531,22 @@ const LIVE = (() => {
 
   // Inbox: what wants your attention, from every source -----------------------
   PAGES.inbox = () => {
-    const h = ok('harness'), gh = ok('github'), ha = ok('home'), mail = ok('mail'), items = [];
+    const h = ok('harness'), gh = ok('github'), ha = ok('home'), mail = ok('mail'), items = []; let readShown = 0;
     for (const a of h?.approvals || []) items.push({ g: 'Needs a decision', who: 'Harness', src: a.risk + ' risk', title: a.kind === 'task_start' ? 'Task wants to start' : 'Permission: ' + a.permission, text: a.description, c: 'var(--warn)', acts: `<button class="btn pri" data-la="approve" data-id="${esc(a.id)}">Approve</button><button class="btn" data-la="reject" data-id="${esc(a.id)}">Reject</button>`, t: Date.parse(a.created) });
     for (const p of (gh?.pulls || []).filter(p => !p.mine)) items.push({ g: 'Needs a reply', who: p.repo, src: 'github', title: p.title, text: `Pull request #${p.number}${p.draft ? ' (draft)' : ''}`, c: 'var(--s2)', url: p.url, t: Date.parse(p.updated) });
     for (const n of (gh?.notifications || []).filter(n => n.unread)) items.push({ g: n.reason === 'review_requested' || n.reason === 'mention' ? 'Needs a reply' : 'FYI', who: n.repo, src: 'github · ' + n.reason.replace('_', ' '), title: n.title, text: n.type, c: 'var(--muted)', t: Date.parse(n.updated) });
     for (const t of (h?.tasks || []).filter(t => t.status === 'failed' && Date.now() - Date.parse(t.completed || 0) < 3 * 864e5)) items.push({ g: 'FYI', who: 'Harness', src: 'task failed', title: t.title, text: t.error, c: 'var(--crit)', acts: `<button class="btn" data-la="rerun" data-id="${esc(t.id)}">Run again</button>`, t: Date.parse(t.completed) });
     for (const n of ha?.notifications || []) items.push({ g: 'FYI', who: 'Home Assistant', src: 'problem', title: n, text: 'reported a problem', c: 'var(--accent)', t: Date.now() });
-    for (const m of (mail?.messages || []).filter(m => m.unread)) items.push({ g: 'Unread mail', who: m.from.name, src: m.flagged ? 'email · flagged' : 'email', title: m.subject, text: m.from.address + (m.at ? ' · ' + ago(m.at) : ''), c: 'var(--s1)', url: mail.webmail, t: m.at || 0 });
+    for (const m of mail?.messages || []) if (m.unread || ++readShown <= 8) items.push({ g: m.unread ? 'Unread mail' : 'Earlier mail', who: m.from.name, src: m.flagged ? 'email · flagged' : 'email', title: m.subject, text: m.from.address + (m.at ? ' · ' + ago(m.at) : ''), c: m.unread ? 'var(--s1)' : 'var(--muted)', uid: m.uid, url: mail.webmail, t: m.at || 0 });
     if (!h && !gh && !ha && !mail) return ph('inbox', 'Inbox', 'Inbox') + (broken('mail', 'Your mailbox') || need(['email', 'harness', 'github', 'home-assistant'], 'Mail, approvals, reviews and alerts from your sources collect here'));
-    const groups = ['Needs a decision', 'Needs a reply', 'Unread mail', 'FYI'];
+    const groups = ['Needs a decision', 'Needs a reply', 'Unread mail', 'FYI', 'Earlier mail'];
+    // The reader steps through mail in the order shown.
+    mailList = groups.flatMap(g => items.filter(i => i.g === g).sort((a, b) => b.t - a.t)).filter(i => i.uid).map(i => i.uid);
+    mailHeads = new Map((mail?.messages || []).map(m => [m.uid, m]));
     return ph('inbox', 'Inbox · ' + [mail && 'mail', h && 'approvals', gh && 'GitHub', ha && 'alerts'].filter(Boolean).join(', '), 'Inbox', stats([[items.filter(i => i.g === 'Needs a decision' || i.g === 'Needs a reply').length, 'need you'], [mail ? mail.unseen : '—', mail ? 'unread in ' + mail.folder : 'unread mail'], [items.filter(i => i.g === 'FYI').length, 'for your information'], [gh?.notifications ? gh.notifications.filter(n => n.unread).length : '—', 'unread on GitHub']])) +
-      `<div class="grid" style="grid-template-columns:1.55fr 1fr"><div class="card"><h3>Triage <span class="go">${mail?.checked ? 'mail checked ' + esc(hm(new Date(mail.checked))) + ' · ' : ''}newest first <button class="btn" data-la="mail-refresh" style="margin-left:8px;padding:3px 10px;font-size:11.5px">↻ Refresh</button></span></h3><div class="scroll">${groups.map(g => { const list = items.filter(i => i.g === g).sort((a, b) => b.t - a.t); return list.length ? `<div class="tg">${g} · ${list.length}</div>` + list.map(i => `<div class="msg" ${i.url ? `data-la="open" data-url="${esc(i.url)}"` : ''}><span class="av" style="background:${i.c}">${esc((i.who || '?')[0].toUpperCase())}</span><span class="who">${esc(i.title)}<span class="t2" style="font-weight:400"> · ${esc(i.who)}</span></span><span class="src">${esc(i.src)}</span><p>${esc(i.text || '')}</p>${i.acts ? `<div class="row" style="grid-column:2/-1;margin-top:6px">${i.acts}</div>` : ''}</div>`).join('') : ''; }).join('') || '<div class="empty"><div>Inbox zero. Nothing wants you.</div></div>'}</div></div>
+      `<div class="grid" style="grid-template-columns:1.55fr 1fr"><div class="card"><h3>Triage <span class="go">${mail?.checked ? 'mail checked ' + esc(hm(new Date(mail.checked))) + ' · ' : ''}newest first <button class="btn" data-la="mail-refresh" style="margin-left:8px;padding:3px 10px;font-size:11.5px">↻ Refresh</button></span></h3><div class="scroll">${groups.map(g => { const list = items.filter(i => i.g === g).sort((a, b) => b.t - a.t); return list.length ? `<div class="tg">${g} · ${list.length}</div>` + list.map(i => `<div class="msg" ${i.uid ? `data-la="mail" data-uid="${i.uid}"` : i.url ? `data-la="open" data-url="${esc(i.url)}"` : ''}><span class="av" style="background:${i.c}">${esc((i.who || '?')[0].toUpperCase())}</span><span class="who">${esc(i.title)}<span class="t2" style="font-weight:400"> · ${esc(i.who)}</span></span><span class="src">${esc(i.src)}</span><p>${esc(i.text || '')}</p>${i.acts ? `<div class="row" style="grid-column:2/-1;margin-top:6px">${i.acts}</div>` : ''}</div>`).join('') : ''; }).join('') || '<div class="empty"><div>Inbox zero. Nothing wants you.</div></div>'}</div></div>
       <div class="col-stack"><div class="card insight"><h3>JARVIS can help</h3><p>Ask for a summary of everything waiting: mail, approvals, pull requests and failures.</p><div class="row" style="margin-top:12px"><button class="btn pri" data-la="ask" data-q="Go through what is waiting for me (unread mail, approvals, pull requests, failures) and tell me what to do first, briefly.">What first?</button></div></div>
-      <div class="card fill"><h3>Sources</h3><div class="list">${[['email', 'Unread mail', mail, 'mail'], ['harness', 'Agent approvals and failures', h, 'harness'], ['github', 'Pull requests and notifications', gh, 'github'], ['home-assistant', 'Home problems', ha, 'home']].map(([t, d, on, k]) => `<div class="cron"><span>${esc(NAMES[t])}</span><span class="nx">${on ? '<span class="st good">connected</span>' : src(k) && !src(k).pending ? '<span class="st crit">not answering</span>' : '<a class="lk" data-settings="connections">connect</a>'}</span><span></span><span class="w">${d}</span></div>`).join('')}</div><p class="muted" style="font-size:12px;margin-top:10px">Mail is read-only: the Inbox shows the headers of new messages, JARVIS reads a message's text when you ask about it, and nothing is ever marked, moved or sent.${mail?.webmail ? ' Click a message to open your webmail.' : ''}</p></div></div></div>`;
+      <div class="card fill"><h3>Sources</h3><div class="list">${[['email', 'Unread mail', mail, 'mail'], ['harness', 'Agent approvals and failures', h, 'harness'], ['github', 'Pull requests and notifications', gh, 'github'], ['home-assistant', 'Home problems', ha, 'home']].map(([t, d, on, k]) => `<div class="cron"><span>${esc(NAMES[t])}</span><span class="nx">${on ? '<span class="st good">connected</span>' : src(k) && !src(k).pending ? '<span class="st crit">not answering</span>' : '<a class="lk" data-settings="connections">connect</a>'}</span><span></span><span class="w">${d}</span></div>`).join('')}</div><p class="muted" style="font-size:12px;margin-top:10px">Mail is read-only: click a message to read it here (it stays unread), or ask JARVIS about it. Nothing is ever marked, moved or sent.</p></div></div></div>`;
   };
 
   // Network ------------------------------------------------------------------

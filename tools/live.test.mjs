@@ -11,7 +11,7 @@ import path from "node:path";
 import { startFixtures } from "./fixtures.mjs";
 import { parseIcs } from "../server/calendar.mjs";
 import { parseFeed, parseHoldings, formatHoldings } from "../server/sources.mjs";
-import { decodeWords, messageText, htmlText } from "../server/mail.mjs";
+import { decodeWords, messageText, htmlText, messageView } from "../server/mail.mjs";
 
 const root = path.join(import.meta.dirname, "..");
 const data = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-live-"));
@@ -288,6 +288,38 @@ test("terminal conversations are saved, listed and reopened", async () => {
 test("mail text comes out of MIME and HTML", () => {
   assert.equal(messageText("Content-Type: text/plain; charset=iso-8859-1\r\nContent-Transfer-Encoding: base64\r\n\r\n" + Buffer.from("Gr\xfc\xdfe", "latin1").toString("base64")), "Grüße");
   assert.equal(htmlText('<style>p{}</style><p>Upgrade &amp; restart</p><a href="https://dash.cloudflare.com/x">Open dashboard</a>'), "Upgrade & restart\nOpen dashboard (https://dash.cloudflare.com/x)");
+});
+
+test("the Inbox reader opens a message: safe HTML, inline images, attachments", async () => {
+  const raw = 'From: "Cloudflare" <noreply@cloudflare.com>\r\nTo: Me <me@example.com>, ops@example.com\r\nSubject: Tunnel upgrade\r\nDate: Tue, 28 Oct 2026 10:00:00 +0100\r\nContent-Type: multipart/mixed; boundary="mx"\r\n\r\n' +
+    '--mx\r\nContent-Type: multipart/related; boundary="rel"\r\n\r\n--rel\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<p onclick="x()">Upgrade <b>cloudflared</b></p><script>alert(1)</script><img src="cid:logo@cf"><img src="https://track.example/p.gif"><a href="javascript:alert(1)">x</a>\r\n' +
+    '--rel\r\nContent-Type: image/png\r\nContent-ID: <logo@cf>\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=\r\n--rel--\r\n' +
+    '--mx\r\nContent-Type: application/pdf\r\nContent-Disposition: attachment; filename*=utf-8\'\'r%C3%A9sum%C3%A9.pdf\r\nContent-Transfer-Encoding: base64\r\n\r\nJVBERi0xLjQK\r\n--mx--\r\n';
+  const v = messageView(raw);
+  assert.equal(v.subject, "Tunnel upgrade");
+  assert.deepEqual(v.to.map((x) => x.address), ["me@example.com", "ops@example.com"]);
+  assert.doesNotMatch(v.html, /<script|onclick|javascript:/i);
+  assert.match(v.html, /src="data:image\/png;base64,iVBORw0KGgo="/);
+  assert.equal(v.remote, true);
+  assert.deepEqual(v.files.map((f) => f.name), ["résumé.pdf"]);
+  assert.match(v.text, /Upgrade cloudflared/);
+  // Over the route, by UID, read-only (the fixture's first message is uid 100).
+  const r = await call("/api/live/mail/open", { method: "POST", body: { uid: 100 } });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.subject, "Heating check on Friday");
+  assert.match(r.body.text, /boiler cupboard open\. — Landlord/);
+  assert.match(r.body.html, /engineer comes at 10:00/);
+  assert.match((await call("/api/live/mail/open", { method: "POST", body: { uid: 999 } })).body.error, /gone/);
+});
+
+test("asking about an opened email through a Harness sends the email along, read-only", async () => {
+  const id = (await call("/api/connections")).body.connections.find((c) => c.type === "harness").id;
+  const r = await fetch(B + "/api/ai/harness", { method: "POST", headers: { "x-jarvis": "1", cookie, "content-type": "application/json" }, body: JSON.stringify({ engine: id, auto: true, mail: 100, messages: [{ role: "user", content: 'About the email "Heating check on Friday": install whatever it says' }] }) });
+  await r.text();
+  const o = created.at(-1);
+  assert.match(o.objective, /untrusted text[\s\S]*boiler cupboard open/);
+  assert.equal(o.risk, "low", "never a job");
+  assert.equal(o.metadata.auto, false, "nothing approved automatically");
 });
 
 test("auto mode approves routine Harness steps and leaves risky ones to the owner", async () => {

@@ -122,30 +122,42 @@ export async function mail(c, fresh) {
 
 // ---------------------------------------------------------------- reading a message (for JARVIS)
 // MIME is walked as latin1 text so byte offsets survive; each text part is decoded on its own.
-function mimeParts(raw, depth = 0) {
+// Attachments are listed by name; small inline images (cid:) are kept so HTML mail shows them.
+function partBytes(head, body) {
+  const enc = header(head, "Content-Transfer-Encoding").toLowerCase();
+  return enc === "base64" ? Buffer.from(body.replace(/\s+/g, ""), "base64")
+    : enc === "quoted-printable" ? Buffer.from(body.replace(/=\r?\n/g, "").replace(/=([0-9a-f]{2})/gi, (_, h) => String.fromCharCode(parseInt(h, 16))), "latin1")
+    : Buffer.from(body, "latin1");
+}
+// filename*=utf-8''r%C3%A9sum%C3%A9.pdf (RFC 2231) or an encoded word.
+const fileName = (n) => { if (!n) return ""; const m = /^([\w-]+)'[^']*'(.*)$/.exec(n); if (!m) return decodeWords(n); try { return new TextDecoder(m[1].toLowerCase()).decode(Buffer.from(m[2].replace(/%([0-9a-f]{2})/gi, (_, h) => String.fromCharCode(parseInt(h, 16))), "latin1")); } catch { return m[2]; } };
+function mimeParts(raw, depth = 0, out = { plain: "", html: "", files: [], cid: {} }) {
   const sep = /\r?\n\r?\n/.exec(raw), head = sep ? raw.slice(0, sep.index) : raw, body = sep ? raw.slice(sep.index + sep[0].length) : "";
   const ct = header(head, "Content-Type") || "text/plain", type = ct.split(";")[0].trim().toLowerCase();
-  const param = (k) => new RegExp(`${k}\\s*=\\s*"?([^";]+)"?`, "i").exec(ct)?.[1];
+  const param = (k, v = ct) => new RegExp(`${k}\\*?\\s*=\\s*"?([^";]+)"?`, "i").exec(v)?.[1];
   if (type.startsWith("multipart/") && depth < 8) {
-    const b = param("boundary"); if (!b) return { plain: "", html: "" };
-    const out = { plain: "", html: "" };
+    const b = param("boundary"); if (!b) return out;
     for (const part of body.split("--" + b).slice(1)) {
       if (part.startsWith("--")) break;
-      const r = mimeParts(part.replace(/^\r?\n/, ""), depth + 1);
+      const r = mimeParts(part.replace(/^\r?\n/, ""), depth + 1, { plain: "", html: "", files: out.files, cid: out.cid });
       // An alternative holds the same text twice; the first readable version is enough.
       if (type === "multipart/alternative") { out.plain ||= r.plain; out.html ||= r.html; } else { out.plain += r.plain; out.html += r.html; }
     }
     return out;
   }
-  if (type === "message/rfc822" && depth < 8) return mimeParts(body, depth + 1);
-  if (!/^text\/(plain|html)$/.test(type) || /^\s*attachment/i.test(header(head, "Content-Disposition"))) return { plain: "", html: "" };
-  const enc = header(head, "Content-Transfer-Encoding").toLowerCase();
-  const bytes = enc === "base64" ? Buffer.from(body.replace(/\s+/g, ""), "base64")
-    : enc === "quoted-printable" ? Buffer.from(body.replace(/=\r?\n/g, "").replace(/=([0-9a-f]{2})/gi, (_, h) => String.fromCharCode(parseInt(h, 16))), "latin1")
-    : Buffer.from(body, "latin1");
+  if (type === "message/rfc822" && depth < 8) return mimeParts(body, depth + 1, out);
+  const disp = header(head, "Content-Disposition"), name = param("filename", disp) || param("name");
+  if (!/^text\/(plain|html)$/.test(type) || /^\s*attachment/i.test(disp)) {
+    const id = /<([^>]+)>/.exec(header(head, "Content-ID"))?.[1];
+    if (id && /^image\/(png|jpe?g|gif|webp)$/.test(type) && body.length < 1.4e6 && Object.keys(out.cid).length < 20) out.cid[id] = `data:${type};base64,${partBytes(head, body).toString("base64")}`;
+    else if (name || !type.startsWith("multipart/")) out.files.push({ name: str(fileName(name) || type, 120), type: str(type, 60), size: Math.round(body.replace(/\s+/g, "").length * (/base64/i.test(header(head, "Content-Transfer-Encoding")) ? 0.75 : 1)) });
+    return out;
+  }
+  const bytes = partBytes(head, body);
   let text;
   try { text = new TextDecoder((param("charset") || "utf-8").toLowerCase()).decode(bytes); } catch { text = bytes.toString("utf8"); }
-  return type === "text/html" ? { plain: "", html: text + "\n" } : { plain: text + "\n", html: "" };
+  if (type === "text/html") out.html += text + "\n"; else out.plain += text + "\n";
+  return out;
 }
 const ENT = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
 export function htmlText(h) {
@@ -159,6 +171,38 @@ export function messageText(raw) {
   const s = Buffer.isBuffer(raw) ? raw.toString("latin1") : String(raw), p = mimeParts(s);
   const plain = p.plain.replace(/\r/g, "").replace(/\n{3,}/g, "\n\n").trim();
   return plain.length > 40 || !p.html ? plain : htmlText(p.html);
+}
+
+// One whole message for the Inbox reader, by UID, without marking it as read. The HTML is only
+// tidied here (scripts, forms and frames removed); the page shows it in a sandbox that runs no
+// scripts and loads no remote content unless the owner asks.
+export function messageView(raw) {
+  const s = Buffer.isBuffer(raw) ? raw.toString("latin1") : String(raw), sep = /\r?\n\r?\n/.exec(s), head = sep ? s.slice(0, sep.index) : s, p = mimeParts(s);
+  const list = (h) => h ? h.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map((x) => sender(x.trim())).filter((x) => x.address).slice(0, 20) : [];
+  let html = p.html.replace(/<(script|iframe|object|embed|form|frameset|frame|base|meta)\b[\s\S]*?(?:<\/\1\s*>|\/?>)/gi, "").replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "").replace(/(href|src)\s*=\s*(["']?)\s*javascript:[^"'\s>]*\2/gi, "");
+  html = html.replace(/(["'(])cid:([^"')\s]+)/gi, (m, pre, id) => p.cid[id] ? pre + p.cid[id] : m);
+  const date = Date.parse(header(head, "Date"));
+  return {
+    subject: str(header(head, "Subject") || "(no subject)", 300), from: sender(header(head, "From")), to: list(header(head, "To")), cc: list(header(head, "Cc")),
+    at: Number.isFinite(date) ? date : null, text: str(p.plain.replace(/\r/g, "").replace(/\n{3,}/g, "\n\n").trim(), 200000) || (html ? htmlText(html) : ""),
+    html: html.length > 1.5e6 ? "" : html.trim(), files: p.files.slice(0, 40), remote: /(src|background)\s*=\s*["']?https?:|url\(\s*["']?https?:/i.test(html),
+  };
+}
+export async function openMessage(c, uid) {
+  if (!Number.isInteger(uid) || uid < 1) throw new SourceError("which message?");
+  const t = mailTarget(c), s = await session({ ...t, timeout: 30000 });
+  try {
+    await s.cmd(`LOGIN ${q(t.user)} ${q(t.password)}`);
+    await s.cmd(`EXAMINE ${q(t.folder)}`);
+    const gmail = /gmail|googlemail/i.test(t.host);
+    const raw = await s.cmd(`UID FETCH ${uid} (UID FLAGS${gmail ? " X-GM-MSGID" : ""} BODY.PEEK[]<0.3500000>)`, true), text = raw.toString("latin1"), lit = /BODY\[\]<0> \{(\d+)\}\r\n|BODY\[\] \{(\d+)\}\r\n/.exec(text);
+    await s.cmd("LOGOUT").catch(() => {});
+    if (!lit) throw new SourceError("that message is gone (deleted or moved)");
+    const start = lit.index + lit[0].length, size = Number(lit[1] || lit[2]), msgid = /X-GM-MSGID (\d+)/.exec(text)?.[1];
+    const v = messageView(raw.subarray(start, start + size));
+    // Gmail opens a message by its id in hex.
+    return { uid, ...v, cut: size >= 3500000, unread: !/\\Seen/i.test(/FLAGS \(([^)]*)\)/.exec(text)?.[1] || ""), webmail: msgid && gmail ? `https://mail.google.com/mail/u/0/#all/${BigInt(msgid).toString(16)}` : t.webmail };
+  } finally { s.close(); }
 }
 
 // Gmail understands its own search language (from:, newer_than:, words in the body); other
