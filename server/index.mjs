@@ -335,6 +335,8 @@ async function api(req, res, url, who) {
     return json(res, 200, { engines: (await engines(chatModel).catch(() => [])).map(({ id, label }) => ({ id, label })) });
   }
 
+  // A job is an instruction ("install …", "please restart …", "can you fix …"), not a question.
+  const isJob = (t) => /^\s*(?:(?:please|pls|jarvis,?|can you|could you|would you|go ahead and)\s+)*(install|fix|restart|reboot|deploy|update|upgrade|create|set ?up|configure|enable|disable|start|stop|remove|delete|add|move|rename|clean ?up|run|apply|mount|open up|expose)\b/i.test(t) && (!/\?\s*$/.test(t.trim()) || /^\s*(?:please\s+)?(?:can|could|would) you\b/i.test(t));
   // The same conversation answered by a Harness agent (for example on a ChatGPT subscription
   // when the API key is rate-limited). Streams like ai/chat: status lines, then the answer.
   if (p === "ai/harness" && m === "POST") {
@@ -356,7 +358,7 @@ async function api(req, res, url, who) {
       const question = `${earlier ? "Conversation so far:\n" + earlier + "\n\n" : ""}The owner's message:\n${last.content.slice(0, 6000)}`;
       // In auto mode a request to do something becomes a job; anything else is answered with the
       // board's data. A job never carries mail or headline text, which must not steer changes.
-      const change = b.auto === true && /\b(install|fix|restart|reboot|deploy|update|upgrade|create|set ?up|configure|enable|disable|start|stop|remove|delete|add|change|move|rename|clean ?up|run)\b/i.test(last.content);
+      const change = b.auto === true && isJob(last.content);
       const snap = await live.snapshot(false, 8000).catch(() => ({ sources: {} }));
       let context = await live.liveContext().catch(() => "");
       if (change) context = "";
