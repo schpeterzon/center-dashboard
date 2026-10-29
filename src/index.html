@@ -511,6 +511,25 @@ body.term.tbig::after{opacity:1}
 #term .tconv.on{color:var(--good);border-color:color-mix(in srgb,var(--good) 40%,transparent)}
 #tgrip{position:absolute;right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;z-index:3;background:linear-gradient(135deg,transparent 55%,var(--line-2) 55% 62%,transparent 62% 72%,var(--line-2) 72% 79%,transparent 79%)}
 body.tbig #tgrip{display:none}
+/* the conversations dropdown */
+#tconvs{position:absolute;top:3.9em;right:.6em;width:min(380px,calc(100% - 1.2em));max-height:min(70%,480px);display:flex;flex-direction:column;z-index:5;background:var(--term);border:1px solid var(--line-2);border-radius:14px;box-shadow:0 24px 60px -16px color-mix(in srgb,var(--shadow) 90%,transparent);animation:tdrop .22s cubic-bezier(.2,1.2,.3,1);transform-origin:top right;overflow:hidden}
+#tconvs[hidden]{display:none}
+@keyframes tdrop{from{opacity:0;transform:translateY(-6px) scale(.96)}}
+#tconvs .tch{display:flex;gap:.45em;padding:.6em;border-bottom:1px solid var(--line)}
+#tcq{flex:1;min-width:0;font:13.5px var(--sans);color:var(--text);background:color-mix(in srgb,var(--ink) 4%,transparent);border:1px solid var(--line-2);border-radius:9px;padding:.42em .7em;outline:none}
+#tcq:focus{border-color:color-mix(in srgb,var(--accent) 50%,transparent)}
+#tconvs .tcl{overflow:auto;padding:.3em;scrollbar-width:thin}
+#tconvs .tcg{font:600 10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:.7em .7em .3em}
+#tconvs .tc{display:grid;grid-template-columns:1.3em 1fr auto;align-items:center;gap:.15em .5em;padding:.45em .55em;border-radius:9px;cursor:pointer;position:relative}
+#tconvs .tc:hover,#tconvs .tc.sel{background:color-mix(in srgb,var(--accent) 9%,transparent)}
+#tconvs .tc.on{background:color-mix(in srgb,var(--accent) 15%,transparent)} #tconvs .tc.on b{color:var(--accent)}
+#tconvs .tc .ic{grid-row:span 2;color:var(--muted);font-size:.85em;text-align:center} #tconvs .tc.task .ic{color:var(--warm)}
+#tconvs .tc b{font-weight:500;font-size:13.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#tconvs .tc small{grid-column:2;font:11px var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#tconvs .tcx{grid-row:1/span 2;grid-column:3;border:0;background:none;color:var(--muted);font:500 15px/1 var(--sans);padding:.3em .45em;border-radius:7px;cursor:pointer;opacity:0;transition:opacity .15s}
+#tconvs .tc:hover .tcx,#tconvs .tc.sel .tcx,#tconvs .tcx.sure{opacity:1} #tconvs .tcx:hover{color:var(--crit);background:color-mix(in srgb,var(--crit) 10%,transparent)}
+#tconvs .tcx.sure{font:600 11px var(--sans);color:var(--crit)}
+#tconvs .tcm{padding:1.2em;text-align:center;color:var(--muted);font-size:13px}
 /* the conversation */
 #tout{flex:1;overflow:auto;padding:1em 1em .7em;scrollbar-width:thin;display:flex;flex-direction:column;gap:.75em;overscroll-behavior:contain}
 #tout .sys{white-space:pre-wrap;font:12.5px/1.6 var(--mono);color:var(--text-2);animation:tpop .3s ease-out}
@@ -1413,6 +1432,7 @@ body.server .pane:not(.lv-ready) .pane-inner{visibility:hidden}
 <!-- ================= TERMINAL ================= -->
 <div id="term" role="dialog" aria-label="JARVIS chat">
  <header id="thead"><div class="tt" id="ttitlebox" title="Conversations"><span id="ttitle">JARVIS</span><span id="tsub"></span></div><button type="button" class="tconv" id="tnew" hidden title="Start a new conversation (/new)">+ New</button><button type="button" class="tconv" id="tauto" hidden></button><button type="button" class="tib" id="tsess" hidden title="Conversations and task details (/resume)" aria-label="Conversations">☰</button><button type="button" class="tib" id="tbig" title="Focus mode (double-click the title bar)" aria-label="Focus mode"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5 9 7M2.5 13.5 7 9"/></svg></button><button type="button" class="tib term-close" id="term-close" aria-label="Close the chat" title="Close (Esc)">–</button></header>
+ <div id="tconvs" hidden role="dialog" aria-label="Conversations"><div class="tch"><input id="tcq" placeholder="Search conversations" autocomplete="off" aria-label="Search conversations"><button type="button" class="tconv" id="tcnew">+ New</button></div><div class="tcl" role="listbox"></div></div>
  <div id="tout"></div>
  <div id="tin"><span>jarvis ›</span><textarea id="tinput" rows="1" placeholder="try: status · plan my week · run fix · build an app · portfolio · go lab" autocomplete="off" aria-label="Message JARVIS"></textarea><button type="button" id="tsend" aria-label="Send" title="Send (Enter)" disabled>↑</button></div><div id="tgrip" aria-hidden="true"></div>
 </div>
@@ -2369,7 +2389,7 @@ document.addEventListener('keydown', e => {
   if (e.key === '/' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); toggleTerm(true); setTimeout(() => { tin.value = '/'; growIn(); updateMenu(); tin.focus(); }, 80); return; }
   // Esc opens and closes the chat (the backtick is awkward on many keyboards); it first leaves the
   // overview or quiets a speech bubble if one is up. O shows the whole board.
-  if (e.key === 'Escape') { if (termOpen) toggleTerm(false); else if (overview) go(current); else if (sp) hush(); else toggleTerm(true); return; }
+  if (e.key === 'Escape') { if (termOpen && !convBox.hidden) closeConvs(); else if (termOpen) toggleTerm(false); else if (overview) go(current); else if (sp) hush(); else toggleTerm(true); return; }
   if (typing) return;
   if (e.code === 'Space') { e.preventDefault(); spaceHeld = true; return; }
   const m = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
@@ -3214,7 +3234,7 @@ function toggleTerm(force) {
     clearTimeout(termFocusTimer);
     termFocusTimer = setTimeout(() => { if (termOpen) tin.focus({ preventScroll: true }); }, 300);
   } else {
-    termOpen = false; body.classList.remove('term', 'tbig'); hideMenu?.();
+    termOpen = false; body.classList.remove('term', 'tbig'); hideMenu?.(); convBox.hidden = true;
     clearTimeout(termFocusTimer); tin.blur();
     const target = termReturnFocus === jEl ? $('#termbtn') : termReturnFocus; termReturnFocus = null;
     if (target?.isConnected && typeof target.focus === 'function') target.focus({ preventScroll: true });
@@ -3309,7 +3329,7 @@ $('#tsend').onclick = () => { sendIn(); tin.focus(); };
    command that takes a page, theme or conversation, the menu lists those. */
 const tmenu = document.createElement('div'); tmenu.id = 'tmenu'; tmenu.hidden = true; tmenu.setAttribute('role', 'listbox'); $('#term').insertBefore(tmenu, $('#tin'));
 const SLASH = () => [
-  ...(API.server ? [['new', 'Start a new conversation'], ['resume', 'Open an earlier conversation or task details', 'conversation'], ['todo', 'Add a todo', 'text'], ['idea', 'Save an idea', 'text'], ['task', 'Start a Harness task', 'objective'], ['approve', 'Approve a pending request', 'id'], ['reject', 'Reject a pending request', 'id']] : []),
+  ...(API.server ? [['new', 'Start a new conversation'], ['resume', 'Pick an earlier conversation or task details'], ['todo', 'Add a todo', 'text'], ['idea', 'Save an idea', 'text'], ['task', 'Start a Harness task', 'objective'], ['approve', 'Approve a pending request', 'id'], ['reject', 'Reject a pending request', 'id']] : []),
   ['go', 'Fly to a page', 'page'], ['theme', 'Change the theme', 'name'], ['settings', 'Open settings'], ['clear', 'Clear the screen'], ['help', 'What the terminal can do'],
 ];
 let menuItems = [], menuSel = 0, chatsSeen = null;
@@ -3484,7 +3504,55 @@ function syncHead() {
   const c = chatConn(), via = chat.via || CFG.ai.via || '', lab = chat.via ? chat.viaLabel : (API.engines || []).find(x => x.id === via)?.label;
   $('#tsub').innerHTML = !API.server ? '<i></i>demo · scripted answers' : via ? `<i></i>${esc(lab || via)}` : c ? `<i></i>${esc(c.name)} · ${esc(c.values?.model || 'default model')}` : '<i style="background:var(--warn)"></i>connect an AI in Settings → AI';
 }
-$('#ttitlebox').addEventListener('click', () => { if (API.server) { out('<span class="p">›</span> <span class="u">/resume</span>'); resumeChat(''); } });
+// Conversations: a dropdown under the header (☰, the title, or "/resume"), searchable, grouped by
+// day, with the open one marked. × deletes (click twice). Arrow keys and Enter work in it.
+const convBox = $('#tconvs');
+let convList = null, convSel = -1;
+function convRows() {
+  const q = $('#tcq').value.trim().toLowerCase(), day = 864e5, t0 = new Date().setHours(0, 0, 0, 0);
+  const list = (convList || []).filter(c => !q || c.title.toLowerCase().includes(q));
+  if (!convList) return '<div class="tcm">Loading…</div>';
+  if (!list.length) return `<div class="tcm">${q ? 'Nothing matches "' + esc(q) + '".' : 'No conversations yet. Ask something and it is kept here.'}</div>`;
+  const group = c => c.updated >= t0 ? 'Today' : c.updated >= t0 - 6 * day ? 'This week' : 'Older';
+  let last = '', i = 0;
+  return list.map(c => { const g = group(c), head = g !== last ? `<div class="tcg">${g}</div>` : ''; last = g;
+    return head + `<div class="tc ${c.kind === 'task' ? 'task' : ''} ${c.id === chat.id ? 'on' : ''} ${i === convSel ? 'sel' : ''}" role="option" data-open="${esc(c.id)}" data-i="${i++}"><span class="ic">${c.kind === 'task' ? '◆' : '›'}</span><b>${esc(c.title)}</b><small>${c.id === chat.id ? 'open now · ' : ''}${c.kind === 'task' ? 'task details · ' : ''}${c.count} question${c.count === 1 ? '' : 's'} · ${agoS(c.updated)}</small><button type="button" class="tcx" data-del="${esc(c.id)}" title="Delete this conversation" aria-label="Delete">×</button></div>`; }).join('');
+}
+const drawConvs = () => { $('.tcl', convBox).innerHTML = convRows(); $('.tc.sel', convBox)?.scrollIntoView({ block: 'nearest' }); };
+async function openConvs() {
+  if (!API.server) return;
+  convBox.hidden = false; $('#tcq').value = ''; convSel = -1; convList = null; drawConvs();
+  setTimeout(() => $('#tcq').focus({ preventScroll: true }), 30);
+  try { convList = (await api('chats')).chats; } catch (e) { convList = []; toast(e.message); }
+  drawConvs();
+}
+const closeConvs = () => { if (convBox.hidden) return; convBox.hidden = true; tin.focus({ preventScroll: true }); };
+const toggleConvs = () => convBox.hidden ? openConvs() : closeConvs();
+$('#ttitlebox').addEventListener('click', toggleConvs);
+$('#tcnew').onclick = () => { closeConvs(); newChat(); };
+$('#tcq').addEventListener('input', () => { convSel = -1; drawConvs(); });
+$('#tcq').addEventListener('keydown', e => {
+  const rows = $$('.tc', convBox);
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (rows.length) { convSel = (convSel + (e.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length; drawConvs(); } }
+  else if (e.key === 'Enter') { e.preventDefault(); const r = rows[Math.max(0, convSel)]; if (r) { closeConvs(); openChat(r.dataset.open); } }
+  else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeConvs(); }
+});
+convBox.addEventListener('click', async e => {
+  const del = e.target.closest('[data-del]');
+  if (del) {
+    e.stopPropagation();
+    if (!del.classList.contains('sure')) { $$('.tcx.sure', convBox).forEach(b => { b.classList.remove('sure'); b.textContent = '×'; }); del.classList.add('sure'); del.textContent = 'Delete?'; return; }
+    const id = del.dataset.del;
+    try { await api('chats/' + id, { method: 'DELETE' }); } catch (err) { toast(err.message); return; }
+    convList = convList.filter(c => c.id !== id); drawConvs();
+    if (id === chat.id) { chat = freshChat(); try { localStorage.removeItem('jarvis.chat'); } catch {} drawChat(); }
+    return;
+  }
+  const row = e.target.closest('[data-open]');
+  if (row) { closeConvs(); if (row.dataset.open !== chat.id) openChat(row.dataset.open); }
+});
+// A click anywhere else closes it.
+addEventListener('pointerdown', e => { if (!convBox.hidden && !e.target.closest('#tconvs,#tsess,#ttitlebox')) closeConvs(); }, true);
 function drawChat() {
   tout.innerHTML = '';
   syncHead();
@@ -3507,6 +3575,7 @@ async function openChat(id) {
   catch (e) { out(`<span class="w">✗ ${esc(e.message)}</span>\n`); }
 }
 async function resumeChat(arg) {
+  if (!arg && termOpen) return openConvs();
   let list;
   try { list = (await api('chats')).chats.filter(c => c.id !== chat.id); } catch (e) { out(`<span class="w">✗ ${esc(e.message)}</span>\n`); return; }
   if (!list.length) { out('<span class="m">No earlier conversations yet.</span>\n'); return; }
@@ -3525,7 +3594,7 @@ function syncAuto() {
 }
 $('#tauto').onclick = () => { CFG.ai.auto = CFG.ai.auto === false; save(); syncAuto(); out(`<span class="m">${CFG.ai.auto ? 'Auto mode on: I act on what you ask and approve routine steps; risky ones still come to you.' : 'Ask first: I investigate and suggest; you approve every step.'}</span>\n`); tin.focus(); };
 $('#tnew').onclick = () => { newChat(); tin.focus(); };
-$('#tsess').onclick = () => { out('<span class="p">›</span> <span class="u">/resume</span>'); resumeChat(''); tin.focus(); };
+$('#tsess').onclick = toggleConvs;
 // Task details: the newest details replace the note at the top; questions asked about it stay.
 async function openTaskChat(taskId, title, note) {
   const id = 'task-' + taskId.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 50);
