@@ -36,7 +36,7 @@ export async function chatTools({ auto = false } = {}) {
       const k = String(args.source || ""); if (!have.includes(k)) return `Unknown source "${k}". Available: ${have.join(", ")}.`;
       status(`look up · ${k}`);
       const s = (await snapshot(false, 15000)).sources[k];
-      return s?.ok ? JSON.stringify(compact(s.data)).slice(0, 24000) : `${k} is not answering: ${s?.error || "no data"}.`;
+      return s?.ok ? JSON.stringify(compact(s.data)).slice(0, 12000) : `${k} is not answering: ${s?.error || "no data"}.`;
     }
     if (name === "read_email") {
       untrusted = true;
