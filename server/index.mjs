@@ -228,7 +228,7 @@ async function api(req, res, url, who) {
     const b = await readBody(req, 2 * 1024 * 1024), list = (state.chats ||= []);
     const messages = (Array.isArray(b.messages) ? b.messages : []).filter((x) => ["user", "assistant", "note", "tool"].includes(x?.role) && typeof x.content === "string").slice(-150).map((x) => ({ role: x.role, content: x.content.slice(0, 20000) }));
     const ch = list.find((x) => x.id === chm[1]) || { id: chm[1], created: Date.now() };
-    Object.assign(ch, { title: String(b.title || "").replace(/\s+/g, " ").trim().slice(0, 100) || "Conversation", kind: b.kind === "task" ? "task" : "chat", messages, updated: Date.now() });
+    Object.assign(ch, { engine: typeof b.engine === "string" ? b.engine.slice(0, 220) : "", title: String(b.title || "").replace(/\s+/g, " ").trim().slice(0, 100) || "Conversation", kind: b.kind === "task" ? "task" : "chat", messages, updated: Date.now() });
     if (!list.includes(ch)) list.push(ch);
     // The newest 60 conversations are kept.
     if (list.length > 60) state.chats = list.sort((x, y) => y.updated - x.updated).slice(0, 60);
@@ -258,9 +258,14 @@ async function api(req, res, url, who) {
     const b = m === "POST" ? await readBody(req, 64 * 1024) : {};
     try {
       if (lm[1] === "harness") {
-        const c = live.pick("harness");
-        if (!c) return json(res, 409, { error: "Connect a Harness in Settings → Connections first." });
-        const r = await live.harnessAction(c, lm[2], b);
+        const all = state.connections.filter((x) => x.kind === "data" && x.type === "harness");
+        if (!all.length) return json(res, 409, { error: "Connect a Harness in Settings → Connections first." });
+        // Approvals and tasks from the chat may live on another Harness than the board's first one.
+        let r = null, err = null;
+        for (const c of lm[2] === "decide" || lm[2] === "detail" || lm[2] === "cancel" || lm[2] === "run" ? all : all.slice(0, 1)) {
+          try { r = await live.harnessAction(c, lm[2], b); err = null; break; } catch (e) { err = e; if (!/HTTP 404/.test(e.message)) break; }
+        }
+        if (err) throw err;
         live.addLog(`Harness · ${lm[2]}${b.decision ? " " + b.decision : ""}${r.id ? " " + r.id : ""}`);
         return json(res, 200, r);
       }
@@ -308,7 +313,7 @@ async function api(req, res, url, who) {
       // Comments keep the stream alive through proxies while a tool works for minutes.
       const beat = setInterval(() => res.write(": working\n\n"), 20e3);
       res.on("close", () => clearInterval(beat));
-      const tools = await chatTools({ auto: b.auto === true }).catch(() => null);
+      const tools = await chatTools({ auto: b.auto === true, engine: typeof b.engine === "string" ? b.engine.slice(0, 220) : "", chatModel: c.values?.model }).catch(() => null);
       ctx.auto = b.auto === true;
       for await (const t of answer(c, Array.isArray(b.messages) ? b.messages : [], ctx, ac.signal, tools)) emit(typeof t === "string" ? { t: "text", v: t } : { t: "status", v: t.status });
       emit({ t: "done" });

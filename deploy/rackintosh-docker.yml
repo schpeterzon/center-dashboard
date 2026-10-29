@@ -3,6 +3,7 @@
 # JARVIS (hermes:8770) by name, and publishes only on the LAN and tailnet addresses, plus
 # localhost for the cloudflared tunnel (host network) behind center.kismagyarorszag.com.
 # Connections and their tokens are entered in Settings and kept encrypted in the volume.
+# harness-relay makes JARVIS' main Harness reachable as http://hermes:8788 (see below).
 services:
   dashboard:
     build: ..
@@ -17,6 +18,16 @@ services:
     volumes:
       - data:/data
     networks: [hermes]
+
+  # The main Harness (OpenAI subscription models) listens only on 127.0.0.1:8787 inside the
+  # "hermes" container. This relay shares that container's network and offers it as hermes:8788
+  # on hermes-agent_default; the Harness still requires its bearer token. If "hermes" is
+  # recreated, redeploy this stack so the relay joins the new container.
+  harness-relay:
+    image: alpine/socat:latest
+    restart: unless-stopped
+    network_mode: "container:hermes"
+    command: ["TCP-LISTEN:8788,fork,reuseaddr", "TCP:127.0.0.1:8787"]
 
 volumes:
   data:

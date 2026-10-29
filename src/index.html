@@ -3215,7 +3215,7 @@ function saveChat(now, c = chat) {
   if (c === chat) clearTimeout(chatSaveT);
   if (!API.server || !c.messages.some(m => m.role === 'user' || m.role === 'note')) return Promise.resolve();
   if (c === chat) try { localStorage.setItem('jarvis.chat', c.id); } catch {}
-  const put = () => api('chats/' + c.id, { method: 'PUT', body: { title: c.title, kind: c.kind, messages: c.messages } }).catch(e => console.warn('chat save:', e.message));
+  const put = () => api('chats/' + c.id, { method: 'PUT', body: { title: c.title, kind: c.kind, engine: c.engine || '', messages: c.messages } }).catch(e => console.warn('chat save:', e.message));
   if (now || c !== chat) return put();
   chatSaveT = setTimeout(put, 600); return Promise.resolve();
 }
@@ -3225,7 +3225,7 @@ function showAnswer(text, line) {
   const sug = liveActions(text);
   if (!line) { line = document.createElement('span'); tout.appendChild(line); }
   line.textContent = sug.body;
-  if (sug.acts.length) out('\n' + sug.acts.map(([k, v]) => `<button class="btn sug" data-sk="${esc(k)}" data-sv="${esc(v)}">${esc({ todo: '+ Todo', task: '▶ Start task', approve: '✓ Approve', reject: '✗ Reject', go: '→ Open' }[k])}: ${esc(v.slice(0, 70))}</button>`).join(' '));
+  if (sug.acts.length) out('\n' + sug.acts.map(([k, v]) => `<button class="btn sug" data-sk="${esc(k)}" data-sv="${esc(v)}">${k === 'engine' ? '◆ ' + esc((v.split(' | ')[1] || v).slice(0, 90)) : esc({ todo: '+ Todo', task: '▶ Start task', approve: '✓ Approve', reject: '✗ Reject', go: '→ Open' }[k]) + ': ' + esc(v.slice(0, 70))}</button>`).join(' '));
   else out('');
 }
 function drawChat() {
@@ -3304,7 +3304,7 @@ async function askAI(q, conv = chat) {
   let text = '', failed = '';
   try {
     const r = await fetch('/api/ai/chat', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json', 'x-jarvis': '1' },
-      body: JSON.stringify({ connection: c.id, auto: CFG.ai.auto !== false, messages: aiMessages(conv), context: { page: byId[current]?.dataset.name, pages: order.map(id => byId[id].dataset.name), name: CFG.profile.name, time: new Date().toString() } }) });
+      body: JSON.stringify({ connection: c.id, auto: CFG.ai.auto !== false, engine: conv.engine || '', messages: aiMessages(conv), context: { page: byId[current]?.dataset.name, pages: order.map(id => byId[id].dataset.name), name: CFG.profile.name, time: new Date().toString() } }) });
     if (r.status === 401) { location.assign('/login'); return; }
     if (!r.ok || !r.body) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
     const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
@@ -4150,10 +4150,12 @@ const LIVE = (() => {
 // JARVIS can suggest actions at the end of an answer; they run only when you click them.
 function liveActions(text) {
   const acts = [];
-  const body = text.replace(/^\s*ACTION\s+(todo|task|approve|reject|go):\s*(.+?)\s*$/gim, (_, k, v) => { acts.push([k.toLowerCase(), v.trim()]); return ''; }).trim();
-  return { body, acts: acts.slice(0, 4) };
+  const body = text.replace(/^\s*ACTION\s+(todo|task|approve|reject|go|engine):\s*(.+?)\s*$/gim, (_, k, v) => { acts.push([k.toLowerCase(), v.trim()]); return ''; }).trim();
+  return { body, acts: acts.slice(0, 6) };
 }
 async function runSuggested(kind, value) {
+  // Which Harness and model run work from this conversation; asked once, then remembered.
+  if (kind === 'engine') { const [id, label] = value.split(' | '); chat.engine = id.trim(); saveChat(true); const q = `Use ${(label || id).trim()} for this.`; showUser(q); respond(q); return; }
   if (kind === 'go') { const id = order.find(o => byId[o].dataset.name.toLowerCase() === value.toLowerCase() || o === value.toLowerCase()); if (id) { toggleTerm(false); go(id); } return; }
   const map = { idea: ['local', 'ideas/add', { text: value }], todo: ['local', 'todos/add', { text: value, from: 'from the terminal' }], task: ['harness', 'create', { objective: value }], approve: ['harness', 'decide', { id: value, decision: 'approve' }], reject: ['harness', 'decide', { id: value, decision: 'reject' }] };
   const [k, a, b] = map[kind];

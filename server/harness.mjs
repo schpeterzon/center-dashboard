@@ -132,7 +132,12 @@ export function autoApprovable(a) {
   return !RISKY_COMMAND.test(" " + [a.description, ...(a.patterns || [])].join(" \n "));
 }
 
-export async function harnessAsk(c, question, { worker, change = false, auto = false, signal, onStatus = () => {} } = {}) {
+// The models a Harness offers, for picking an engine in the chat (cached like the board's catalogue).
+const catalogue = cached(10 * 60e3);
+export const harnessModels = (c) => catalogue(c.id, async () => ((await get(target(c), "models", { timeout: 10000 })).models || []).slice(0, 400).map((m) => ({ id: str(m.id, 160), provider: str(m.provider_name || m.provider, 60), billing: str(m.billing_hint, 20) })));
+export const harnessTask = (c, id) => get(target(c), `tasks/${encodeURIComponent(id)}`, { timeout: 10000 });
+
+export async function harnessAsk(c, question, { worker, model, change = false, auto = false, signal, onStatus = () => {} } = {}) {
   const t = target(c), call = (path, b, timeout = 15000) => request(`${t.url}/api/${path}`, { method: b ? "POST" : "GET", headers: t.headers, body: b, timeout });
   const objective = change ? [
     "Do what the owner asks on their own machines and services.",
@@ -146,8 +151,8 @@ export async function harnessAsk(c, question, { worker, change = false, auto = f
     "", "Question: " + str(question, 4000),
   ].join("\n");
   const role = worker || (change ? "infrastructure" : "researcher");
-  const r = await call("tasks", { objective, title: str((change ? "Do: " : "Ask: ") + question.replace(/\s+/g, " "), 120), worker_role: role, risk: change ? "medium" : "low", run: true, metadata: { requested_by: "center-dashboard-chat", auto } });
-  onStatus(`${r.task_id} started · ${role}${auto ? " · auto mode" : ""}`);
+  const r = await call("tasks", { objective, title: str((change ? "Do: " : "Ask: ") + question.replace(/\s+/g, " "), 120), worker_role: role, risk: change ? "medium" : "low", run: true, ...(model ? { model: str(model, 160) } : {}), metadata: { requested_by: "center-dashboard-chat", auto } });
+  onStatus(`${r.task_id} started · ${role}${model ? " · " + model : ""}${auto ? " · auto mode" : ""}`);
   return harnessFollow(c, r.task_id, { auto, signal, onStatus, task: r.task });
 }
 

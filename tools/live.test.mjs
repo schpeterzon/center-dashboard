@@ -301,3 +301,37 @@ test("auto mode approves routine Harness steps and leaves risky ones to the owne
   assert.equal(ap("Run shell command: ls", "low", ["production"]), false, "risky categories always ask");
   assert.equal(ap("Start critical-risk task", "low", [], "task_start"), false, "starting a gated task always asks");
 });
+
+test("with two Harnesses the chat asks which engine runs the job, then uses the one chosen", async () => {
+  const model = http.createServer((req, res) => {
+    let b = ""; req.on("data", (d) => (b += d)).on("end", () => {
+      const body = JSON.parse(b), last = body.messages.at(-1);
+      res.writeHead(200, { "content-type": "text/event-stream" });
+      const send = (delta) => res.write(`data: ${JSON.stringify({ choices: [{ delta }] })}\n\n`);
+      if (last.role === "tool") send({ content: last.content });
+      else { send({ tool_calls: [{ index: 0, id: "c1", function: { name: "ask_harness", arguments: JSON.stringify({ question: "Which VM has MariaDB?" }) } }] }); }
+      res.end("data: [DONE]\n\n");
+    });
+  });
+  await new Promise((r) => model.listen(0, "127.0.0.1", r));
+  const second = await connect("harness", { url: harness, token: "hx-token" });
+  const ai = await connect("compatible", { baseUrl: `http://127.0.0.1:${model.address().port}/v1`, model: "tiny" }, "ai");
+  try {
+    const ask = async (engine) => {
+      const r = await fetch(B + "/api/ai/chat", { method: "POST", headers: { "x-jarvis": "1", cookie, "content-type": "application/json" }, body: JSON.stringify({ connection: ai.body.connection.id, engine, messages: [{ role: "user", content: "which vm has mariadb" }] }) });
+      return [...(await r.text()).matchAll(/^data: (.*)$/gm)].map((m) => JSON.parse(m[1])).filter((p) => p.t === "text").map((p) => p.v).join("");
+    };
+    const before = created.length;
+    const text = await ask("");
+    const lines = text.match(/^ACTION engine: .+$/gm) || [];
+    assert.equal(lines.length, 2, text);
+    assert.equal(created.length, before, "nothing starts before the owner picks");
+    const pick = lines[1].replace("ACTION engine: ", "").split(" | ")[0];
+    assert.match(await ask(pick), /MariaDB runs on db-vm/);
+    assert.equal(created.length, before + 1);
+  } finally {
+    model.close();
+    await call(`/api/connections/${ai.body.connection.id}`, { method: "DELETE" });
+    await call(`/api/connections/${second.body.connection.id}`, { method: "DELETE" });
+  }
+});
