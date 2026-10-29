@@ -72,7 +72,7 @@ export const DATA_GROUPS = [
 
 export const INTEGRATIONS = [
   { id: "harness", group: "core", name: "Harness", icon: "H", blurb: "hermes-opencode-harness: agents, tasks, approvals, models, usage and the GPU queue.",
-    fields: [{ k: "url", label: "URL", placeholder: "http://harness.lan:8787" }, { k: "token", label: "API token", secret: true, opt: true, placeholder: "HARNESS_API_TOKEN" }],
+    fields: [{ k: "url", label: "URL", placeholder: "http://harness.lan:8787" }, { k: "token", label: "API token", secret: true, opt: true, placeholder: "HARNESS_API_TOKEN" }, { k: "notes", label: "What its agents should know (how to reach your machines, where things live)", area: true, opt: true, adv: true, placeholder: "ssh -F /opt/data/.ssh/config rackintosh-docker reaches the Docker VM; containers are managed by Portainer" }],
     probe: { url: "{url}/api/status", headers: { authorization: "Bearer {token}" }, expect: "json" } },
   { id: "jarvis-hermes", group: "core", name: "JARVIS (hermes)", icon: "J", blurb: "Your jarvis-hermes server: its host, the services it watches and its recent runs.",
     fields: [{ k: "url", label: "URL", placeholder: "http://jarvis.lan:8787" }, { k: "token", label: "API token", secret: true }],

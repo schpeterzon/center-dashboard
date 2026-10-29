@@ -137,18 +137,21 @@ const catalogue = cached(10 * 60e3);
 export const harnessModels = (c) => catalogue(c.id, async () => ((await get(target(c), "models", { timeout: 10000 })).models || []).slice(0, 400).map((m) => ({ id: str(m.id, 160), provider: str(m.provider_name || m.provider, 60), billing: str(m.billing_hint, 20) })));
 export const harnessTask = (c, id) => get(target(c), `tasks/${encodeURIComponent(id)}`, { timeout: 10000 });
 
-export async function harnessAsk(c, question, { worker, model, change = false, auto = false, signal, onStatus = () => {} } = {}) {
+export async function harnessAsk(c, question, { worker, model, change = false, auto = false, inventory = "", signal, onStatus = () => {} } = {}) {
+  // What the agent needs to find its way: the owner's notes for this Harness, and the machines the dashboard knows.
+  const notes = str(c.values?.notes, 3000).trim();
+  const known = [notes && "Owner's notes on reaching the machines:\n" + notes, inventory && "Machines known to the dashboard (names, addresses, state):\n" + str(inventory, 4000)].filter(Boolean).join("\n\n");
   const t = target(c), call = (path, b, timeout = 15000) => request(`${t.url}/api/${path}`, { method: b ? "POST" : "GET", headers: t.headers, body: b, timeout });
   const objective = change ? [
     "Do what the owner asks on their own machines and services.",
     "Prefer the smallest change that does the job; check the current state first and verify the result afterwards. Do not delete data, stop or restart services, push to git or change access unless the request clearly asks for it.",
     "Finish with a short plain-text report: what you did, where, and how to use or check it (hosts, ports, commands; never print secrets).",
-    "", "Request: " + str(question, 4000),
+    ...(known ? ["", known] : []), "", "Request: " + str(question, 4000),
   ].join("\n") : [
     "Answer the owner's question about their own machines and services.",
     "Investigate read-only: look, list, inspect and read. Do not install, change, restart, delete or write anything; if answering would need a change, say so instead.",
     "Reply in plain text, short and concrete: which machine or VM, what runs there, and exactly how to use it (host, port, command, where credentials live, without printing secrets).",
-    "", "Question: " + str(question, 4000),
+    ...(known ? ["", known] : []), "", "Question: " + str(question, 4000),
   ].join("\n");
   const role = worker || (change ? "infrastructure" : "researcher");
   const r = await call("tasks", { objective, title: str((change ? "Do: " : "Ask: ") + question.replace(/\s+/g, " "), 120), worker_role: role, risk: change ? "medium" : "low", run: true, ...(model ? { model: str(model, 160) } : {}), metadata: { requested_by: "center-dashboard-chat", auto } });
