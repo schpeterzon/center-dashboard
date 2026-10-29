@@ -199,6 +199,8 @@ export async function* answer(c, messages, ctx, signal, tools) {
   while (msgs.length && msgs[0].role !== "user") msgs.shift();
   if (!msgs.length || msgs[0].role !== "user") throw httpError(400, "The conversation must start with a question.");
   if (e.adapter === "anthropic") yield* anthropic(v, system, msgs, signal, tools);
+  // OpenAI's own API takes function tools on its reasoning models only through /v1/responses.
+  else if (e.adapter === "openai" && tools && /^https:\/\/api\.openai\.com\//.test(v.baseUrl || "")) yield* responses(v, system, msgs, signal, tools);
   else if (e.adapter === "openai") yield* openai(v, system, msgs, signal, tools);
   else yield* cli(e, v, system, msgs, signal);
 }
@@ -257,6 +259,35 @@ async function* anthropic(v, system, messages, signal, tools) {
     for (const b of calls) results.push({ type: "tool_result", tool_use_id: b.id, content: yield* useTool(tools, b.name, parseArgs(b.json), signal) });
     msgs.push({ role: "user", content: results });
     if (blocks.some((b) => b?.type === "text" && b.text)) yield "\n\n";
+  }
+}
+async function* responses(v, system, messages, signal, tools) {
+  let input = messages, prev = null;
+  for (let round = 0; ; round++) {
+    const useTools = round < MAX_ROUNDS;
+    const r = await fetch(`${v.baseUrl.replace(/\/+$/, "")}/responses`, {
+      method: "POST", signal,
+      redirect: "error",
+      headers: { "content-type": "application/json", authorization: `Bearer ${v.apiKey}` },
+      body: JSON.stringify({ model: v.model, stream: true, instructions: system, input, ...(prev ? { previous_response_id: prev } : {}), ...(useTools ? { tools: tools.defs.map((d) => ({ type: "function", name: d.name, description: d.description, parameters: d.parameters })) } : {}) }),
+    });
+    if (!r.ok) throw new Error(await apiError(r));
+    const calls = [];
+    let text = "";
+    for await (const data of sse(r)) {
+      if (data === "[DONE]") break;
+      const ev = JSON.parse(data);
+      if (ev.type === "response.output_text.delta") { text += ev.delta; yield ev.delta; }
+      else if (ev.type === "response.output_item.done" && ev.item?.type === "function_call") calls.push(ev.item);
+      else if (ev.type === "response.completed" || ev.type === "response.incomplete") prev = ev.response?.id || prev;
+      else if (ev.type === "response.created") prev = ev.response?.id || prev;
+      else if (ev.type === "response.failed") throw new Error(ev.response?.error?.message || "the response failed");
+      else if (ev.type === "error") throw new Error(ev.message || ev.error?.message || "stream error");
+    }
+    if (!calls.length || !useTools) return;
+    input = [];
+    for (const x of calls) input.push({ type: "function_call_output", call_id: x.call_id, output: yield* useTool(tools, x.name, parseArgs(x.arguments), signal) });
+    if (text) yield "\n\n";
   }
 }
 async function* openai(v, system, messages, signal, tools) {
