@@ -37,7 +37,7 @@ export async function engines(chatModel) {
 }
 
 // A compact list of machines from Proxmox and Tailscale, so a Harness agent knows what exists.
-function inventory(sources) {
+export function inventory(sources) {
   const L = [];
   const px = sources.proxmox?.ok ? sources.proxmox.data : null;
   if (px) {

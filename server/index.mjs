@@ -15,7 +15,8 @@ import * as auth from "./auth.mjs";
 import { saveConnection, removeConnection, publicConn, draft, test, answer, entryOf, optedIn } from "./connect.mjs";
 import { hardwareMetrics, invalidateHardwareCache } from "./hardware.mjs";
 import * as live from "./live.mjs";
-import { chatTools, engines } from "./tools.mjs";
+import { chatTools, engines, inventory } from "./tools.mjs";
+import { harnessAsk } from "./harness.mjs";
 import { homeAssistantAction, homeAssistantHistory } from "./sources.mjs";
 import { mail } from "./mail.mjs";
 import { SourceError } from "./net.mjs";
@@ -345,17 +346,24 @@ async function api(req, res, url, who) {
     const beat = setInterval(() => res.write(": working\n\n"), 20e3);
     res.on("close", () => clearInterval(beat));
     try {
-      const engine = typeof b.engine === "string" ? b.engine.slice(0, 220) : "";
-      const tools = await chatTools({ auto: b.auto === true, engine });
+      const engineId = typeof b.engine === "string" ? b.engine.slice(0, 220) : "";
+      const eng = (await engines().catch(() => [])).find((x) => x.id === engineId);
+      if (!eng) throw new Error("That Harness is not connected any more; pick another in Settings → AI.");
       const msgs = (Array.isArray(b.messages) ? b.messages : []).filter((x) => (x?.role === "user" || x?.role === "assistant") && typeof x.content === "string").slice(-8);
       const last = msgs.at(-1);
       if (!last || last.role !== "user") throw new Error("Ask something first.");
-      const earlier = msgs.slice(0, -1).map((x) => `${x.role === "user" ? "Owner" : "JARVIS"}: ${x.content.slice(0, 3000)}`).join("\n\n");
-      const question = `${earlier ? "Conversation so far:\n" + earlier + "\n\n" : ""}The owner's message, to answer directly and briefly in plain text:\n${last.content.slice(0, 6000)}`;
-      const out = await tools.run("ask_harness", { question, change: b.auto === true, engine }, { signal: ac.signal, status: (v) => !/^harness · (do|ask) · /.test(v) && emit({ t: "status", v }) });
-      const nl = out.indexOf("\n");
-      if (nl > 0 && /^Harness task /.test(out)) { emit({ t: "status", v: out.slice(0, nl).replace(/:$/, "") }); emit({ t: "text", v: out.slice(nl + 1).trim() }); }
-      else emit({ t: "text", v: out });
+      const earlier = msgs.slice(0, -1).map((x) => `${x.role === "user" ? "Owner" : "JARVIS"}: ${x.content.slice(0, 2500)}`).join("\n\n");
+      const question = `${earlier ? "Conversation so far:\n" + earlier + "\n\n" : ""}The owner's message:\n${last.content.slice(0, 6000)}`;
+      // In auto mode a request to do something becomes a job; anything else is answered with the
+      // board's data. A job never carries mail or headline text, which must not steer changes.
+      const change = b.auto === true && /\b(install|fix|restart|reboot|deploy|update|upgrade|create|set ?up|configure|enable|disable|start|stop|remove|delete|add|change|move|rename|clean ?up|run)\b/i.test(last.content);
+      const snap = await live.snapshot(false, 8000).catch(() => ({ sources: {} }));
+      let context = await live.liveContext().catch(() => "");
+      if (change) context = "";
+      emit({ t: "status", v: `${eng.conn.name} · ${change ? "job" : "answering"}${context ? " with your board's data" : ""}` });
+      const r = await harnessAsk(eng.conn, question, { model: eng.model, change, chat: true, context, auto: b.auto === true, inventory: inventory(snap.sources), signal: ac.signal, onStatus: (v) => emit({ t: "status", v: `${eng.conn.name} · ${v}` }) });
+      emit({ t: "status", v: `${r.id} · ${r.status}` });
+      emit({ t: "text", v: r.text });
       emit({ t: "done" });
     } catch (e) {
       if (!ac.signal.aborted) emit({ t: "error", v: e.message });

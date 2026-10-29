@@ -1602,7 +1602,7 @@ function applyProfile() {
   if (chatty !== CFG.jarvis.chatty) { chatty = CFG.jarvis.chatty; $('#chatty').classList.toggle('off', !chatty); $('#chatty span').textContent = chatty ? 'Chatty' : 'Quiet'; }
   $('#modebadge').innerHTML = API.server ? 'LIVE<span class="x"> · PRIVATE</span>' : 'DEMO<span class="x"> · SAMPLE DATA</span>';
   $('#modebadge').title = API.server ? 'Every page shows your own data. A page without its connection says which one it needs.' : 'Static demo: nothing is stored on a server. Run the server to connect real accounts.';
-  if (API.server) { $('#modebadge').style.cssText = 'color:var(--good);border-color:color-mix(in srgb,var(--good) 35%,transparent)'; $('.hero .sugg').innerHTML = ['What needs me today?', 'Plan the rest of my day', 'How are my machines?', 'What matters in the news?'].map(t => `<button>${t}</button>`).join(''); $$('.hero .sugg button').forEach(b => b.onclick = () => sendToTerm(b.textContent)); }
+  if (API.server) { $('#modebadge').style.cssText = 'color:var(--good);border-color:color-mix(in srgb,var(--good) 35%,transparent)'; $('.hero .sugg').innerHTML = ['What needs me today?', 'Plan the rest of my day', 'How are my machines?', 'What matters in the news?'].map(t => `<button>${t}</button>`).join(''); $$('.hero .sugg button').forEach(b => b.onclick = () => askFresh(b.textContent)); }
   clockTick();
 }
 function relayout() {
@@ -3430,8 +3430,11 @@ for (const input of [$('#ask'), tin, $('#addtodo')]) {
   input.addEventListener('input', () => orb.setInteraction({ focused: true, typing: true }));
   input.addEventListener('blur', () => orb.setInteraction({ focused: false }));
 }
-$('#ask').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.value.trim()) { sendToTerm(e.target.value.trim()); e.target.value = ''; } });
-$$('.hero .sugg button').forEach(b => b.onclick = () => sendToTerm(b.textContent.replace('…', '')));
+// A question asked from the page (Home's box, a card's "Ask JARVIS" button) starts its own
+// conversation, so unrelated questions never run together; the chat window keeps its thread.
+async function askFresh(q) { if (API.server && chat.messages.length) await newChat(); sendToTerm(q); }
+$('#ask').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.value.trim()) { askFresh(e.target.value.trim()); e.target.value = ''; } });
+$$('.hero .sugg button').forEach(b => b.onclick = () => askFresh(b.textContent.replace('…', '')));
 
 /* ======================================================== real AI in the terminal (server mode)
    The server streams the answer of whichever provider is the default: a subscription CLI, an
@@ -3954,7 +3957,7 @@ const LIVE = (() => {
     if (a === 'review') { b.disabled = true; b.textContent = 'Writing…'; jSet('thinking'); await act('ai', 'review', { scope: d.scope }); toast('Writing the review — it appears here in a minute'); setTimeout(() => poll(true), 20000); setTimeout(() => poll(true), 60000); return; }
     if (a === 'showreview') { reviewShown = d.id; last.reviews = null; render(); return; }
     if (a === 'ha') { b.classList.toggle('on'); return act('home', 'toggle', { action: d.action || 'toggle', entity: d.entity, value: d.value }); }
-    if (a === 'ask') return sendToTerm(d.q);
+    if (a === 'ask') return askFresh(d.q);
     if (a === 'open') return window.open(d.url, '_blank', 'noopener,noreferrer');
   }, true);
   document.addEventListener('keydown', async e => {
