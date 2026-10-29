@@ -593,6 +593,9 @@ body.tbig #tgrip{display:none}
 #tinput:focus{border-color:color-mix(in srgb,var(--accent) 50%,transparent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)}
 #tsend{width:2.6em;height:2.6em;flex:none;border-radius:12px;border:0;background:var(--accent);color:var(--bg);font:600 1.05em/1 var(--sans);cursor:pointer;transition:transform .15s,opacity .2s}
 #tsend:disabled{opacity:.35;cursor:default} #tsend:not(:disabled):hover{transform:translateY(-1px) scale(1.04)}
+/* reactions to pokes, floating off the orb */
+.pokefx{position:fixed;z-index:32;pointer-events:none;transform:translate(-50%,-50%);font:600 13px var(--sans);color:var(--accent);text-shadow:0 0 12px color-mix(in srgb,var(--accent) 60%,transparent);white-space:nowrap;animation:pokefx 1.25s cubic-bezier(.2,.8,.3,1) forwards}
+@keyframes pokefx{0%{opacity:0;transform:translate(-50%,-30%) scale(.6)}15%{opacity:1;transform:translate(-50%,-80%) scale(1.08)}100%{opacity:0;transform:translate(calc(-50% + var(--dx)),-260%) scale(.95)}}
 /* an answer waiting while the chat is closed */
 #jarvis.unread::after{content:"";position:absolute;top:10%;right:10%;width:22%;height:22%;min-width:9px;min-height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--bg),0 0 14px var(--accent);animation:tbadge 1.6s ease-in-out infinite;pointer-events:none}
 @keyframes tbadge{50%{transform:scale(1.25)}}
@@ -2176,7 +2179,7 @@ addEventListener('pointermove', e => {
 function saveCorner() { try { localStorage.setItem('jarvis-corner', corner); } catch {} }
 jEl.addEventListener('pointerdown', e => {
   if (e.button !== 0) return;
-  // With the chat open the orb is its handle: dragging moves the window, a click closes it.
+  // With the chat open the orb is its handle: dragging moves the window, a click pokes it.
   if (orbMode() === 'term') { if (startTermDrag(e)) tdrag.fromOrb = true; return; }
   held = { x: e.clientX, y: e.clientY, on: false, id: e.pointerId };
 });
@@ -2300,13 +2303,30 @@ function onArrive(a) {
   }
 }
 let charged = false;
+// With the chat open, clicking the orb pokes it: each poke lands where you click, and quick
+// pokes in a row wind it up, with a little reaction floating off the orb.
+let pokes = [], pokeLast = '';
+const POKE = [[3, ['hehe', 'hi!', 'boop']], [5, ['that tickles', 'heyy', 'again?']], [7, ['okay okay!', 'I am awake!', 'whee']], [10, ['fully charged ⚡', 'maximum sparkle', 'you have found my weak spot']], [14, ['…I need a minute', 'ok, ok, I give up', 'beep boop, overloaded']]];
+function pokeOrb(e) {
+  const now = performance.now();
+  pokes = pokes.filter(t => now - t < 1400); pokes.push(now);
+  const n = pokes.length, k = Math.min(1, .25 + n * .09);
+  orb.pulseAt(e.clientX, e.clientY); orb.ripple((e.clientX - orbPos.cx) / orbPos.size, (orbPos.cy - e.clientY) / orbPos.size, k); orb.poke(k);
+  if (n >= 7) jSet(n >= 10 ? 'success' : 'tool', 700);
+  const tier = [...POKE].reverse().find(([min]) => n >= min);
+  if (!tier || (n !== tier[0] && Math.random() < .55)) return;
+  const opts = tier[1].filter(q => q !== pokeLast), fx = document.createElement('div'); fx.className = 'pokefx'; fx.textContent = pokeLast = pick(opts.length ? opts : tier[1]);
+  fx.style.left = orbPos.cx + 'px'; fx.style.top = orbPos.cy - orbPos.size * .45 + 'px';
+  fx.style.setProperty('--dx', (Math.random() * 60 - 30).toFixed(0) + 'px');
+  document.body.appendChild(fx); setTimeout(() => fx.remove(), 1300);
+}
 jEl.addEventListener('pointerup', () => {
   const g = orb.gesture;
   if (g.released > .6 && orb.time - g.releasedAt < .2) { charged = true; setTimeout(() => say(pick(["Whoa. Okay, I'm awake.", "That tickles.", "Fully charged. Now what?"]), { force: true }), 250); }
 });
 jEl.addEventListener('click', e => {
   if (suppressClick) return;
-  if (termOpen) { toggleTerm(false); return; }
+  if (termOpen) { pokeOrb(e); return; }
   if (charged) { charged = false; return; }
   if (sp && !sp.acts) { hush(); if (!API.server) return; }
   // On a real install the orb opens the chat; the sample board keeps its quips.
