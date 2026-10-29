@@ -503,6 +503,12 @@ body.term::after{opacity:1}
 #tout .ok{color:var(--good)} #tout .w{color:var(--warn)} #tout .rt{color:var(--warm)}
 #tin{display:flex;gap:.8em;padding:.9em 1.4em;border-top:1px solid var(--line);align-items:center}
 #tin span{color:var(--accent)}
+#tmenu{position:absolute;left:1em;right:1em;bottom:3.7em;max-height:17.5em;overflow:auto;background:var(--term);border:1px solid var(--line-2);border-radius:10px;box-shadow:0 18px 40px -12px color-mix(in srgb,var(--shadow) 80%,transparent);padding:.3em;z-index:2;scrollbar-width:thin}
+#tmenu .mi{display:flex;gap:1.4em;padding:.32em .75em;border-radius:6px;cursor:pointer;white-space:nowrap}
+#tmenu .mi b{font-weight:500;color:var(--text);flex:none;min-width:13em;overflow:hidden;text-overflow:ellipsis;max-width:60%}
+#tmenu .mi span{color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+#tmenu .mi.on{background:color-mix(in srgb,var(--accent) 13%,transparent)} #tmenu .mi.on b{color:var(--accent)}
+#tmenu .mt{padding:.25em .75em .35em;color:var(--muted);font-size:.85em}
 #tin input{flex:1;font-family:var(--mono)}
 @keyframes blink{50%{opacity:0}}
 /* ---------- library panes ---------- */
@@ -3091,6 +3097,8 @@ const respond = q => {
   return next;
 };
 async function answer(q, conv) {
+  // "/todo …" and "todo …" are the same command; /new and /resume keep their slash.
+  q = q.replace(/^\/(?=(clear|help|go|theme|settings|config|task|todo|idea|approve|reject)\b)/i, '');
   const lc = q.toLowerCase();
   if (lc === 'clear') { tout.innerHTML = ''; return; }
   if (API.server && /^\/?new$/.test(lc)) return newChat();
@@ -3120,6 +3128,70 @@ tin.addEventListener('keydown', e => {
   if (e.key !== 'Enter' || !tin.value.trim()) return;
   const q = tin.value.trim(); tin.value = '';
   out(`<span class="p">jarvis ›</span> <span class="u">${q.replace(/</g, '&lt;')}</span>`); respond(q);
+});
+/* Slash commands: typing "/" lists them, as in Claude Code or Codex. ↑↓ choose, Tab completes,
+   Enter runs (or completes a command that still needs an argument), Esc closes. After a
+   command that takes a page, theme or conversation, the menu lists those. */
+const tmenu = document.createElement('div'); tmenu.id = 'tmenu'; tmenu.hidden = true; tmenu.setAttribute('role', 'listbox'); $('#term').insertBefore(tmenu, $('#tin'));
+const SLASH = () => [
+  ...(API.server ? [['new', 'Start a new conversation'], ['resume', 'Open an earlier conversation or task details', 'conversation'], ['todo', 'Add a todo', 'text'], ['idea', 'Save an idea', 'text'], ['task', 'Start a Harness task', 'objective'], ['approve', 'Approve a pending request', 'id'], ['reject', 'Reject a pending request', 'id']] : []),
+  ['go', 'Fly to a page', 'page'], ['theme', 'Change the theme', 'name'], ['settings', 'Open settings'], ['clear', 'Clear the screen'], ['help', 'What the terminal can do'],
+];
+let menuItems = [], menuSel = 0, chatsSeen = null;
+async function slashArgs(cmd) {
+  if (cmd === 'go') return order.map(id => ({ v: '/go ' + byId[id].dataset.name.toLowerCase(), l: byId[id].dataset.name, h: coordOf(id) }));
+  if (cmd === 'theme') return themeList().map(t => ({ v: '/theme ' + t.id, l: t.name, h: t.id === CFG.appearance.theme ? 'current' : '' }));
+  if (cmd === 'resume' && API.server) {
+    if (!chatsSeen || Date.now() - chatsSeen.at > 15000) chatsSeen = { at: Date.now(), list: (await api('chats').catch(() => ({ chats: [] }))).chats };
+    return chatsSeen.list.filter(c => c.id !== chat.id).slice(0, 20).map((c, i) => ({ v: '/resume ' + (i + 1), l: c.title, h: `${c.kind === 'task' ? 'task · ' : ''}${c.count} question${c.count === 1 ? '' : 's'} · ${agoS(c.updated)}` }));
+  }
+  return [];
+}
+const hideMenu = () => { tmenu.hidden = true; menuItems = []; };
+function drawMenu(title) {
+  if (!menuItems.length) return hideMenu();
+  menuSel = Math.min(menuSel, menuItems.length - 1);
+  tmenu.innerHTML = (title ? `<div class="mt">${esc(title)}</div>` : '') + menuItems.map((it, i) => `<div class="mi ${i === menuSel ? 'on' : ''}" role="option" data-mi="${i}"><b>${esc(it.l)}</b><span>${esc(it.h || '')}</span></div>`).join('');
+  tmenu.hidden = false;
+  tmenu.querySelector('.on')?.scrollIntoView({ block: 'nearest' });
+}
+async function updateMenu() {
+  const v = tin.value, m = /^\/(\w*)(?:(\s+)(.*))?$/s.exec(v);
+  if (!m) return hideMenu();
+  const cmd = m[1].toLowerCase();
+  if (!m[2]) {
+    menuItems = SLASH().filter(([n]) => n.startsWith(cmd)).map(([n, d, a]) => ({ v: '/' + n + (a ? ' ' : ''), l: '/' + n + (a ? ` <${a}>` : ''), h: d, done: !a }));
+    menuSel = 0; return drawMenu();
+  }
+  const all = await slashArgs(cmd);
+  if (tin.value !== v) return;
+  const f = m[3].trim().toLowerCase();
+  menuItems = all.filter(it => !f || it.l.toLowerCase().includes(f) || it.v.toLowerCase().endsWith(' ' + f)).map(it => ({ ...it, done: true }));
+  menuSel = 0; drawMenu({ go: 'pages', theme: 'themes', resume: 'conversations' }[cmd]);
+}
+function pickMenu(i, run) {
+  const it = menuItems[i]; if (!it) return false;
+  tin.value = it.v;
+  if (!it.done || !run) { updateMenu(); tin.focus(); return true; }
+  hideMenu();
+  return false;
+}
+tin.addEventListener('input', updateMenu);
+tin.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== tin) hideMenu(); }, 150));
+// Capture phase: the menu sees the keys before the terminal sends the line.
+tin.addEventListener('keydown', e => {
+  if (tmenu.hidden) return;
+  const stop = () => { e.preventDefault(); e.stopImmediatePropagation(); };
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { stop(); menuSel = (menuSel + (e.key === 'ArrowDown' ? 1 : -1) + menuItems.length) % menuItems.length; drawMenu(tmenu.querySelector('.mt')?.textContent); }
+  else if (e.key === 'Tab') { stop(); pickMenu(menuSel, false); }
+  else if (e.key === 'Escape') { stop(); hideMenu(); }
+  // Enter on a finished command runs it (the normal Enter handler sends the line); otherwise it completes.
+  else if (e.key === 'Enter') { if (pickMenu(menuSel, true)) stop(); }
+}, true);
+tmenu.addEventListener('mousedown', e => e.preventDefault());
+tmenu.addEventListener('click', e => {
+  const r = e.target.closest('[data-mi]'); if (!r) return;
+  if (!pickMenu(+r.dataset.mi, true)) tin.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 });
 const sendToTerm = q => { toggleTerm(true); out(`<span class="p">jarvis ›</span> <span class="u">${esc(q)}</span>`); respond(q); };
 for (const input of [$('#ask'), tin, $('#addtodo')]) {
@@ -3197,7 +3269,7 @@ async function openTaskChat(taskId, title, note) {
 async function restoreChat() {
   if (!API.server) return;
   $('#tnew').hidden = $('#tsess').hidden = false;
-  tin.placeholder = 'ask anything · /new starts a new conversation · /resume opens an earlier one';
+  tin.placeholder = 'ask anything · type / for commands';
   let id = ''; try { id = localStorage.getItem('jarvis.chat') || ''; } catch {}
   if (!id) return;
   try { const c = await api('chats/' + id); if (Date.now() - c.updated < 12 * 3600e3) { chat = c; drawChat(); } } catch {}
