@@ -211,6 +211,20 @@ body.overview .edge,body.moving .edge{opacity:0;pointer-events:none}
 .sw{width:30px;height:18px;border-radius:99px;background:color-mix(in srgb,var(--ink) 10%,transparent);position:relative;flex:none;transition:background .25s;cursor:pointer}
 .sw::after{content:"";position:absolute;top:3px;left:3px;width:12px;height:12px;border-radius:50%;background:var(--text-2);transition:transform .3s cubic-bezier(.3,1.6,.5,1),background .25s}
 .sw.on{background:color-mix(in srgb,var(--accent) 35%,transparent)} .sw.on::after{transform:translateX(12px);background:var(--accent)}
+/* Bandwidth: in above the zero line, out mirrored below, with a stats row on top. */
+.flowstats{display:flex;gap:10px 30px;flex-wrap:wrap;margin:-2px 0 14px}
+.flowstats .fr{display:flex;align-items:baseline;gap:18px}
+.flowstats .fr>i{width:10px;height:10px;border-radius:3px;align-self:center;margin-right:-10px}
+.flowstats .fr>b{font-size:12.5px;font-weight:600;min-width:28px}
+.flowstats span{font:500 13.5px var(--mono);color:var(--text);font-variant-numeric:tabular-nums}
+.flowstats small{font:500 9.5px var(--mono);color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-right:6px}
+.ftip{position:absolute;top:0;pointer-events:none;background:var(--card-2);border:1px solid var(--line-2);border-radius:10px;padding:8px 11px;font-size:12px;opacity:0;transition:opacity .12s;box-shadow:0 10px 30px -12px color-mix(in srgb,var(--shadow) 80%,transparent);min-width:168px}
+.ftip .d{font:500 10.5px var(--mono);color:var(--muted);margin-bottom:5px}
+.ftip .r{display:grid;grid-template-columns:10px 34px auto 1fr;gap:7px;align-items:baseline;line-height:1.7}
+.ftip .r i{width:8px;height:8px;border-radius:2px;align-self:center}
+.ftip .r b{font:600 13px var(--mono);font-variant-numeric:tabular-nums}
+.ftip .r span{font:500 11px var(--mono);color:var(--muted);text-align:right}
+.ftip .u{font:500 10px var(--mono);color:var(--muted);margin-top:4px}
 .legend{display:flex;gap:14px;font-size:12px;color:var(--text-2);flex-wrap:wrap}
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
@@ -2627,6 +2641,72 @@ function lineChart(el, data, { fmt, date, ticks = 4, color = 'var(--accent)', ho
   });
   svg.addEventListener('mouseleave', () => { vx.setAttribute('opacity', 0); dot.setAttribute('opacity', 0); tip.style.opacity = 0; });
 }
+// Bandwidth over a day: in (received) above the zero line, out (sent) mirrored below, on one
+// shared scale. Solid areas are 5-minute averages; the faint band above each reaches the busiest
+// minute in that slot, so short bursts stay visible without hiding the typical level.
+const niceStep = x => { const p = 10 ** Math.floor(Math.log10(x || 1)), f = x / p; return p * (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10); };
+const mbit = v => v >= 100 ? Math.round(v) + '' : v >= 10 ? v.toFixed(1) : v.toFixed(2);
+function flowChart(el, statsEl, rx, tx, { slot = 300e3, cin = 'var(--s1)', cout = 'var(--s2)' } = {}) {
+  el.innerHTML = '';
+  if (!rx || rx.length < 2) return;
+  tx = tx?.length === rx.length ? tx : null;
+  const dtMs = (rx.at(-1)[0] - rx[0][0]) / (rx.length - 1) || 60e3, per = Math.max(1, Math.round(slot / dtMs));
+  const sum = l => { const v = l.map(p => p[1]), tot = v.reduce((a, b) => a + b, 0); return { now: v.at(-1), avg: tot / v.length, peak: Math.max(...v), gb: tot * dtMs / 1000 / 8 / 1000 }; };
+  const size = gb => gb >= 100 ? Math.round(gb) + ' GB' : gb >= 1 ? gb.toFixed(1) + ' GB' : Math.round(gb * 1000) + ' MB';
+  if (statsEl) statsEl.innerHTML = [['In', rx, cin], ...(tx ? [['Out', tx, cout]] : [])].map(([n, l, c]) => { const m = sum(l); return `<div class="fr"><i style="background:${c}"></i><b>${n}</b><span><small>now</small>${mbit(m.now)}</span><span><small>avg</small>${mbit(m.avg)}</span><span><small>peak</small>${mbit(m.peak)}</span><span><small>total</small>${size(m.gb)}</span></div>`; }).join('');
+  const w = el.clientWidth, h = el.clientHeight;
+  if (w < 60 || h < 60) return;
+  const bins = [];
+  for (let i = 0; i < rx.length; i += per) {
+    const a = rx.slice(i, i + per), b = tx ? tx.slice(i, i + per) : [], avg = l => l.reduce((s, p) => s + p[1], 0) / (l.length || 1), max = l => Math.max(0, ...l.map(p => p[1]));
+    bins.push({ t: a[0][0], t2: a.at(-1)[0] + dtMs, in: avg(a), inP: max(a), out: avg(b), outP: max(b) });
+  }
+  if (bins.length < 2) return;
+  const inMax = Math.max(...bins.map(b => b.inP)), outMax = tx ? Math.max(...bins.map(b => b.outP)) : 0;
+  const st = niceStep((inMax + outMax) / 5 || 1), top = Math.max(st, Math.ceil(inMax / st) * st), bot = tx ? Math.max(st, Math.ceil(outMax / st) * st) : 0;
+  const pad = { l: 0, r: 46, t: 8, b: 24 }, W = w - pad.l - pad.r, k = (h - pad.t - pad.b) / (top + bot), y0 = pad.t + top * k;
+  const t0 = bins[0].t, t1 = bins.at(-1).t, X = i => pad.l + i / (bins.length - 1) * W, Xt = t => pad.l + (t - t0) / (t1 - t0) * W;
+  const Yi = v => y0 - v * k, Yo = v => y0 + v * k, f1 = n => n.toFixed(1);
+  const line = f => bins.map((b, i) => (i ? 'L' : 'M') + f1(X(i)) + ',' + f1(f(b))).join('');
+  const back = f => bins.map((b, i) => [i, b]).reverse().map(([i, b]) => 'L' + f1(X(i)) + ',' + f1(f(b))).join('');
+  const ink = a => `color-mix(in srgb,var(--ink) ${a}%,transparent)`, mono = 'font-size="10.5" font-family="ui-monospace,monospace" fill="var(--muted)"';
+  let s = `<svg width="${w}" height="${h}" role="img" aria-label="Bandwidth over the last day, in and out, in Mbit/s">`;
+  // Grid: hours on round marks, Mbit/s on both sides of the zero line.
+  const hrs = W / ((t1 - t0) / 36e5) * 3 > 64 ? 3 : 6;
+  for (let t = Math.ceil(t0 / 36e5) * 36e5; t <= t1; t += 36e5) {
+    const d = new Date(t); if (d.getHours() % hrs) continue;
+    const x = Xt(t), lbl = d.getHours() === 0 ? d.toLocaleDateString('en-GB', { weekday: 'short' }) : String(d.getHours()).padStart(2, '0') + ':00';
+    s += `<line x1="${f1(x)}" x2="${f1(x)}" y1="${pad.t}" y2="${h - pad.b}" stroke="${ink(5)}"/>`;
+    if (x > 18 && x < W - 18) s += `<text x="${f1(x)}" y="${h - 6}" ${mono} text-anchor="middle">${lbl}</text>`;
+  }
+  for (let v = st; v <= top + 1e-9; v += st) s += `<line x1="0" x2="${W}" y1="${f1(Yi(v))}" y2="${f1(Yi(v))}" stroke="${ink(6)}" stroke-dasharray="2 4"/><text x="${W + 8}" y="${f1(Yi(v) + 4)}" ${mono}>${+v.toFixed(2)}</text>`;
+  for (let v = st; v <= bot + 1e-9; v += st) s += `<line x1="0" x2="${W}" y1="${f1(Yo(v))}" y2="${f1(Yo(v))}" stroke="${ink(6)}" stroke-dasharray="2 4"/><text x="${W + 8}" y="${f1(Yo(v) + 4)}" ${mono}>${+v.toFixed(2)}</text>`;
+  // Peak bands, then the averages on top, then the zero line.
+  s += `<path d="${line(b => Yi(b.inP))}${back(b => Yi(b.in))}Z" fill="${cin}" fill-opacity=".3"/>`;
+  s += `<path d="${line(b => Yi(b.in))}L${f1(X(bins.length - 1))},${f1(y0)}L${f1(X(0))},${f1(y0)}Z" fill="${cin}" fill-opacity=".5"/><path d="${line(b => Yi(b.in))}" fill="none" stroke="${cin}" stroke-width="1.5" stroke-linejoin="round"/>`;
+  if (tx) {
+    s += `<path d="${line(b => Yo(b.outP))}${back(b => Yo(b.out))}Z" fill="${cout}" fill-opacity=".3"/>`;
+    s += `<path d="${line(b => Yo(b.out))}L${f1(X(bins.length - 1))},${f1(y0)}L${f1(X(0))},${f1(y0)}Z" fill="${cout}" fill-opacity=".5"/><path d="${line(b => Yo(b.out))}" fill="none" stroke="${cout}" stroke-width="1.5" stroke-linejoin="round"/>`;
+  }
+  s += `<line x1="0" x2="${W}" y1="${f1(y0)}" y2="${f1(y0)}" stroke="${ink(28)}"/><text x="${W + 8}" y="${f1(y0 + 4)}" ${mono}>0</text>`;
+  // Direct labels at the left of the zero line, so colour is never the only key.
+  const tag = (txt, y) => `<text x="6" y="${f1(y)}" font-size="10" font-weight="600" letter-spacing=".08em" fill="var(--text-2)" stroke="var(--card)" stroke-width="3" paint-order="stroke" font-family="ui-monospace,monospace">${txt}</text>`;
+  s += tag('IN ↓', y0 - 6) + (tx ? tag('OUT ↑', y0 + 14) : '');
+  s += `<line class="vx" y1="${pad.t}" y2="${h - pad.b}" stroke="${ink(30)}" opacity="0"/><circle class="di" r="4" fill="${cin}" stroke="var(--card)" stroke-width="2" opacity="0"/>${tx ? `<circle class="do" r="4" fill="${cout}" stroke="var(--card)" stroke-width="2" opacity="0"/>` : ''}<rect x="0" y="0" width="${W}" height="${h}" fill="transparent"/></svg><div class="ftip"></div>`;
+  el.innerHTML = s;
+  const svg = $('svg', el), vx = $('.vx', el), di = $('.di', el), dO = $('.do', el), tip = $('.ftip', el);
+  const hm2 = t => new Date(t).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const row = (n, c, a, p) => `<div class="r"><i style="background:${c}"></i><span style="text-align:left;color:var(--text-2)">${n}</span><b>${mbit(a)}</b><span>peak ${mbit(p)}</span></div>`;
+  svg.addEventListener('mousemove', e => {
+    const r = svg.getBoundingClientRect(), x = (e.clientX - r.left) / (r.width / w), i = clamp(Math.round((x - pad.l) / W * (bins.length - 1)), 0, bins.length - 1), b = bins[i], xi = X(i);
+    vx.setAttribute('x1', xi); vx.setAttribute('x2', xi); vx.setAttribute('opacity', 1);
+    di.setAttribute('cx', xi); di.setAttribute('cy', Yi(b.in)); di.setAttribute('opacity', 1);
+    if (dO) { dO.setAttribute('cx', xi); dO.setAttribute('cy', Yo(b.out)); dO.setAttribute('opacity', 1); }
+    tip.innerHTML = `<div class="d">${hm2(b.t)} – ${hm2(b.t2)}</div>${row('In', cin, b.in, b.inP)}${tx ? row('Out', cout, b.out, b.outP) : ''}<div class="u">Mbit/s · average over the slot</div>`;
+    const tw = tip.offsetWidth || 180; tip.style.left = (xi + 14 + tw > w ? xi - 14 - tw : xi + 14) + 'px'; tip.style.top = pad.t + 'px'; tip.style.opacity = 1;
+  });
+  svg.addEventListener('mouseleave', () => { vx.setAttribute('opacity', 0); di.setAttribute('opacity', 0); dO?.setAttribute('opacity', 0); tip.style.opacity = 0; });
+}
 const today = new Date(2026, 9, 21);
 const dayStr = n => { const d = new Date(today); d.setDate(d.getDate() - n); return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); };
 const port = (() => { const a = [48212]; for (let i = 1; i < 365; i++) a.unshift(a[0] / (1 + (rng() - .47) * .018)); return a; })();
@@ -4560,7 +4640,7 @@ const LIVE = (() => {
     const speedCard = `<div class="card"><h3>Internet speed <span class="go">${sl?.at ? 'last test ' + ago(sl.at) + (st.stale ? ' · <span style="color:var(--warn)">no recent test</span>' : '') : ''}</span></h3>${st ? `<div class="row" style="gap:18px;margin-bottom:10px;align-items:baseline"><div><span class="big num" style="font-size:28px">${sl.down != null ? Math.round(sl.down) : '—'}</span> <span class="muted">↓ Mbit/s</span></div><div><span class="num" style="font-size:20px">${sl.up != null ? Math.round(sl.up) : '—'}</span> <span class="muted">↑</span></div><div><span class="num" style="font-size:20px">${sl.ping != null ? sl.ping.toFixed(1) : '—'}</span> <span class="muted">ms ping</span></div></div>${st.history.length > 1 ? '<div class="chart" id="lv-speed" style="min-height:120px"></div>' : '<div class="empty"><div class="muted">The chart fills in as the hourly tests come in.</div></div>'}<div class="muted" style="font-size:11.5px;margin-top:6px">${esc(sl.server || '')}${sl.failed ? ' · <span style="color:var(--crit)">last test failed</span>' : ''}${sl.url ? ` · <a class="lk" data-la="open" data-url="${esc(sl.url)}">result</a>` : ''}</div>` : broken('speedtest', 'Speedtest Tracker') || need('speedtest', 'Download, upload and ping, tested every hour')}</div>`;
     return ph('network', 'Network · ' + [pr && 'Prometheus', !pr && px && 'Proxmox', st && 'Speedtest', ts && 'Tailscale', ag && 'AdGuard', cf && 'Cloudflare'].filter(Boolean).join(' · '), 'Network', stats([[ts ? `${online}/${ts.devices.length}` : '—', 'devices online'], ...speed, [ag && ag.queries ? (ag.blocked / ag.queries * 100).toFixed(1) + '%' : '—', 'DNS queries blocked']])) +
       `<div class="grid" style="grid-template-columns:1.6fr 1fr;grid-template-rows:1fr 1fr">
-      <div class="card"><h3>Bandwidth · 24 h <span class="go">${pr?.rx.length > 1 ? 'download, Mbit/s · all interfaces' : traffic ? `in, Mbit/s · Proxmox host${traffic.nodes.length > 1 ? 's' : ' ' + esc(traffic.nodes[0])}` : ''}</span></h3>${pr?.rx.length > 1 || traffic ? '<div class="chart" id="lv-net"></div>' : pr ? '<div class="empty"><div class="muted">No node_exporter network metrics.</div></div>' : need(['prometheus', 'proxmox'], 'Throughput over the last day')}</div>
+      <div class="card"><h3>Bandwidth · 24 h <span class="go">${pr?.rx.length > 1 ? 'Mbit/s · all interfaces' : traffic ? `Mbit/s · Proxmox host${traffic.nodes.length > 1 ? 's ' + esc(traffic.nodes.join(', ')) : ' ' + esc(traffic.nodes[0])} · 5-min average, band to peak` : ''}</span></h3>${pr?.rx.length > 1 || traffic ? '<div class="flowstats" id="lv-netstats"></div><div class="chart" id="lv-net"></div>' : pr ? '<div class="empty"><div class="muted">No node_exporter network metrics.</div></div>' : need(['prometheus', 'proxmox'], 'Throughput over the last day')}</div>
       <div class="card"><h3>Exposed to the internet <span class="go">${cf ? 'via Cloudflare' : ''}</span></h3>${cf ? `<div class="list scroll">${cf.routes.map(r => `<div class="expo"><span class="st ${r.access ? 'good' : r.access === false ? 'warn' : 'idle'}">${r.access ? 'Access' : r.access === false ? 'public' : 'unknown'}</span><span><b>${esc(r.host)}</b><small>${esc(r.tunnel)} → ${esc(r.service)}${r.up ? '' : ' · tunnel down'}</small></span></div>`).join('') || '<div class="muted">No public hostnames on your tunnels.</div>'}</div>${cf.accessKnown ? '' : '<p class="muted" style="font-size:11.5px;margin-top:8px">Give the token Access read permission to see which hosts are protected.</p>'}` : broken('cloudflare', 'Cloudflare') || need('cloudflare', 'Your tunnels and whether Access protects each hostname')}</div>
       <div class="card"><h3>Devices <span class="go">${ts ? 'tailnet' : ''}</span></h3>${ts ? `<div class="scroll"><table><thead><tr><th>Device</th><th>Address</th><th>OS</th><th class="n">Seen</th></tr></thead><tbody>${ts.devices.sort((a, b) => b.online - a.online).map(d => `<tr><td><span class="st ${d.online ? 'good' : 'idle'}" style="margin-right:6px"></span>${esc(d.name)}${d.update ? ' <span class="chip" style="font-size:9.5px">update</span>' : ''}</td><td><span class="mono">${esc(d.address)}</span></td><td class="t2">${esc(d.os)}</td><td class="n mono">${d.online ? 'now' : ago(d.seen)}</td></tr>`).join('')}</tbody></table></div>` : broken('tailscale', 'Tailscale') || need('tailscale', 'Every device on your tailnet')}</div>
       ${ag || !st ? `<div class="card"><h3>DNS <span class="go">${ag ? 'top blocked · ' + ag.queries.toLocaleString('en-US') + ' queries' : ''}</span></h3>${ag ? `<div class="list scroll">${ag.top.map(d => `<div class="dns"><span>${esc(d.domain)}</span><span class="v">${d.count.toLocaleString('en-US')}</span><div class="bar"><b style="width:${d.count / Math.max(1, ag.top[0]?.count) * 100}%;background:var(--crit)"></b></div></div>`).join('') || '<div class="muted">Nothing blocked yet.</div>'}</div>` : broken('adguard', 'AdGuard Home') || need('adguard', 'What your DNS blocks')}</div>` : speedCard}
@@ -4569,7 +4649,7 @@ const LIVE = (() => {
   charts.network = () => {
     const pr = ok('prometheus'), px = ok('proxmox')?.traffic, st = ok('speedtest'), el = $('#lv-net'), sp = $('#lv-speed');
     const src = pr?.rx.length > 1 ? pr : px?.rx.length > 1 ? px : null;
-    if (src && el) lineChart(el, src.rx.map(p => p[1]), { fmt: (v, s) => s ? v.toFixed(0) : v.toFixed(1) + ' Mbit/s', date: i => hm(new Date(src.rx[i][0])), floor: 0 });
+    if (src && el) flowChart(el, $('#lv-netstats'), src.rx, src.tx);
     if (st && sp && st.history.length > 1) { const h = st.history.slice(-72); lineChart(sp, h.map(x => x.down), { fmt: (v, s) => s ? v.toFixed(0) : `${v.toFixed(0)} ↓ · ${(h.find(x => x.down === v)?.up ?? 0).toFixed(0)} ↑ Mbit/s`, date: i => new Date(h[i].at).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit' }), color: 'var(--s2)', floor: 0 }); }
   };
 
