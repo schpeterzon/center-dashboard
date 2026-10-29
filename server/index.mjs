@@ -281,7 +281,8 @@ async function api(req, res, url, who) {
       if (lm[1] === "ai" && lm[2] === "brief") { const text = await live.complete("Write my brief for right now: what is on, what needs me, anything worth knowing. 4–7 short lines, most important first. No greeting line.", { name: state.settings?.profile?.name }); state.brief = { at: Date.now(), text }; persist(); return json(res, 200, { brief: state.brief }); }
       if (lm[1] === "ai" && lm[2] === "review") { live.localAction("automations", "run", { id: (state.automations || []).find((a) => a.kind === "review" && a.scope === (b.scope === "weekly" ? "weekly" : "daily"))?.id }); return json(res, 202, { started: true }); }
     } catch (e) {
-      return json(res, e instanceof SourceError ? 502 : 400, { error: e.message });
+      // 422, not 502: Cloudflare swaps a 502 for its own error page, and the reason would be lost.
+      return json(res, e instanceof SourceError ? 422 : 400, { error: e.message });
     }
     return json(res, 404, { error: "Not found." });
   }
@@ -304,7 +305,11 @@ async function api(req, res, url, who) {
     const emit = (o) => res.write(`data: ${JSON.stringify(o)}\n\n`);
     try {
       const ctx = { ...(b.context && typeof b.context === "object" ? b.context : {}), live: await live.liveContext().catch(() => "") };
-      const tools = await chatTools().catch(() => null);
+      // Comments keep the stream alive through proxies while a tool works for minutes.
+      const beat = setInterval(() => res.write(": working\n\n"), 20e3);
+      res.on("close", () => clearInterval(beat));
+      const tools = await chatTools({ auto: b.auto === true }).catch(() => null);
+      ctx.auto = b.auto === true;
       for await (const t of answer(c, Array.isArray(b.messages) ? b.messages : [], ctx, ac.signal, tools)) emit(typeof t === "string" ? { t: "text", v: t } : { t: "status", v: t.status });
       emit({ t: "done" });
     } catch (e) {

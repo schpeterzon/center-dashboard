@@ -99,8 +99,14 @@ export async function harnessAction(c, action, body = {}) {
   if (action === "decide") {
     const decision = ["approve", "approve_always", "reject"].includes(body.decision) ? body.decision : null;
     if (!decision) throw new SourceError("Unknown decision.");
-    const r = await post(`approvals/${id(body.id)}`, { decision, ...(body.message ? { message: str(body.message, 2000) } : {}) });
-    return { status: r.status, task: r.task_id };
+    try {
+      const r = await post(`approvals/${id(body.id)}`, { decision, ...(body.message ? { message: str(body.message, 2000) } : {}) });
+      return { status: r.status, task: r.task_id };
+    } catch (e) {
+      // A second click, or auto mode got there first: the approval is already decided.
+      if (/HTTP 409/.test(e.message) && /already/i.test(e.message)) return { status: "already decided", already: true };
+      throw e;
+    }
   }
   if (action === "cancel") return post(`tasks/${id(body.id)}/cancel`, { reason: "cancelled from the dashboard" }).then((r) => ({ status: r.status }));
   if (action === "run") return post(`tasks/${id(body.id)}/run`, {}).then((r) => ({ status: r.status }));
@@ -114,36 +120,65 @@ export async function harnessAction(c, action, body = {}) {
 }
 export const harnessDone = (s) => TERMINAL.has(s);
 
-// ---------------------------------------------------------------- questions from JARVIS
-// The terminal chat hands questions about the machines to a Harness agent: a read-only
-// investigation, waited on in slices, answered with the agent's last message. A task that stops
-// for an approval is reported as such; the owner decides it like any other.
-export async function harnessAsk(c, question, { worker, signal, onStatus = () => {} } = {}) {
+// ---------------------------------------------------------------- questions and jobs from JARVIS
+// The terminal chat hands work to a Harness agent and waits for it in slices. In auto mode
+// routine permission requests (read, list, inspect, ordinary edits) are approved on the owner's
+// behalf; anything risky stops and is handed back to the owner, as Claude Code's auto mode does.
+const RISKY_CATEGORIES = new Set(["destructive", "production", "git_push", "file_deletion", "privilege"]);
+const RISKY_COMMAND = /(^|[\s;&|(`])(sudo|su|rm|rmdir|dd|mkfs[\w.]*|fdisk|parted|wipefs|shred|truncate|shutdown|reboot|poweroff|halt|kill|pkill|killall|userdel|usermod|passwd|chown|chmod|iptables|nft|ufw|crontab)\s|systemctl\s+(stop|restart|disable|mask|kill|reboot|poweroff)|service\s+\S+\s+(stop|restart)|docker\s+(rm|rmi|stop|kill|restart|system\s+prune|volume\s+rm|network\s+rm|compose\s+down)|kubectl\s+(delete|drain|scale|apply|replace|patch)|qm\s+(stop|destroy|shutdown|reset|reboot|set|migrate)|pct\s+(stop|destroy|shutdown|reboot|set)|zfs\s+(destroy|rollback)|zpool\s+(destroy|remove|offline)|git\s+(push|reset\s+--hard|clean|branch\s+-D)|>\s*\/(etc|boot|dev|usr|var\/lib)\b|\|\s*(ba|z)?sh\b|DROP\s+(TABLE|DATABASE)|DELETE\s+FROM|TRUNCATE\s+TABLE/i;
+export function autoApprovable(a) {
+  if (a.kind !== "permission" || !["low", "medium"].includes(a.risk)) return false;
+  if ((a.categories || []).some((c) => RISKY_CATEGORIES.has(c))) return false;
+  return !RISKY_COMMAND.test(" " + [a.description, ...(a.patterns || [])].join(" \n "));
+}
+
+export async function harnessAsk(c, question, { worker, change = false, auto = false, signal, onStatus = () => {} } = {}) {
   const t = target(c), call = (path, b, timeout = 15000) => request(`${t.url}/api/${path}`, { method: b ? "POST" : "GET", headers: t.headers, body: b, timeout });
-  const objective = [
+  const objective = change ? [
+    "Do what the owner asks on their own machines and services.",
+    "Prefer the smallest change that does the job; check the current state first and verify the result afterwards. Do not delete data, stop or restart services, push to git or change access unless the request clearly asks for it.",
+    "Finish with a short plain-text report: what you did, where, and how to use or check it (hosts, ports, commands; never print secrets).",
+    "", "Request: " + str(question, 4000),
+  ].join("\n") : [
     "Answer the owner's question about their own machines and services.",
     "Investigate read-only: look, list, inspect and read. Do not install, change, restart, delete or write anything; if answering would need a change, say so instead.",
     "Reply in plain text, short and concrete: which machine or VM, what runs there, and exactly how to use it (host, port, command, where credentials live, without printing secrets).",
     "", "Question: " + str(question, 4000),
   ].join("\n");
-  const r = await call("tasks", { objective, title: str("Ask: " + question.replace(/\s+/g, " "), 120), worker_role: worker || "researcher", risk: "low", run: true, metadata: { requested_by: "center-dashboard-chat" } });
-  const id = r.task_id;
-  onStatus(`${id} started · ${worker || "researcher"}`);
-  const until = Date.now() + 8 * 60e3;
-  let task = r.task || {};
+  const role = worker || (change ? "infrastructure" : "researcher");
+  const r = await call("tasks", { objective, title: str((change ? "Do: " : "Ask: ") + question.replace(/\s+/g, " "), 120), worker_role: role, risk: change ? "medium" : "low", run: true, metadata: { requested_by: "center-dashboard-chat", auto } });
+  onStatus(`${r.task_id} started · ${role}${auto ? " · auto mode" : ""}`);
+  return harnessFollow(c, r.task_id, { auto, signal, onStatus, task: r.task });
+}
+
+// Waits for a task (new, or one the owner just approved), approving routine steps in auto mode.
+export async function harnessFollow(c, id, { auto = false, signal, onStatus = () => {}, task = null } = {}) {
+  const t = target(c), call = (path, b, timeout = 15000) => request(`${t.url}/api/${path}`, { method: b ? "POST" : "GET", headers: t.headers, body: b, timeout });
+  if (!/^task_[0-9a-z]{6,40}$/i.test(String(id || ""))) throw new SourceError("invalid task id");
+  task ||= (await call(`tasks/${id}`)).task || {};
+  const until = Date.now() + 10 * 60e3;
+  let lastAction = "";
   while (!TERMINAL.has(task.status) && Date.now() < until) {
     if (signal?.aborted) return { id, status: "left running", text: "The user stopped waiting; the task keeps running in the Harness." };
     if (task.status === "waiting_approval") {
-      const ap = await call(`approvals?status=pending&limit=50`).catch(() => ({}));
-      const mine = (ap.approvals || []).filter((x) => x.task_id === id).map((x) => `${x.id}: ${str(x.description, 300)}`);
-      return { id, status: "waiting for approval", text: `The task is paused until the owner approves: ${mine.join("; ") || "see the Agents page"}. They can approve it there or type "approve <id>" in the terminal; the answer then appears on the task.` };
+      const pending = ((await call(`approvals?status=pending&task_id=${id}&limit=50`).catch(() => ({}))).approvals || []).filter((a) => a.task_id === id);
+      const ask = [];
+      for (const a of pending) {
+        if (auto && autoApprovable(a)) {
+          await call(`approvals/${a.id}`, { decision: "approve", message: "approved by the owner's auto mode" }).catch(() => {});
+          onStatus(`auto-approved · ${str(a.description, 140)}`);
+        } else ask.push(a);
+      }
+      if (ask.length) return { id, status: "needs approval", text: `Paused for the owner's approval of ${ask.length} step(s) that auto mode does not take on its own: ${ask.map((a) => `${a.id} [${a.risk}${a.categories?.length ? ", " + a.categories.join("/") : ""}]: ${str(a.description, 300)}`).join("; ")}. Tell the owner briefly what each would do and end with one "ACTION approve: <id>" line per step; once approved, the conversation continues the task by itself.` };
+      if (!pending.length) await new Promise((res) => setTimeout(res, 1500));
     }
-    const w = await call(`tasks/${id}/wait`, { timeout_seconds: 45, until: "settled" }, 60000).catch((e) => ({ error: e }));
-    if (w.error) { if (Date.now() >= until) break; await new Promise((res) => setTimeout(res, 3000)); continue; }
+    const w = await call(`tasks/${id}/wait`, { timeout_seconds: 25, until: "settled" }, 40000).catch((e) => ({ error: e }));
+    if (w.error) { await new Promise((res) => setTimeout(res, 3000)); task = (await call(`tasks/${id}`).catch(() => ({}))).task || task; continue; }
     task = w.task || task;
-    if (task.activity?.action) onStatus(`${id} · ${str(task.activity.action, 120)}`);
+    const act = task.activity?.action || task.display?.current_action;
+    if (act && act !== lastAction) { lastAction = act; onStatus(`${id} · ${str(act, 120)}`); }
   }
-  if (!TERMINAL.has(task.status)) return { id, status: str(task.status, 30) || "running", text: "Still working after 8 minutes; the answer will be on the task (Agents page)." };
+  if (!TERMINAL.has(task.status)) return { id, status: str(task.status, 30) || "running", text: "Still working after 10 minutes; the result will be on the task (Agents page), and asking again later picks it up." };
   const ev = await call(`tasks/${id}/events?types=assistant.message&limit=500`).catch(() => ({}));
   const last = (ev.events || []).map((e) => e.payload?.text).filter(Boolean).pop();
   return { id, status: task.status, text: str(last || task.result?.summary || (task.error ? "failed: " + (task.error.message || task.error.code) : "no answer"), 8000) };

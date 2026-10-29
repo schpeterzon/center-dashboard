@@ -747,6 +747,7 @@ body.calm *,body.calm *::before,body.calm *::after{animation-duration:.001s!impo
 .hp .menu button.cur{color:var(--accent)} .hp .menu button em{font:500 10px var(--mono);font-style:normal;color:var(--muted)}
 #tout .sug{font:500 .92em var(--mono);padding:.3em .8em;margin:.2em .3em .2em 0}
 #term .tconv{font:500 .85em var(--sans);padding:.3em .75em;border:1px solid var(--line-2);border-radius:7px;color:var(--text-2);background:none;cursor:pointer} #term .tconv:hover{color:var(--text);border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+#term .tconv.on{color:var(--good);border-color:color-mix(in srgb,var(--good) 45%,transparent)}
 #tout .chatpick{cursor:pointer;display:inline-block;border-radius:5px;padding:0 .3em} #tout .chatpick:hover{background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--text)}
 .pane.live .empty{flex:1;min-height:0;overflow:hidden;padding:10px 8px;gap:8px}
 .pane.live .card.span4 .empty .muted{font-size:11.5px}
@@ -1349,7 +1350,7 @@ body.server .pane:not(.lv-ready) .pane-inner{visibility:hidden}
 
 <!-- ================= TERMINAL ================= -->
 <div id="term" role="dialog" aria-label="Jarvis terminal">
- <header><div class="dots"><i></i><i></i><i></i></div><span id="ttitle">jarvis — ~/home</span><div class="sp"></div><button type="button" class="tconv" id="tnew" hidden title="Start a new conversation (/new)">+ New</button><button type="button" class="tconv" id="tsess" hidden title="Earlier conversations and task details (/resume)">Conversations</button><span class="chip e-local"><i></i>route: auto · local-first</span><kbd>`</kbd><button type="button" class="term-close" id="term-close" aria-label="Close terminal" title="Close terminal (Esc)">×</button></header>
+ <header><div class="dots"><i></i><i></i><i></i></div><span id="ttitle">jarvis — ~/home</span><div class="sp"></div><button type="button" class="tconv" id="tnew" hidden title="Start a new conversation (/new)">+ New</button><button type="button" class="tconv" id="tsess" hidden title="Earlier conversations and task details (/resume)">Conversations</button><button type="button" class="tconv" id="tauto" hidden></button><span class="chip e-local"><i></i>route: auto · local-first</span><kbd>`</kbd><button type="button" class="term-close" id="term-close" aria-label="Close terminal" title="Close terminal (Esc)">×</button></header>
  <div id="tout"></div>
  <div id="tin"><span>jarvis ›</span><input id="tinput" placeholder="try: status · plan my week · run fix · build an app · portfolio · go lab" autocomplete="off"></div>
 </div>
@@ -1392,7 +1393,7 @@ const DEFAULTS = {
   appearance: { theme: 'jarvis', accent: '', font: 'grotesk', motion: 'full', css: '', themes: [] },
   layout: structuredClone(DEFAULT_LAYOUT),
   jarvis: { chatty: true },
-  ai: { chat: '' },
+  ai: { chat: '', auto: true },
 };
 let CFG = structuredClone(DEFAULTS);
 const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
@@ -3254,6 +3255,14 @@ async function resumeChat(arg) {
   out('<span class="m">Pick one (click, or type /resume &lt;number&gt;):</span>\n' + list.slice(0, 20).map((c, i) => `<a class="chatpick" data-chat="${esc(c.id)}"><span class="p">${String(i + 1).padStart(2)}</span>  ${esc(c.title)}  <span class="m">${c.kind === 'task' ? 'task · ' : ''}${c.count} question${c.count === 1 ? '' : 's'} · ${agoS(c.updated)}</span></a>`).join('\n') + '\n');
 }
 tout.addEventListener('click', e => { const a = e.target.closest('[data-chat]'); if (a) openChat(a.dataset.chat); });
+// Auto mode, as in Claude Code: JARVIS does what you ask and approves routine Harness steps;
+// only risky ones (deleting, stopping services, git push, privileges, high risk) come to you.
+function syncAuto() {
+  const b = $('#tauto'), on = CFG.ai.auto !== false;
+  b.textContent = on ? '● auto mode' : '○ ask first'; b.classList.toggle('on', on);
+  b.title = on ? 'Auto mode: JARVIS acts and approves routine steps itself; risky ones still ask you. Click to make it ask first.' : 'Ask first: JARVIS only investigates and suggests; every Harness step waits for you. Click for auto mode.';
+}
+$('#tauto').onclick = () => { CFG.ai.auto = CFG.ai.auto === false; save(); syncAuto(); out(`<span class="m">${CFG.ai.auto ? 'Auto mode on: I act on what you ask and approve routine steps; risky ones still come to you.' : 'Ask first: I investigate and suggest; you approve every step.'}</span>\n`); tin.focus(); };
 $('#tnew').onclick = () => { showUser('/new'); newChat(); tin.focus(); };
 $('#tsess').onclick = () => { showUser('/resume'); resumeChat(''); tin.focus(); };
 // Task details: the newest details replace the note at the top; questions asked about it stay.
@@ -3268,7 +3277,9 @@ async function openTaskChat(taskId, title, note) {
 // On a reload the conversation from the last 12 hours carries on.
 async function restoreChat() {
   if (!API.server) return;
-  $('#tnew').hidden = $('#tsess').hidden = false;
+  $('#tnew').hidden = $('#tsess').hidden = $('#tauto').hidden = false;
+  const chip = $('#term header .chip'); if (chip) chip.hidden = true;
+  syncAuto();
   tin.placeholder = 'ask anything · type / for commands';
   let id = ''; try { id = localStorage.getItem('jarvis.chat') || ''; } catch {}
   if (!id) return;
@@ -3293,7 +3304,7 @@ async function askAI(q, conv = chat) {
   let text = '', failed = '';
   try {
     const r = await fetch('/api/ai/chat', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json', 'x-jarvis': '1' },
-      body: JSON.stringify({ connection: c.id, messages: aiMessages(conv), context: { page: byId[current]?.dataset.name, pages: order.map(id => byId[id].dataset.name), name: CFG.profile.name, time: new Date().toString() } }) });
+      body: JSON.stringify({ connection: c.id, auto: CFG.ai.auto !== false, messages: aiMessages(conv), context: { page: byId[current]?.dataset.name, pages: order.map(id => byId[id].dataset.name), name: CFG.profile.name, time: new Date().toString() } }) });
     if (r.status === 401) { location.assign('/login'); return; }
     if (!r.ok || !r.body) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
     const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
@@ -4146,7 +4157,12 @@ async function runSuggested(kind, value) {
   if (kind === 'go') { const id = order.find(o => byId[o].dataset.name.toLowerCase() === value.toLowerCase() || o === value.toLowerCase()); if (id) { toggleTerm(false); go(id); } return; }
   const map = { idea: ['local', 'ideas/add', { text: value }], todo: ['local', 'todos/add', { text: value, from: 'from the terminal' }], task: ['harness', 'create', { objective: value }], approve: ['harness', 'decide', { id: value, decision: 'approve' }], reject: ['harness', 'decide', { id: value, decision: 'reject' }] };
   const [k, a, b] = map[kind];
-  try { const r = await api(`live/${k}/${a}`, { method: 'POST', body: b }); out(`<span class="ok">✓ ${esc(kind)} · ${esc(r.id || value.slice(0, 60))}</span>\n`); LIVE.poll(k !== 'local'); }
+  try {
+    const r = await api(`live/${k}/${a}`, { method: 'POST', body: b });
+    out(`<span class="ok">✓ ${esc(kind)} · ${esc(r.id || value.slice(0, 60))}${r.already ? ' · already decided' : ''}</span>\n`); LIVE.poll(k !== 'local');
+    // Approving a step from the chat lets JARVIS carry on with the task (once the last click is in).
+    if (kind === 'approve' && API.server && chatConn()) { const conv = chat; clearTimeout(runSuggested.t); runSuggested.t = setTimeout(() => { if (chat === conv) { const q = 'Approved. Carry on with the task and tell me the result.'; showUser(q); respond(q); } }, 2500); }
+  }
   catch (e) { out(`<span class="w">✗ ${esc(e.message)}</span>\n`); }
 }
 
