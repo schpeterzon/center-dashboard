@@ -3921,7 +3921,7 @@ const LIVE = (() => {
       `<div class="grid" style="grid-template-columns:1.7fr 1fr;grid-template-rows:1fr 1fr">
       <div class="card"><h3>Steps · last 14 days <span class="go">${get('steps') ? esc(get('steps').name) : ''}</span></h3>${get('steps') ? '<div class="chart" id="lv-hsteps"></div>' : '<div class="empty"><div class="muted">No step counter sensor.</div></div>'}</div>
       <div class="card"><h3>All health sensors <span class="go">${hs.length}</span></h3><div class="list scroll">${hs.map(x => `<div class="cons"><span>${esc(x.label)} <span class="muted" style="font-size:11.5px">${esc(x.name)}${x.updated ? ' · ' + ago(x.updated) : ''}</span></span><span class="v">${v(x, 1)} ${esc(x.unit)}</span></div>`).join('')}</div></div>
-      <div class="card"><h3>${hr ? esc(hr.label) + ' · today' : 'Heart rate'} <span class="go">${hr ? 'bpm' : ''}</span></h3>${hr ? '<div class="chart" id="lv-hhr"></div>' : '<div class="empty"><div class="muted">No heart rate sensor.</div></div>'}</div>
+      <div class="card"><h3>${hr ? esc(hr.label) + (hr.kind === 'restingHeartRate' ? ' · last 14 days' : ' · today') : 'Heart rate'} <span class="go">${hr ? 'bpm' : ''}</span></h3>${hr ? '<div class="chart" id="lv-hhr"></div>' : '<div class="empty"><div class="muted">No heart rate sensor.</div></div>'}</div>
       <div class="card insight"><h3>JARVIS can help</h3><p>Ask how the last two weeks went, or plan movement around today's calendar.</p><div class="row" style="margin-top:12px;flex-wrap:wrap;gap:8px"><button class="btn pri" data-la="ask" data-q="Look at my health numbers and my calendar. In three short sentences: how am I doing, and one realistic thing to do today.">How am I doing?</button><button class="btn" data-la="ask" data-q="Find a 30 minute slot for a walk or workout today, based on my calendar and the weather.">Find time to move</button></div></div>
       </div>`;
   };
@@ -3946,9 +3946,17 @@ const LIVE = (() => {
     }
     const he = $('#lv-hhr');
     if (he && hr) {
-      const t0 = new Date().setHours(0, 0, 0, 0), today = pts(hr.id).filter(p => p[0] >= t0);
-      if (today.length < 2) he.innerHTML = '<div class="empty"><div class="muted">Not enough readings today yet.</div></div>';
-      else lineChart(he, today.map(p => p[1]), { fmt: (x, s) => s ? Math.round(x) : Math.round(x) + ' bpm', date: i => hm(new Date(today[i][0])), color: 'var(--crit)' });
+      // Resting heart rate arrives a few times a day: one value per day (the latest) over two weeks.
+      // Other heart rate sensors report often enough to draw today's curve.
+      const t0 = new Date().setHours(0, 0, 0, 0), resting = hr.kind === 'restingHeartRate';
+      let ser = pts(hr.id).filter(p => resting || p[0] >= t0), label = i => hm(new Date(ser[i][0]));
+      if (resting) {
+        const byDay = new Map(); for (const p of ser) byDay.set(new Date(p[0]).toDateString(), p);
+        if (hr.updated) byDay.set(new Date(hr.updated).toDateString(), [hr.updated, hr.value]);
+        ser = [...byDay.values()].sort((a, b) => a[0] - b[0]); label = i => new Date(ser[i][0]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+      }
+      if (ser.length < 2) he.innerHTML = `<div class="empty"><div class="muted">${resting ? 'The chart fills in as a value arrives each day' + (ser.length ? ' (1 day so far).' : '.') : 'Not enough readings today yet.'}</div></div>`;
+      else lineChart(he, ser.map(p => p[1]), { fmt: (x, s) => s ? Math.round(x) : Math.round(x) + ' bpm', date: label, color: 'var(--crit)' });
     }
   };
 

@@ -126,6 +126,8 @@ const HEALTH = [
   ["heartRate", "Heart rate", (e) => /bpm/i.test(e.unit) || /heart_rate$|herzfrequenz|pulse/i.test(e.id)],
   ["hrv", "Heart rate variability", (e) => /hrv|heart_rate_variability/i.test(e.id)],
   ["sleep", "Sleep", (e) => /sleep|schlaf/i.test(e.id) && /^(h|min|s)$/i.test(e.unit)],
+  // Apple Health also reports lean body mass in kg; it must not pass for the weight.
+  ["leanMass", "Lean body mass", (e) => /lean_body|lean_mass|muscle_mass/i.test(e.id)],
   ["weight", "Weight", (e) => e.cls === "weight" || (/weight|gewicht/i.test(e.id) && /^(kg|lb|lbs)$/i.test(e.unit))],
   ["calories", "Calories", (e) => /kcal/i.test(e.unit) || /calories|kalorien/i.test(e.id)],
   ["distance", "Distance", (e) => /distance|strecke/i.test(e.id) && /^(m|km|mi)$/i.test(e.unit)],
@@ -147,7 +149,8 @@ export async function homeAssistantHistory(c, ids, days = 1) {
   if (!list.length) return [];
   return caches.haHistory(`${c.id}|${list.join(",")}|${span}`, async () => {
     const since = new Date(); since.setHours(0, 0, 0, 0); since.setDate(since.getDate() - span + 1);
-    const h = await request(`${t.url}/api/history/period/${since.toISOString()}?filter_entity_id=${list.join(",")}&minimal_response&no_attributes`, { headers: t.headers, limit: 8 * 1024 * 1024 });
+        // Without end_time Home Assistant returns only the first day after the start.
+    const h = await request(`${t.url}/api/history/period/${since.toISOString()}?end_time=${encodeURIComponent(new Date().toISOString())}&filter_entity_id=${list.join(",")}&minimal_response&no_attributes`, { headers: t.headers, limit: 8 * 1024 * 1024 });
     return (h || []).map((rows) => ({ id: rows[0]?.entity_id, points: rows.map((r) => [Date.parse(r.last_changed || r.lu * 1000), num(r.state ?? r.s)]).filter((p) => p[1] != null).slice(-3000) }));
   });
 }
