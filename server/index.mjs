@@ -346,7 +346,7 @@ async function api(req, res, url, who) {
       if (!last || last.role !== "user") throw new Error("Ask something first.");
       const earlier = msgs.slice(0, -1).map((x) => `${x.role === "user" ? "Owner" : "JARVIS"}: ${x.content.slice(0, 3000)}`).join("\n\n");
       const question = `${earlier ? "Conversation so far:\n" + earlier + "\n\n" : ""}The owner's message, to answer directly and briefly in plain text:\n${last.content.slice(0, 6000)}`;
-      const out = await tools.run("ask_harness", { question, change: b.auto === true, engine }, { signal: ac.signal, status: (v) => emit({ t: "status", v }) });
+      const out = await tools.run("ask_harness", { question, change: b.auto === true, engine }, { signal: ac.signal, status: (v) => !/^harness · (do|ask) · /.test(v) && emit({ t: "status", v }) });
       const nl = out.indexOf("\n");
       if (nl > 0 && /^Harness task /.test(out)) { emit({ t: "status", v: out.slice(0, nl).replace(/:$/, "") }); emit({ t: "text", v: out.slice(nl + 1).trim() }); }
       else emit({ t: "text", v: out });

@@ -189,7 +189,9 @@ export async function harnessFollow(c, id, { auto = false, signal, onStatus = ()
   if (!TERMINAL.has(task.status)) return { id, status: str(task.status, 30) || "running", text: "Still working after 10 minutes; the result will be on the task (Agents page), and asking again later picks it up." };
   const ev = await call(`tasks/${id}/events?types=assistant.message&limit=500`).catch(() => ({}));
   const last = (ev.events || []).map((e) => e.payload?.text).filter(Boolean).pop();
-  return { id, status: task.status, text: str(last || task.result?.summary || (task.error ? "failed: " + (task.error.message || task.error.code) : "no answer"), 8000) };
+  // Agents end with a JSON status report for the Harness; the owner gets the prose above it.
+  const prose = last ? last.replace(/\n*```json\s*\{[\s\S]*?\}\s*```\s*$/, "").trim() : "";
+  return { id, status: task.status, text: str(prose || last || task.result?.summary || (task.error ? "failed: " + (task.error.message || task.error.code) : "no answer"), 8000) };
 }
 
 // ---------------------------------------------------------------- live events
