@@ -335,3 +335,12 @@ test("with two Harnesses the chat asks which engine runs the job, then uses the 
     await call(`/api/connections/${second.body.connection.id}`, { method: "DELETE" });
   }
 });
+
+test("a conversation can be answered through a Harness instead of the API key", async () => {
+  const id = (await call("/api/connections")).body.connections.find((c) => c.type === "harness").id;
+  const r = await fetch(B + "/api/ai/harness", { method: "POST", headers: { "x-jarvis": "1", cookie, "content-type": "application/json" }, body: JSON.stringify({ engine: id, messages: [{ role: "user", content: "earlier" }, { role: "assistant", content: "ok" }, { role: "user", content: "which vm has mariadb" }] }) });
+  const parts = [...(await r.text()).matchAll(/^data: (.*)$/gm)].map((m) => JSON.parse(m[1]));
+  assert.match(parts.filter((p) => p.t === "text").map((p) => p.v).join(""), /MariaDB runs on db-vm/);
+  assert.ok(parts.some((p) => p.t === "status" && /task_0new000001/.test(p.v)));
+  assert.match(created.at(-1).objective, /Conversation so far:[\s\S]*Owner: earlier[\s\S]*which vm has mariadb/);
+});

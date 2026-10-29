@@ -3215,7 +3215,7 @@ function saveChat(now, c = chat) {
   if (c === chat) clearTimeout(chatSaveT);
   if (!API.server || !c.messages.some(m => m.role === 'user' || m.role === 'note')) return Promise.resolve();
   if (c === chat) try { localStorage.setItem('jarvis.chat', c.id); } catch {}
-  const put = () => api('chats/' + c.id, { method: 'PUT', body: { title: c.title, kind: c.kind, engine: c.engine || '', messages: c.messages } }).catch(e => console.warn('chat save:', e.message));
+  const put = () => api('chats/' + c.id, { method: 'PUT', body: { title: c.title, kind: c.kind, engine: c.engine || '', via: c.via || '', viaLabel: c.viaLabel || '', messages: c.messages } }).catch(e => console.warn('chat save:', e.message));
   if (now || c !== chat) return put();
   chatSaveT = setTimeout(put, 600); return Promise.resolve();
 }
@@ -3295,16 +3295,17 @@ function aiMessages(conv = chat) {
 async function askAI(q, conv = chat) {
   // The answer belongs to the conversation it was asked in, even if you switch away meanwhile.
   const c = chatConn(), e = AI_BY[c.type] || {}, here = () => chat === conv;
-  if (here()) out(`<span class="rt">◆ route</span>  <span class="m">${esc(c.name)} · ${esc(c.values?.model || e.via || 'default model')}${e.local ? ' · stays home' : ''}</span>`);
+  // A conversation can be answered through a Harness (a subscription) instead of the API key.
+  if (here()) out(`<span class="rt">◆ route</span>  <span class="m">${conv.via ? esc(conv.viaLabel || conv.via) + ' · via the Harness, takes a minute' : esc(c.name) + ' · ' + esc(c.values?.model || e.via || 'default model') + (e.local ? ' · stays home' : '')}</span>`);
   jSet('thinking');
   const line = document.createElement('span'); line.className = 'typing'; if (here()) { tout.appendChild(line); tout.scrollTop = tout.scrollHeight; }
   conv.messages.push({ role: 'user', content: q });
   if (!conv.title) { conv.title = q.replace(/\s+/g, ' ').slice(0, 70); const t = $('#ttitle'); if (t && here()) t.textContent = 'jarvis — ' + conv.title; }
   saveChat(true, conv);
-  let text = '', failed = '';
+  let text = '', failed = '', fallback = null;
   try {
-    const r = await fetch('/api/ai/chat', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json', 'x-jarvis': '1' },
-      body: JSON.stringify({ connection: c.id, auto: CFG.ai.auto !== false, engine: conv.engine || '', messages: aiMessages(conv), context: { page: byId[current]?.dataset.name, pages: order.map(id => byId[id].dataset.name), name: CFG.profile.name, time: new Date().toString() } }) });
+    const r = await fetch(conv.via ? '/api/ai/harness' : '/api/ai/chat', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json', 'x-jarvis': '1' },
+      body: JSON.stringify({ connection: c.id, auto: CFG.ai.auto !== false, engine: conv.via || conv.engine || '', messages: aiMessages(conv), context: { page: byId[current]?.dataset.name, pages: order.map(id => byId[id].dataset.name), name: CFG.profile.name, time: new Date().toString() } }) });
     if (r.status === 401) { location.assign('/login'); return; }
     if (!r.ok || !r.body) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
     const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
@@ -3319,6 +3320,7 @@ async function askAI(q, conv = chat) {
         if (m.t === 'text') { if (!text) jSet('generating'); text += m.v; line.textContent = text; if (here()) tout.scrollTop = tout.scrollHeight; }
         // A tool at work: the line goes above the answer, and stays in the conversation.
         else if (m.t === 'status') { jSet('tool'); conv.messages.push({ role: 'tool', content: m.v }); if (!here()) continue; const st = document.createElement('span'); st.className = 'm'; st.textContent = '◇ ' + m.v + '\n'; tout.insertBefore(st, line); tout.scrollTop = tout.scrollHeight; }
+        else if (m.t === 'fallback') fallback = m.v;
         else if (m.t === 'error') failed = m.v;
       }
     }
@@ -3329,7 +3331,10 @@ async function askAI(q, conv = chat) {
   saveChat(false, conv);
   if (!here()) { out(`<span class="m">◆ an answer arrived in "${esc(conv.title)}" · /resume to read it</span>\n`); jSet('success', 2400); return; }
   showAnswer(text, line);
-  if (failed) { out(`<span class="w">✗ ${esc(failed)}</span>\n`); jSet('error', 2600); }
+  if (failed) {
+    out(`<span class="w">✗ ${esc(failed)}</span>\n`); jSet('error', 2600);
+    if (fallback?.length) out('<span class="m">The API key is out of tokens for now. Answer through your subscription instead (this conversation keeps using it):</span>\n' + fallback.map(f => `<button class="btn sug" data-sk="via" data-sv="${esc(f.id + ' | ' + f.label)}">◆ ${esc(f.label)}</button>`).join(' ') + '\n');
+  }
   else { out(''); jSet('success', 2400); }
 }
 
@@ -4155,6 +4160,8 @@ function liveActions(text) {
 }
 async function runSuggested(kind, value) {
   // Which Harness and model run work from this conversation; asked once, then remembered.
+  // Answer this conversation through a Harness on a subscription, and ask the last question again.
+  if (kind === 'via') { const [id, label] = value.split(' | '); const conv = chat; conv.via = id.trim(); conv.viaLabel = (label || id).trim(); conv.engine ||= conv.via; const q = [...conv.messages].reverse().find(m => m.role === 'user')?.content; if (q) { const i = conv.messages.findLastIndex(m => m.role === 'user'); conv.messages.splice(i, 1); } saveChat(true); if (q) { showUser(q); respond(q); } return; }
   if (kind === 'engine') { const [id, label] = value.split(' | '); chat.engine = id.trim(); saveChat(true); const q = `Use ${(label || id).trim()} for this.`; showUser(q); respond(q); return; }
   if (kind === 'go') { const id = order.find(o => byId[o].dataset.name.toLowerCase() === value.toLowerCase() || o === value.toLowerCase()); if (id) { toggleTerm(false); go(id); } return; }
   const map = { idea: ['local', 'ideas/add', { text: value }], todo: ['local', 'todos/add', { text: value, from: 'from the terminal' }], task: ['harness', 'create', { objective: value }], approve: ['harness', 'decide', { id: value, decision: 'approve' }], reject: ['harness', 'decide', { id: value, decision: 'reject' }] };

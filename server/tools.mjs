@@ -20,7 +20,7 @@ const SOURCES = { harness: "Harness tasks, approvals, workers, usage", calendar:
 
 // Engines: every connected Harness with its own default models, plus, where it offers them,
 // subscription models by name (the chat's own model first). The owner picks one per conversation.
-async function engines(chatModel) {
+export async function engines(chatModel) {
   const out = [];
   for (const c of state.connections.filter((x) => x.kind === "data" && x.type === "harness")) {
     const models = await harnessModels(c).catch(() => []);

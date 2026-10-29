@@ -15,7 +15,7 @@ import * as auth from "./auth.mjs";
 import { saveConnection, removeConnection, publicConn, draft, test, answer, entryOf, optedIn } from "./connect.mjs";
 import { hardwareMetrics, invalidateHardwareCache } from "./hardware.mjs";
 import * as live from "./live.mjs";
-import { chatTools } from "./tools.mjs";
+import { chatTools, engines } from "./tools.mjs";
 import { homeAssistantAction, homeAssistantHistory } from "./sources.mjs";
 import { mail } from "./mail.mjs";
 import { SourceError } from "./net.mjs";
@@ -228,7 +228,7 @@ async function api(req, res, url, who) {
     const b = await readBody(req, 2 * 1024 * 1024), list = (state.chats ||= []);
     const messages = (Array.isArray(b.messages) ? b.messages : []).filter((x) => ["user", "assistant", "note", "tool"].includes(x?.role) && typeof x.content === "string").slice(-150).map((x) => ({ role: x.role, content: x.content.slice(0, 20000) }));
     const ch = list.find((x) => x.id === chm[1]) || { id: chm[1], created: Date.now() };
-    Object.assign(ch, { engine: typeof b.engine === "string" ? b.engine.slice(0, 220) : "", title: String(b.title || "").replace(/\s+/g, " ").trim().slice(0, 100) || "Conversation", kind: b.kind === "task" ? "task" : "chat", messages, updated: Date.now() });
+    Object.assign(ch, { engine: typeof b.engine === "string" ? b.engine.slice(0, 220) : "", via: typeof b.via === "string" ? b.via.slice(0, 220) : "", viaLabel: typeof b.viaLabel === "string" ? b.viaLabel.slice(0, 160) : "", title: String(b.title || "").replace(/\s+/g, " ").trim().slice(0, 100) || "Conversation", kind: b.kind === "task" ? "task" : "chat", messages, updated: Date.now() });
     if (!list.includes(ch)) list.push(ch);
     // The newest 60 conversations are kept.
     if (list.length > 60) state.chats = list.sort((x, y) => y.updated - x.updated).slice(0, 60);
@@ -316,6 +316,40 @@ async function api(req, res, url, who) {
       const tools = await chatTools({ auto: b.auto === true, engine: typeof b.engine === "string" ? b.engine.slice(0, 220) : "", chatModel: c.values?.model }).catch(() => null);
       ctx.auto = b.auto === true;
       for await (const t of answer(c, Array.isArray(b.messages) ? b.messages : [], ctx, ac.signal, tools)) emit(typeof t === "string" ? { t: "text", v: t } : { t: "status", v: t.status });
+      emit({ t: "done" });
+    } catch (e) {
+      // A rate-limited or exhausted API key: offer to answer through a Harness on a subscription instead.
+      if (!ac.signal.aborted && /rate limit|quota|429|insufficient/i.test(e.message)) {
+        const alt = (await engines(c.values?.model).catch(() => [])).filter((x) => /subscription/.test(x.label)).map(({ id, label }) => ({ id, label }));
+        if (alt.length) emit({ t: "fallback", v: alt });
+      }
+      if (!ac.signal.aborted) emit({ t: "error", v: e.message });
+    }
+    return res.end();
+  }
+
+  // The same conversation answered by a Harness agent (for example on a ChatGPT subscription
+  // when the API key is rate-limited). Streams like ai/chat: status lines, then the answer.
+  if (p === "ai/harness" && m === "POST") {
+    const b = await readBody(req);
+    res.writeHead(200, { "content-type": "text/event-stream; charset=utf-8", "x-accel-buffering": "no" });
+    const ac = new AbortController();
+    res.on("close", () => ac.abort());
+    const emit = (o) => res.write(`data: ${JSON.stringify(o)}\n\n`);
+    const beat = setInterval(() => res.write(": working\n\n"), 20e3);
+    res.on("close", () => clearInterval(beat));
+    try {
+      const engine = typeof b.engine === "string" ? b.engine.slice(0, 220) : "";
+      const tools = await chatTools({ auto: b.auto === true, engine });
+      const msgs = (Array.isArray(b.messages) ? b.messages : []).filter((x) => (x?.role === "user" || x?.role === "assistant") && typeof x.content === "string").slice(-8);
+      const last = msgs.at(-1);
+      if (!last || last.role !== "user") throw new Error("Ask something first.");
+      const earlier = msgs.slice(0, -1).map((x) => `${x.role === "user" ? "Owner" : "JARVIS"}: ${x.content.slice(0, 3000)}`).join("\n\n");
+      const question = `${earlier ? "Conversation so far:\n" + earlier + "\n\n" : ""}The owner's message, to answer directly and briefly in plain text:\n${last.content.slice(0, 6000)}`;
+      const out = await tools.run("ask_harness", { question, change: b.auto === true, engine }, { signal: ac.signal, status: (v) => emit({ t: "status", v }) });
+      const nl = out.indexOf("\n");
+      if (nl > 0 && /^Harness task /.test(out)) { emit({ t: "status", v: out.slice(0, nl).replace(/:$/, "") }); emit({ t: "text", v: out.slice(nl + 1).trim() }); }
+      else emit({ t: "text", v: out });
       emit({ t: "done" });
     } catch (e) {
       if (!ac.signal.aborted) emit({ t: "error", v: e.message });
