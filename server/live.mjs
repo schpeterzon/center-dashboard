@@ -34,6 +34,7 @@ export async function snapshot(fresh = false, wait = 2500) {
     markets: first("finnhub") && (() => src.markets(first("finnhub"), fresh)),
     adguard: first("adguard") && (() => src.adguard(first("adguard"), fresh)),
     tailscale: first("tailscale") && (() => src.tailscale(first("tailscale"), fresh)),
+    speedtest: first("speedtest") && (() => src.speedtest(first("speedtest"), fresh)),
     cloudflare: first("cloudflare") && (() => src.cloudflare(first("cloudflare"), fresh)),
     uptime: first("uptime-kuma") && (() => src.uptimeKuma(first("uptime-kuma"), fresh)),
     ollama: first("ollama") && (() => src.ollama(first("ollama"), fresh)),
@@ -263,6 +264,7 @@ export async function liveContext() {
   if (src2.markets?.ok) { const m = src2.markets.data; L.push(`Portfolio in US dollars ${m.total.toFixed(0)} (${m.dayPct != null ? (m.dayPct >= 0 ? "+" : "") + m.dayPct.toFixed(2) + "% today" : "no change data"}${m.invested != null ? `; ${m.invested.toFixed(0)} invested, ${m.gain >= 0 ? "+" : ""}${m.gain.toFixed(0)} (${m.gainPct.toFixed(1)}%) overall` : ""}): ${m.holdings.map((h) => `${h.symbol} ${h.qty}${h.cost ? " @" + h.cost : ""}${h.price ? " now " + h.price : ""}`).join(", ")}.`); }
   if (src2.github?.ok) { const g = src2.github.data; L.push(`GitHub: ${g.pulls.length} open PR(s) involving you${g.pulls.length ? ": " + g.pulls.slice(0, 6).map((p) => `${p.repo}#${p.number} ${p.title}`).join("; ") : ""}.`); }
   if (src2.proxmox?.ok) { const p = src2.proxmox.data, off = p.guests.filter((g) => g.status !== "running"); L.push(`Proxmox: ${p.nodes.map((n) => `${n.name} ${n.online ? `cpu ${n.cpu}% ram ${n.ram}%` : "OFFLINE"}`).join("; ")}; ${p.guests.length - off.length}/${p.guests.length} guests running${off.length ? " (stopped: " + off.slice(0, 10).map((g) => g.name).join(", ") + ")" : ""}.`); }
+  if (src2.speedtest?.ok) { const l = src2.speedtest.data.latest; L.push(`Internet speed (last speed test${l.at ? " " + new Date(l.at).toISOString().slice(0, 16).replace("T", " ") + " UTC" : ""}): ${l.down?.toFixed(0) ?? "?"} Mbit/s down, ${l.up?.toFixed(0) ?? "?"} up, ping ${l.ping?.toFixed(1) ?? "?"} ms${l.failed ? " (that test failed)" : ""}.`); }
   if (src2.jarvis?.ok) { const j = src2.jarvis.data, bad = j.services.filter((s) => s.state === "down" || s.state === "degraded"); L.push(`JARVIS server ${j.host.name}: cpu ${j.host.cpu ?? "?"}% ram ${j.host.ram ?? "?"}%${bad.length ? "; problems: " + bad.map((s) => `${s.name} ${s.state}`).join(", ") : "; its services are fine"}.`); }
   if (src2.http?.ok) { const d = src2.http.data.checks.filter((c) => !c.up); if (d.length) L.push(`Custom endpoints down: ${d.map((c) => c.name).join(", ")}.`); }
   if (src2.jellyfin?.ok && src2.jellyfin.data.playing.length) L.push(`Playing on Jellyfin: ${src2.jellyfin.data.playing.map((p) => `${p.title} (${p.user} on ${p.device}${p.paused ? ", paused" : ""})`).join("; ")}.`);

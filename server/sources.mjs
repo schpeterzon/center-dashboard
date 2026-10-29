@@ -4,7 +4,7 @@ import { request, pinnedRequest, baseUrl, cached, str, num, SourceError } from "
 import { open, state, persist } from "./store.mjs";
 
 const secret = (c, k) => { try { return c.secrets?.[k] ? open(c.secrets[k]) : ""; } catch { throw new SourceError("a saved secret could not be opened"); } };
-const caches = { feeds: cached(15 * 60e3), weather: cached(15 * 60e3), geo: cached(24 * 3600e3), ha: cached(8000), haHistory: cached(5 * 60e3), github: cached(2 * 60e3), markets: cached(60e3), adguard: cached(60e3), tailscale: cached(2 * 60e3), prom: cached(30e3), cloudflare: cached(10 * 60e3), kuma: cached(30e3), ollama: cached(10e3), proxmox: cached(20e3), jellyfin: cached(20e3), jarvis: cached(20e3), http: cached(60e3) };
+const caches = { feeds: cached(15 * 60e3), weather: cached(15 * 60e3), geo: cached(24 * 3600e3), ha: cached(8000), haHistory: cached(5 * 60e3), github: cached(2 * 60e3), markets: cached(60e3), adguard: cached(60e3), tailscale: cached(2 * 60e3), prom: cached(30e3), cloudflare: cached(10 * 60e3), kuma: cached(30e3), ollama: cached(10e3), proxmox: cached(20e3), jellyfin: cached(20e3), jarvis: cached(20e3), http: cached(60e3), pxTraffic: cached(5 * 60e3), speedtest: cached(5 * 60e3) };
 
 // ---------------------------------------------------------------- news feeds (RSS / Atom)
 const ENT = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
@@ -313,9 +313,20 @@ export async function proxmox(c, fresh) {
   const url = baseUrl(c.values?.url, "Proxmox URL"), pin = str(c.values?.fingerprint, 120).trim();
   const auth = { authorization: `PVEAPIToken=${str(c.values?.tokenId, 120).trim()}=${secret(c, "secret")}` };
   return caches.proxmox(c.id, async () => {
-    const path = `${url}/api2/json/cluster/resources`, r = pin ? await pinnedRequest(path, pin, { headers: auth }) : await request(path, { headers: auth });
+    const get = (path) => pin ? pinnedRequest(`${url}/api2/json/${path}`, pin, { headers: auth }) : request(`${url}/api2/json/${path}`, { headers: auth });
+    const r = await get("cluster/resources");
     const all = r?.data || [], pct = (a, b) => (a != null && b ? Math.round(a / b * 100) : null);
+    // Network traffic of the hosts over the last day (Proxmox keeps it as RRD data), in Mbit/s.
+    const online = all.filter((x) => x.type === "node" && x.status === "online").map((n) => str(n.node, 60));
+    const traffic = await caches.pxTraffic(c.id, async () => {
+      const per = await Promise.all(online.map((n) => get(`nodes/${encodeURIComponent(n)}/rrddata?timeframe=day&cf=AVERAGE`).then((x) => x?.data || []).catch(() => [])));
+      const sum = new Map();
+      for (const rows of per) for (const row of rows) { if (row.netin == null) continue; const t = row.time * 1000, v = sum.get(t) || [0, 0]; sum.set(t, [v[0] + row.netin * 8 / 1e6, v[1] + (row.netout || 0) * 8 / 1e6]); }
+      const pts = [...sum].sort((a, b) => a[0] - b[0]);
+      return pts.length ? { nodes: online, rx: pts.map(([t, v]) => [t, +v[0].toFixed(2)]), tx: pts.map(([t, v]) => [t, +v[1].toFixed(2)]) } : null;
+    }, fresh).catch(() => null);
     return {
+      traffic,
       nodes: all.filter((x) => x.type === "node").map((n) => ({ name: str(n.node, 60), online: n.status === "online", cpu: n.cpu != null ? Math.round(n.cpu * 100) : null, ram: pct(n.mem, n.maxmem), disk: pct(n.disk, n.maxdisk), uptime: num(n.uptime) })),
       guests: all.filter((x) => (x.type === "qemu" || x.type === "lxc") && !x.template).slice(0, 120).map((g) => ({ id: num(g.vmid), name: str(g.name || g.vmid, 80), kind: g.type === "lxc" ? "container" : "vm", node: str(g.node, 60), status: str(g.status, 20), cpu: g.status === "running" && g.cpu != null ? Math.round(g.cpu * 100) : null, ram: g.status === "running" ? pct(g.mem, g.maxmem) : null, uptime: num(g.uptime) })),
       storage: all.filter((x) => x.type === "storage" && x.maxdisk).slice(0, 20).map((s) => ({ name: str(s.storage, 60), node: str(s.node, 60), used: pct(s.disk, s.maxdisk) })),
@@ -362,5 +373,28 @@ export async function customHttp(c, fresh) {
     let values = [];
     try { const j = JSON.parse(body); if (j && typeof j === "object" && !Array.isArray(j)) values = Object.entries(j).filter(([, v]) => v == null || ["string", "number", "boolean"].includes(typeof v)).slice(0, 8).map(([k, v]) => [str(k, 40), str(v, 80)]); } catch {}
     return { id: c.id, name: str(c.values?.label, 60) || new URL(url).host, ms: Date.now() - t0, values };
+  }, fresh);
+}
+
+// ---------------------------------------------------------------- Speedtest Tracker: internet speed tests
+// The latest result comes from its public endpoint; with an API token the history comes from it too,
+// otherwise the dashboard keeps one entry per new test itself (two weeks).
+export async function speedtest(c, fresh) {
+  const url = baseUrl(c.values?.url, "Speedtest Tracker URL"), token = c.secrets?.token ? secret(c, "token") : "";
+  return caches.speedtest(c.id, async () => {
+    const r = await request(`${url}/api/speedtest/latest`), d = r?.data || {};
+    const at = Date.parse(d.created_at) || null;
+    const latest = { id: num(d.id), down: num(d.download), up: num(d.upload), ping: num(d.ping), at, server: str(d.server_name, 80), failed: !!d.failed, url: /^https:\/\//.test(d.url || "") ? str(d.url, 300) : "" };
+    let history = null;
+    if (token) {
+      const h = await request(`${url}/api/v1/results?sort=-created_at&page[size]=200`, { headers: { authorization: `Bearer ${token}` } }).catch(() => null);
+      if (h?.data) history = h.data.map((x) => ({ at: Date.parse(x.created_at), down: num(x.download_bits) != null ? num(x.download_bits) / 1e6 : num(x.download), up: num(x.upload_bits) != null ? num(x.upload_bits) / 1e6 : num(x.upload), ping: num(x.ping) })).filter((x) => x.at && x.down != null).reverse();
+    }
+    if (!history) {
+      const list = (state.speedHistory ||= []);
+      if (latest.id != null && latest.at && !latest.failed && !list.some((x) => x.id === latest.id)) { list.push({ id: latest.id, at: latest.at, down: latest.down, up: latest.up, ping: latest.ping }); state.speedHistory = list.filter((x) => x.at > Date.now() - 14 * 864e5).slice(-400); persist(); }
+      history = state.speedHistory.map(({ at, down, up, ping }) => ({ at, down, up, ping }));
+    }
+    return { latest, history, stale: at ? Date.now() - at > 3 * 3600e3 : true };
   }, fresh);
 }

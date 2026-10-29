@@ -344,3 +344,22 @@ test("a conversation can be answered through a Harness instead of the API key", 
   assert.ok(parts.some((p) => p.t === "status" && /task_0new000001/.test(p.v)));
   assert.match(created.at(-1).objective, /Conversation so far:[\s\S]*Owner: earlier[\s\S]*which vm has mariadb/);
 });
+
+test("Speedtest Tracker feeds the Network page and keeps a history", async () => {
+  let id = 40;
+  const st = http.createServer((req, res) => {
+    if (req.url !== "/api/speedtest/latest") return res.writeHead(404).end();
+    res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ message: "ok", data: { id: ++id, ping: 3.1, download: 903.4, upload: 318.1, server_name: "ZNET", url: "https://www.speedtest.net/result/c/x", failed: false, created_at: new Date().toISOString() } }));
+  });
+  await new Promise((r) => st.listen(0, "127.0.0.1", r));
+  try {
+    const c = await connect("speedtest", { url: `http://127.0.0.1:${st.address().port}` });
+    assert.equal(c.status, 200, JSON.stringify(c.body));
+    const s = (await call("/api/live?fresh=1")).body.sources.speedtest;
+    assert.equal(s.ok, true, s.error);
+    assert.equal(Math.round(s.data.latest.down), 903);
+    assert.equal(s.data.history.length, 1);
+    assert.equal(s.data.stale, false);
+    await call(`/api/connections/${c.body.connection.id}`, { method: "DELETE" });
+  } finally { st.close(); }
+});
